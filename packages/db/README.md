@@ -13,13 +13,14 @@ Migraciones SQL de la base de datos compartida por la API, el worker y los flujo
 
 ## Estado
 
-| Migración                                          | Qué hace                                                                                                                                               | Riesgo           |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| `0000_baseline.sql`                                | Esquema actual de EasyOrder (M-1…M-31). En producción ya está aplicado.                                                                                | Ninguno          |
-| `0001_access_modules_rbac.sql`                     | Módulos por restaurante, planes, permisos, roles, auditoría inmutable. Los restaurantes actuales pasan al plan premium y cada miembro conserva su rol. | Bajo: solo añade |
-| `0002_orders_tracking_outbox.sql`                  | `tracking_token` aleatorio, `idempotency_key` y tabla `outbox_evento`.                                                                                 | Bajo: solo añade |
-| `proposed/0100_tenant_not_null.sql`                | `restaurante_id NOT NULL` en 9 tablas. Falla si hay filas huérfanas.                                                                                   | Medio            |
-| `proposed/0101_drop_legacy_function_overloads.sql` | Borra versiones antiguas de funciones sin `restaurante_id`.                                                                                            | Medio            |
+| Migración                                          | Qué hace                                                                                                                                               | Riesgo                                      |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `0000_baseline.sql`                                | Esquema actual de EasyOrder (M-1…M-31). En producción ya está aplicado.                                                                                | Ninguno                                     |
+| `0001_access_modules_rbac.sql`                     | Módulos por restaurante, planes, permisos, roles, auditoría inmutable. Los restaurantes actuales pasan al plan premium y cada miembro conserva su rol. | Bajo: solo añade                            |
+| `0002_orders_tracking_outbox.sql`                  | `tracking_token` aleatorio, `idempotency_key` y tabla `outbox_evento`.                                                                                 | Bajo: solo añade                            |
+| `0003_sucursales.sql`                              | Locales por restaurante (`sucursal`), `sucursal_id` en pedidos, zonas, mesas y meseros (principal por defecto). Ver ADR 0007.                          | Bajo: solo añade; rellena `pedidos` una vez |
+| `proposed/0100_tenant_not_null.sql`                | `restaurante_id NOT NULL` en 9 tablas. Falla si hay filas huérfanas.                                                                                   | Medio                                       |
+| `proposed/0101_drop_legacy_function_overloads.sql` | Borra versiones antiguas de funciones sin `restaurante_id`.                                                                                            | Medio                                       |
 
 ## Uso
 

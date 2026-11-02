@@ -58,3 +58,61 @@ INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)
 SELECT 101, modulo_code, 'plan' FROM public.plan_modulo WHERE plan_code = 'premium';
 INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)
 SELECT 102, modulo_code, 'plan' FROM public.plan_modulo WHERE plan_code = 'basico';
+
+-- ---------------------------------------------------------------------------
+-- Restaurante C con varios locales (sucursales). La principal la crea el trigger.
+-- ---------------------------------------------------------------------------
+INSERT INTO public.restaurante (id, nombre, slug, zona_horaria, payment_methods)
+OVERRIDING SYSTEM VALUE VALUES
+  (103, 'Cafetería con dos locales', 'prueba-c', 'Atlantic/Canary', '["efectivo", "tarjeta"]');
+
+INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value) VALUES
+  (103, 'is_open_override', 'true');
+
+UPDATE public.sucursal SET nombre = 'Centro', lat = 28.9637, lng = -13.5477
+WHERE restaurante_id = 103 AND es_principal;
+
+INSERT INTO public.sucursal (id, restaurante_id, nombre, slug, lat, lng, forzar_abierto) VALUES
+  (3002, 103, 'Playa Honda', 'playa-honda', 28.9539, -13.5772, NULL),
+  (3003, 103, 'Puerto (cerrado)', 'puerto', 28.9600, -13.5400, false);
+
+-- Un local extra en B, que no tiene el módulo de varios locales: no debe verse.
+INSERT INTO public.sucursal (id, restaurante_id, nombre, slug) VALUES (2002, 102, 'Oculto', 'oculto');
+
+INSERT INTO public.menu_category (menu_category_id, name, sort_order, restaurante_id)
+OVERRIDING SYSTEM VALUE VALUES (3001, 'Bocadillos', 1, 103);
+INSERT INTO public.menu_item (menu_item_id, menu_category_id, name, restaurante_id, is_active)
+OVERRIDING SYSTEM VALUE VALUES
+  (3201, 3001, 'Bocadillo', 103, true),
+  (3202, 3001, 'Croquetas', 103, true);
+INSERT INTO public.menu_variant (menu_variant_id, menu_item_id, variant_name, price, restaurante_id, is_default)
+OVERRIDING SYSTEM VALUE VALUES
+  (3301, 3201, 'Normal', 6.00, 103, true),
+  (3302, 3202, 'Ración', 8.00, 103, true);
+
+-- Las croquetas no se sirven en Playa Honda.
+INSERT INTO public.sucursal_item_no_disponible (sucursal_id, menu_item_id) VALUES (3002, 3202);
+
+-- Zonas de reparto por coordenadas: cada una de un local. Ambas cubren la zona de Playa Honda.
+INSERT INTO public.delivery_zone
+  (delivery_zone_id, zone_name, fee, min_order_amount, restaurante_id, lat_center, lng_center, radius_km, sucursal_id)
+OVERRIDING SYSTEM VALUE VALUES
+  (3101, 'Radio Centro', 2.00, 0, 103, 28.9637, -13.5477, 5, NULL),
+  (3102, 'Radio Playa', 1.50, 0, 103, 28.9539, -13.5772, 3, 3002);
+
+-- Propietario (todos los locales) y cajero limitado a Playa Honda.
+INSERT INTO public.local_memberships (user_id, restaurante_id, rol) VALUES
+  ('00000000-0000-0000-0000-0000000000c1', 103, 'owner'),
+  ('00000000-0000-0000-0000-0000000000c2', 103, 'viewer');
+INSERT INTO public.membresia_rol (membership_id, rol_id)
+SELECT m.id, r.id FROM public.local_memberships m
+JOIN public.rol r ON r.restaurante_id IS NULL
+ AND r.code = CASE WHEN m.rol = 'owner' THEN 'owner' ELSE 'staff' END
+WHERE m.restaurante_id = 103;
+INSERT INTO public.membresia_sucursal (membership_id, sucursal_id)
+SELECT id, 3002 FROM public.local_memberships
+WHERE user_id = '00000000-0000-0000-0000-0000000000c2';
+
+INSERT INTO public.restaurante_plan (restaurante_id, plan_code) VALUES (103, 'premium');
+INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)
+SELECT 103, modulo_code, 'plan' FROM public.plan_modulo WHERE plan_code = 'premium';

@@ -13,6 +13,8 @@ const DEFERRED_PAYMENT_METHODS = new Set(["transferencia", "bizum"]);
 
 export type NewOrder = {
   readonly restauranteId: number;
+  /** Local que prepara (recogida) o despacha (reparto) el pedido. */
+  readonly sucursalId: number;
   readonly idempotencyKey: string;
   readonly nombre: string;
   readonly telefono: string;
@@ -20,6 +22,9 @@ export type NewOrder = {
   readonly fulfillment: Fulfillment;
   readonly direccion: string | null;
   readonly postalCode: string | null;
+  /** Ubicación del cliente (solo reparto) y distancia al local que despacha. */
+  readonly customerPoint: { readonly lat: number; readonly lng: number } | null;
+  readonly distanciaKm: number | null;
   readonly metodoPago: string;
   readonly tiempoEstimado: string;
   readonly notas: string | null;
@@ -135,7 +140,8 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
         INSERT INTO public.pedidos (
           restaurante_id, telefono, usuario_id, items, subtotal, costo_envio, total,
           tipo_despacho, direccion, postal_code, tiempo_estimado, metodo_pago,
-          estado, estado_pago, notas, canal, nombre_pedido, idempotency_key
+          estado, estado_pago, notas, canal, nombre_pedido, idempotency_key,
+          sucursal_id, lat, lng, distancia_km
         ) VALUES (
           ${order.restauranteId}, ${order.telefono}, ${usuario[0]?.id ?? null},
           ${tx.json(legacyItemsSnapshot(quote))}, ${subtotal},
@@ -143,7 +149,9 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           ${order.fulfillment}, ${order.direccion}, ${order.postalCode}, ${order.tiempoEstimado},
           ${order.metodoPago}, ${ORDER_STATUS.Received}, ${estadoPago},
           ${notas.length > 0 ? tx.json(notas) : null}, ${ORDER_CHANNEL_WEB}, ${order.nombrePedido},
-          ${order.idempotencyKey}
+          ${order.idempotencyKey}, ${order.sucursalId}, ${order.customerPoint?.lat ?? null},
+          ${order.customerPoint?.lng ?? null},
+          ${order.distanciaKm === null ? null : Math.round(order.distanciaKm * 100) / 100}
         )
         RETURNING id, pedido_codigo, tracking_token, estado
       `;
@@ -182,6 +190,8 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
 export type TrackedOrder = {
   readonly pedidoCodigo: string | null;
   readonly restaurante: string;
+  /** Local que prepara o despacha (dirección del local, nunca la del cliente). */
+  readonly local: { readonly nombre: string; readonly direccion: string | null } | null;
   readonly estado: string;
   readonly estadoPago: string;
   readonly tipoDespacho: string | null;
@@ -208,6 +218,8 @@ export async function findOrderByTrackingToken(
     {
       pedido_codigo: string | null;
       restaurante: string;
+      local_nombre: string | null;
+      local_direccion: string | null;
       estado: string;
       estado_pago: string;
       tipo_despacho: string | null;
@@ -224,9 +236,11 @@ export async function findOrderByTrackingToken(
   >`
     SELECT p.pedido_codigo, r.nombre AS restaurante, p.estado, p.estado_pago, p.tipo_despacho,
            p.tiempo_estimado, p.items, p.subtotal, p.costo_envio, p.total, p.metodo_pago,
-           r.datos_bancarios, p.created_at, p.updated_at
+           r.datos_bancarios, p.created_at, p.updated_at,
+           s.nombre AS local_nombre, s.direccion AS local_direccion
     FROM   public.pedidos p
     JOIN   public.restaurante r ON r.id = p.restaurante_id
+    LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
     WHERE  p.tracking_token = ${token}::uuid
     LIMIT  1
   `;
@@ -238,6 +252,7 @@ export async function findOrderByTrackingToken(
   return {
     pedidoCodigo: row.pedido_codigo,
     restaurante: row.restaurante,
+    local: row.local_nombre ? { nombre: row.local_nombre, direccion: row.local_direccion } : null,
     estado: row.estado,
     estadoPago: row.estado_pago,
     tipoDespacho: row.tipo_despacho,
