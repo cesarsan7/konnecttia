@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { Footer } from "./Footer";
-import { Header } from "./Header";
+import "./konnecttia/konnecttia.css";
 
 type LegalPageProps = {
   readonly title: string;
@@ -11,18 +10,45 @@ type LegalPageProps = {
 /** Plantilla de páginas legales. Los datos marcados como «pendiente» los completa el promotor. */
 export function LegalPage({ title, updated, children }: LegalPageProps) {
   return (
-    <>
-      <Header />
-      <main className="wrap max-w-[760px] py-16 [&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-extrabold [&_li]:copy [&_p]:copy [&_p]:mb-3 [&_ul]:mb-3 [&_ul]:list-disc [&_ul]:pl-6">
-        <h1 className="mb-2 text-4xl font-extrabold tracking-tight">{title}</h1>
-        <p className="!text-sm">Última actualización: {updated}</p>
-        {children}
+    <div className="kt">
+      <header className="header scrolled">
+        <div className="wrap nav">
+          <a className="brand" href="/" aria-label="Konnecttia, inicio">
+            <img
+              src="/konnecttia/brand/konnecttia-logo.svg"
+              alt="Konnecttia"
+              width="176"
+              height="34"
+            />
+          </a>
+          <a className="btn btn-ghost btn-sm" href="/">
+            Volver al inicio
+          </a>
+        </div>
+      </header>
+      <main className="section legal">
+        <div className="wrap legal-body">
+          <h1>{title}</h1>
+          <p className="legal-updated">Última actualización: {updated}</p>
+          {children}
+        </div>
       </main>
-      <Footer />
-    </>
+      <footer className="footer">
+        <div className="wrap">
+          <div className="foot-bottom">
+            <span>© Konnecttia · Canarias</span>
+            <nav aria-label="Legal">
+              <a href="/aviso-legal">Aviso legal</a>
+              <a href="/privacidad">Privacidad</a>
+              <a href="/cookies">Cookies</a>
+            </nav>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }
 
 export function Pending({ children }: { readonly children: ReactNode }) {
-  return <mark className="rounded bg-amber-100 px-1 text-amber-900">[Pendiente: {children}]</mark>;
+  return <mark className="pending">[Pendiente: {children}]</mark>;
 }

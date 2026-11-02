@@ -3,29 +3,28 @@ import { demoRequestSchema } from "./demo-request";
 
 const valid = {
   nombre: "Ana",
-  negocio: "Pizzería de prueba",
-  municipio: "Arrecife",
+  restaurante: "Pizzería de prueba",
+  ubicacion: "",
   contacto: "+34 600 000 000",
-  producto: "EasyOrder",
   mensaje: "",
-  privacidad: true,
+  consentimiento: true,
   website: "",
 };
 
 describe("demoRequestSchema", () => {
-  it("acepta una solicitud válida con teléfono o correo", () => {
+  it("acepta una solicitud válida con teléfono o correo y sin ubicación", () => {
     expect(demoRequestSchema.safeParse(valid).success).toBe(true);
     expect(demoRequestSchema.safeParse({ ...valid, contacto: "ana@example.com" }).success).toBe(
       true,
     );
   });
 
-  it("exige aceptar la privacidad", () => {
-    expect(demoRequestSchema.safeParse({ ...valid, privacidad: false }).success).toBe(false);
+  it("exige el consentimiento", () => {
+    expect(demoRequestSchema.safeParse({ ...valid, consentimiento: false }).success).toBe(false);
   });
 
-  it("rechaza contactos no válidos y productos desconocidos", () => {
+  it("rechaza contactos no válidos y nombres vacíos", () => {
     expect(demoRequestSchema.safeParse({ ...valid, contacto: "hola" }).success).toBe(false);
-    expect(demoRequestSchema.safeParse({ ...valid, producto: "Otro" }).success).toBe(false);
+    expect(demoRequestSchema.safeParse({ ...valid, restaurante: "" }).success).toBe(false);
   });
 });

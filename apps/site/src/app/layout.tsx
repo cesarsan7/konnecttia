@@ -1,4 +1,3 @@
-import "@fontsource-variable/manrope";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
@@ -8,23 +7,24 @@ const SITE_URL = "https://konnecttia.com";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Konnecttia | Pedidos online para restaurantes de Canarias",
+    default: "Konnecttia · EasyOrder — Pedidos online para restaurantes de Canarias",
     template: "%s | Konnecttia",
   },
   description:
-    "Konnecttia crea herramientas digitales sencillas para negocios locales de Canarias. EasyOrder: carta online y pedidos para recoger o con reparto propio, sin comisión por pedido.",
+    "EasyOrder, de Konnecttia: carta online y pedidos para recogida o reparto propio, con la marca de tu restaurante y sin comisión por pedido. Tu aliado digital en Canarias.",
+  icons: { icon: "/konnecttia/brand/konnecttia-app-icon.svg" },
   openGraph: {
     type: "website",
     locale: "es_ES",
     url: SITE_URL,
     siteName: "Konnecttia",
-    images: [{ url: "/images/equipo-mostrador.jpg", width: 1500, height: 1000 }],
+    images: [{ url: "/konnecttia/img/hero.jpg", width: 1400, height: 933 }],
   },
   alternates: { canonical: "/" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#082f49",
+  themeColor: "#0E2A33",
 };
 
 type RootLayoutProps = { readonly children: ReactNode };
