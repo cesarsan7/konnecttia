@@ -89,7 +89,7 @@ Definición en código: `packages/access`. Siembra en base de datos:
 | Pieza           | Tecnología                                            | Motivo                                                                   |
 | --------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
 | Monorepo        | pnpm + Turborepo                                      | Productos separados con paquetes compartidos                             |
-| Web             | Next.js 16, React 19, Tailwind 4                      | Versiones actuales; páginas públicas rápidas                             |
+| Web             | Next.js 16, React 19 (landing con CSS propio)         | Versiones actuales; páginas públicas rápidas                             |
 | API             | Hono                                                  | Reutiliza la API de EasyOrder; HTTP estable para n8n, Kapso y worker     |
 | Base de datos   | PostgreSQL existente                                  | Conserva los datos de La Isla; se evoluciona con migraciones             |
 | Autenticación   | Supabase Auth (solo acceso)                           | Ya integrado; enlace mágico y Google                                     |
@@ -99,6 +99,21 @@ Definición en código: `packages/access`. Siembra en base de datos:
 | Calidad         | Biome, Vitest, Playwright, GitHub Actions             | Ninguna regla de negocio sin prueba                                      |
 
 Decisiones detalladas en [`adr/`](adr/).
+
+### Locales (sucursales)
+
+Un restaurante puede tener varios locales (módulo «Varios locales», plan Premium). La marca, la
+carta, el equipo y los clientes son del restaurante; cada pedido queda asignado a un local:
+
+- **Recogida**: el cliente elige el local o, si comparte su ubicación, se asigna el abierto más
+  cercano.
+- **Reparto**: cada zona pertenece a un local; reparte el local abierto más cercano que cubre la
+  dirección.
+- **Panel**: el dueño ve todos los locales y las ventas por local; un cajero o camarero puede
+  quedar limitado a su local.
+- **Compatibilidad**: lo que no indica local (n8n, dashboard actual) va al local principal.
+
+Detalle y consecuencias en [ADR 0007](adr/0007-sucursales.md).
 
 ### Referencias usadas
 
@@ -150,4 +165,6 @@ revisión del promotor.
 - Servicio de staging y copia de la base de datos en EasyPanel.
 - Datos legales de la entidad para aviso legal y privacidad.
 - Evaluación técnica de Kapso con un número de prueba (coexistencia, WhatsApp Web, tarifas).
+- n8n (Despacho): elegir local en los pedidos por WhatsApp de restaurantes con varios locales.
+- Inventario y compras por local (stock, recetas) sobre `pedidos.sucursal_id`.
 - Módulo «Novedades y reseñas» (ofertas de empleo, avisos, reseñas) para una fase posterior.

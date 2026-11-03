@@ -50,6 +50,9 @@ pnpm db:test     # aplica todas las migraciones en un Postgres temporal
 10. Reclamos o casos sensibles ⇒ derivar a humano.
 11. Carrito `en_curso` expira a los 30 min de inactividad; aviso a los 25 min.
 12. Alérgenos visibles antes de confirmar; nunca mostrar «sin alérgenos» si el dato falta.
+13. Varios locales: cada pedido pertenece a un local (`sucursal`). Recogida en el local elegido o el
+    abierto más cercano; reparto desde el local abierto más cercano que cubre la dirección. Un
+    local cerrado no acepta pedidos aunque otros estén abiertos (ADR 0007).
 
 ## Reglas técnicas
 
@@ -68,7 +71,8 @@ pnpm db:test     # aplica todas las migraciones en un Postgres temporal
 - **Webhooks entrantes:** autenticados (firma o secreto compartido) e idempotentes.
 - **Sin magic strings:** constantes o enums con nombre.
 - **Pruebas:** toda regla de dominio nueva lleva prueba unitaria; todo cambio de acceso, prueba de que el
-  restaurante A no ve datos del B.
+  restaurante A no ve datos del B y, si afecta a locales, que un usuario limitado a un local no ve
+  ni opera los de otro (`canAccessBranch` / `branchFilter`).
 
 ## Forma de trabajar
 
