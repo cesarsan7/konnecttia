@@ -18,12 +18,12 @@ Panel del restaurante (`/panel`, marca EasyOrder de Konnecttia):
 El panel muestra u oculta botones según `GET /panel/<slug>/acceso`, pero la API comprueba
 cada permiso en cada petición. `panel` es una ruta reservada: ningún restaurante puede tener ese slug.
 
-| Variable         | Para qué                                                                |
-| ---------------- | ----------------------------------------------------------------------- |
-| `API_URL`        | API vista desde el servidor de Next (red interna de EasyPanel)          |
-| `API_PUBLIC_URL` | API vista desde el navegador; debe estar en `ALLOWED_ORIGINS` de la API |
-| `SUPABASE_URL`   | Proyecto de Supabase Auth del panel (el mismo que usa la API)           |
-| `SUPABASE_ANON_KEY` | Clave pública (anon) de ese proyecto                                 |
+| Variable            | Para qué                                                                |
+| ------------------- | ----------------------------------------------------------------------- |
+| `API_URL`           | API vista desde el servidor de Next (red interna de EasyPanel)          |
+| `API_PUBLIC_URL`    | API vista desde el navegador; debe estar en `ALLOWED_ORIGINS` de la API |
+| `SUPABASE_URL`      | Proyecto de Supabase Auth del panel (el mismo que usa la API)           |
+| `SUPABASE_ANON_KEY` | Clave pública (anon) de ese proyecto                                    |
 
 Todas se leen en tiempo de ejecución (no hacen falta en el build).
 
