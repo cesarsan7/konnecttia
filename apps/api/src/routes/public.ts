@@ -1,10 +1,8 @@
 import {
   branchServes,
-  chooseDeliveryZone,
-  deliveryFee,
-  distanceKm,
+  centsFromDecimal,
+  deliveryChargeFor,
   ETA_SERVICE,
-  type EtaService,
   FULFILLMENT,
   type GeoPoint,
   type PricingContext,
@@ -18,20 +16,13 @@ import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
 import { createRateLimiter } from "../lib/rate-limit";
 import { resolveRestaurant } from "../middleware/tenant";
-import {
-  type BranchRecord,
-  coveringZones,
-  loadBranches,
-  openChecker,
-  unavailableItems,
-  zoneBranch,
-} from "../repositories/branches";
+import { loadBranches, openChecker, unavailableItems } from "../repositories/branches";
 import { loadCatalogForItems, loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
+import { resolveFulfillment } from "../repositories/fulfillment";
 import { createOrder, findOrderByTrackingToken } from "../repositories/orders";
 import {
   deliveryEta,
-  findDeliveryZone,
   fulfillmentEnabled,
   loadConfig,
   openOverride,
@@ -42,6 +33,8 @@ import {
 const MAX_LINES = 50;
 const ORDERS_PER_IP_PER_10_MIN = 20;
 const TRACKING_PER_IP_PER_MIN = 60;
+/** n8n llama desde la red interna (una sola IP para todos los chats): margen amplio. */
+const QUOTES_PER_IP_PER_MIN = 300;
 const IDEMPOTENCY_HEADER = "Idempotency-Key";
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -121,11 +114,46 @@ function roundKm(value: number | null): number | null {
   return value === null ? null : Math.round(value * 10) / 10;
 }
 
+/**
+ * Cotización de despacho (sin crear pedido): la usa el agente de WhatsApp (n8n, subflujo
+ * Despacho) para aplicar las mismas zonas, tarifas, mínimos y tiempos que la web.
+ */
+export const quoteBodySchema = z
+  .object({
+    tipo_despacho: z.enum([FULFILLMENT.Pickup, FULFILLMENT.Delivery]),
+    /** Subtotal de productos en euros (lo calcula n8n con los precios de la base). */
+    subtotal: z.number().min(0).max(100_000),
+    sucursal_id: positiveInt.optional(),
+    zona_id: positiveInt.optional(),
+    lat: latitude.optional(),
+    lng: longitude.optional(),
+    codigo_postal: z.string().trim().max(10).optional(),
+    zona_nombre: z.string().trim().max(120).optional(),
+    /** Recogida: texto del cliente con el local («el de Carlos V»). */
+    texto_local: z.string().trim().max(300).optional(),
+  })
+  .refine((body) => (body.lat === undefined) === (body.lng === undefined), {
+    path: ["lng"],
+    message: "lat y lng van juntas",
+  });
+
+/** Motivo legible (para el agente) de cada error de despacho. */
+const QUOTE_REASON: Partial<Record<string, string>> = {
+  [API_ERROR.DeliveryZoneNotFound]: "fuera_de_cobertura",
+  [API_ERROR.RestaurantClosed]: "local_cerrado",
+  [API_ERROR.LocationRequired]: "ubicacion_necesaria",
+  [API_ERROR.BranchRequired]: "elegir_local",
+  [API_ERROR.BranchNotAvailable]: "local_no_disponible",
+  [API_ERROR.DeliveryNotAvailable]: "reparto_no_disponible",
+  [API_ERROR.PickupNotAvailable]: "recogida_no_disponible",
+};
+
 export function publicRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   const ordersLimited = createRateLimiter(ORDERS_PER_IP_PER_10_MIN, 10 * 60_000);
   const trackingLimited = createRateLimiter(TRACKING_PER_IP_PER_MIN, 60_000);
   const clientIp = (header: string | undefined) => header ?? "desconocida";
+  const quotesLimited = createRateLimiter(QUOTES_PER_IP_PER_MIN, 60_000);
 
   // Seguimiento por token aleatorio: no depende del restaurante ni del código visible.
   app.get("/orders/:token", async (c) => {
@@ -300,6 +328,100 @@ export function publicRoutes(deps: AppDeps) {
     });
   });
 
+  app.post("/:slug/cotizacion", async (c) => {
+    const restaurant = c.get("restaurant");
+    if (quotesLimited(`${restaurant.id}:${clientIp(c.req.header(deps.clientIpHeader))}`)) {
+      return fail(c, 429, API_ERROR.RateLimited);
+    }
+    const parsed = quoteBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return fail(c, 400, API_ERROR.InvalidBody, {
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    }
+    const body = parsed.data;
+    const unavailable = (error: string, extra: Record<string, unknown> = {}) =>
+      c.json({
+        disponible: false,
+        motivo: QUOTE_REASON[error] ?? error,
+        tipo_despacho: body.tipo_despacho,
+        metodos_pago: restaurant.paymentMethods,
+        ...extra,
+      });
+
+    if (!fulfillmentEnabled(restaurant, body.tipo_despacho)) {
+      return unavailable(
+        body.tipo_despacho === FULFILLMENT.Delivery
+          ? API_ERROR.DeliveryNotAvailable
+          : API_ERROR.PickupNotAvailable,
+      );
+    }
+    const [branches, config] = await Promise.all([
+      loadBranches(deps.sql, restaurant.id),
+      loadConfig(deps.sql, restaurant.id),
+    ]);
+    const isOpen = await openChecker(
+      deps.sql,
+      restaurant,
+      branches,
+      openOverride(config),
+      deps.now(),
+    );
+    const point: GeoPoint | null =
+      body.lat !== undefined && body.lng !== undefined ? { lat: body.lat, lng: body.lng } : null;
+    const resolved = await resolveFulfillment(deps.sql, restaurant.id, branches, config, isOpen, {
+      fulfillment: body.tipo_despacho,
+      ...(body.sucursal_id !== undefined ? { branchId: body.sucursal_id } : {}),
+      ...(body.zona_id !== undefined ? { zoneId: body.zona_id } : {}),
+      point,
+      postalCode: body.codigo_postal || null,
+      zoneName: body.zona_nombre || null,
+      branchHint: body.texto_local || null,
+    });
+    if (!resolved.ok) return unavailable(resolved.error, resolved.extra);
+
+    const { branch, delivery } = resolved;
+    const eta = (await loadEtaContext(deps.sql, restaurant, config, deps.now())).resolve(
+      resolved.etaBase,
+      resolved.etaService,
+      branch.id,
+    );
+    const subtotalCents = centsFromDecimal(body.subtotal);
+    const charge = delivery
+      ? deliveryChargeFor(subtotalCents, {
+          feeCents: delivery.feeCents,
+          minOrderCents: delivery.minOrderCents,
+          freeFromCents: delivery.freeFromCents,
+        })
+      : null;
+    const euros = (value: number) => value / 100;
+    return c.json({
+      disponible: true,
+      motivo: null,
+      tipo_despacho: body.tipo_despacho,
+      local: { id: branch.id, nombre: branch.name, direccion: branch.address },
+      zona: delivery ? { id: delivery.zoneId, nombre: delivery.zoneName } : null,
+      codigo_postal: resolved.postalCode,
+      distancia_km:
+        delivery?.distanceKm === null || !delivery
+          ? null
+          : Math.round(delivery.distanceKm * 100) / 100,
+      subtotal: euros(subtotalCents),
+      envio: charge ? euros(charge.feeCents) : 0,
+      minimo: delivery ? euros(delivery.minOrderCents) : 0,
+      alcanza_minimo: charge ? charge.meetsMinimum : true,
+      falta_para_minimo: charge ? euros(charge.missingCents) : 0,
+      envio_gratis_desde: delivery?.freeFromCents == null ? null : euros(delivery.freeFromCents),
+      total: euros(subtotalCents + (charge?.feeCents ?? 0)),
+      /** null = el restaurante no tiene tiempo configurado («a confirmar»). */
+      tiempo_estimado: eta,
+      metodos_pago: restaurant.paymentMethods,
+    });
+  });
+
   app.post("/:slug/orders", async (c) => {
     const restaurant = c.get("restaurant");
     if (ordersLimited(`${restaurant.id}:${clientIp(c.req.header(deps.clientIpHeader))}`)) {
@@ -351,92 +473,29 @@ export function publicRoutes(deps: AppDeps) {
     const customerPoint: GeoPoint | null =
       body.lat !== undefined && body.lng !== undefined ? { lat: body.lat, lng: body.lng } : null;
 
-    let pricingContext: PricingContext = {
-      fulfillment: FULFILLMENT.Pickup,
+    const resolved = await resolveFulfillment(deps.sql, restaurant.id, branches, config, isOpen, {
+      fulfillment: body.tipo_despacho,
+      ...(body.sucursal_id !== undefined ? { branchId: body.sucursal_id } : {}),
+      ...(body.zona_id !== undefined ? { zoneId: body.zona_id } : {}),
+      point: customerPoint,
+    });
+    if (!resolved.ok) {
+      return fail(c, 422, resolved.error, resolved.extra);
+    }
+    const { branch, delivery, etaBase, etaService, postalCode } = resolved;
+    const pricingContext: PricingContext = {
+      fulfillment: body.tipo_despacho,
       surcharges: surchargeRules(config),
+      ...(delivery
+        ? {
+            delivery: {
+              feeCents: delivery.feeCents,
+              minOrderCents: delivery.minOrderCents,
+              freeFromCents: delivery.freeFromCents,
+            },
+          }
+        : {}),
     };
-    let etaBase = pickupEta(config);
-    let etaService: EtaService = ETA_SERVICE.Pickup;
-    let postalCode: string | null = null;
-    let branch: BranchRecord | undefined;
-
-    if (body.tipo_despacho === FULFILLMENT.Pickup) {
-      if (body.sucursal_id !== undefined) {
-        branch = branches.find((candidate) => candidate.id === body.sucursal_id);
-        if (!branch || !branchServes(branch, FULFILLMENT.Pickup)) {
-          return fail(c, 422, API_ERROR.BranchNotAvailable);
-        }
-        if (!isOpen(branch)) return fail(c, 422, API_ERROR.RestaurantClosed);
-      } else {
-        const open = rankBranches(branches, FULFILLMENT.Pickup, { from: customerPoint, isOpen });
-        if (open.length === 0) return fail(c, 422, API_ERROR.RestaurantClosed);
-        // Con varios locales abiertos y sin ubicación, el cliente debe elegir dónde recoge.
-        if (open.length > 1 && !customerPoint) {
-          return fail(c, 422, API_ERROR.BranchRequired, {
-            locales: open.map((candidate) => ({
-              id: candidate.branch.id,
-              nombre: candidate.branch.name,
-            })),
-          });
-        }
-        branch = open[0]?.branch;
-      }
-    } else {
-      let zoneId: number | undefined;
-      if (body.zona_id !== undefined) {
-        const branchId = await zoneBranch(deps.sql, restaurant.id, body.zona_id);
-        branch = branches.find((candidate) => candidate.id === branchId);
-        if (!branch) return fail(c, 422, API_ERROR.DeliveryZoneNotFound);
-        if (!branchServes(branch, FULFILLMENT.Delivery)) {
-          return fail(c, 422, API_ERROR.DeliveryNotAvailable);
-        }
-        if (!isOpen(branch)) return fail(c, 422, API_ERROR.RestaurantClosed);
-        zoneId = body.zona_id;
-      } else {
-        // Reparte el local abierto más cercano entre los que cubren la ubicación del cliente.
-        const covering = await coveringZones(deps.sql, restaurant.id, {
-          point: customerPoint,
-          postalCode: null,
-        });
-        const choice = chooseDeliveryZone(covering, branches, customerPoint, isOpen);
-        if (!choice) {
-          const closedOnly = chooseDeliveryZone(covering, branches, customerPoint);
-          return fail(
-            c,
-            422,
-            closedOnly ? API_ERROR.RestaurantClosed : API_ERROR.DeliveryZoneNotFound,
-          );
-        }
-        branch = choice.branch;
-        zoneId = choice.zoneId;
-      }
-      const zone = await findDeliveryZone(deps.sql, restaurant.id, zoneId, config);
-      if (!zone || !branch) {
-        return fail(c, 422, API_ERROR.DeliveryZoneNotFound);
-      }
-      // Distancia en línea recta del local al cliente (para tarifas por km).
-      const km =
-        customerPoint && branch.location ? distanceKm(customerPoint, branch.location) : null;
-      const fee = deliveryFee(zone.fee, km);
-      if (!fee.ok) {
-        return fail(c, 422, API_ERROR.LocationRequired);
-      }
-      pricingContext = {
-        ...pricingContext,
-        fulfillment: FULFILLMENT.Delivery,
-        delivery: {
-          feeCents: fee.feeCents,
-          minOrderCents: zone.minOrderCents,
-          freeFromCents: zone.freeFromCents,
-        },
-      };
-      etaBase = zone.eta;
-      etaService = ETA_SERVICE.Delivery;
-      postalCode = zone.postalCode;
-    }
-    if (!branch) {
-      return fail(c, 422, API_ERROR.BranchNotAvailable);
-    }
     const eta = (await loadEtaContext(deps.sql, restaurant, config, deps.now())).resolve(
       etaBase,
       etaService,
@@ -479,10 +538,7 @@ export function publicRoutes(deps: AppDeps) {
       direccion: body.tipo_despacho === FULFILLMENT.Delivery ? (body.direccion ?? null) : null,
       postalCode,
       customerPoint: body.tipo_despacho === FULFILLMENT.Delivery ? customerPoint : null,
-      distanciaKm:
-        body.tipo_despacho === FULFILLMENT.Delivery && customerPoint && branch.location
-          ? distanceKm(customerPoint, branch.location)
-          : null,
+      distanciaKm: delivery?.distanceKm ?? null,
       metodoPago: body.metodo_pago,
       tiempoEstimado: eta,
       notas: body.notas ?? null,
