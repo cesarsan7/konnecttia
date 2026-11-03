@@ -26,8 +26,9 @@
   --pill: 999px;
   --shadow-1: 0 1px 2px rgba(14, 42, 51, 0.06), 0 8px 24px rgba(14, 42, 51, 0.06);
   --shadow-2: 0 2px 4px rgba(14, 42, 51, 0.06), 0 20px 48px rgba(14, 42, 51, 0.14);
-  --f-display: "Bricolage Grotesque", "Manrope", system-ui, sans-serif;
-  --f-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-display:
+    "Bricolage Grotesque Variable", "Bricolage Grotesque", "Manrope Variable", system-ui, sans-serif;
+  --f-body: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   background: var(--sand-50);
   color: var(--ink);
   font-family: var(--f-body);
@@ -261,6 +262,11 @@
 }
 .kt .menu .btn {
   display: none;
+}
+/* Acceso de restaurantes al panel de EasyOrder. */
+.kt .menu .menu-login {
+  font-weight: 800;
+  color: var(--teal-700);
 }
 .kt .hamb {
   display: none;

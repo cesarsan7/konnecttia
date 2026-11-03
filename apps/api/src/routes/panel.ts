@@ -1,5 +1,11 @@
-import { branchFilter, canAccessBranch, PERMISSION } from "@konnecttia/access";
-import { checkTransition, type Fulfillment, isOrderStatus, ORDER_STATUS } from "@konnecttia/domain";
+import { authorize, branchFilter, canAccessBranch, PERMISSION } from "@konnecttia/access";
+import {
+  checkTransition,
+  type Fulfillment,
+  isOrderStatus,
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+} from "@konnecttia/domain";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -8,10 +14,28 @@ import { requireMember, requirePermission } from "../middleware/auth";
 import { resolveRestaurant } from "../middleware/tenant";
 import { audit } from "../repositories/access";
 import { OUTBOX_EVENT } from "../repositories/orders";
+import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 
 const PAGE_SIZE = 100;
 
 const statusBodySchema = z.object({ estado: z.string().refine(isOrderStatus) });
+
+const paymentBodySchema = z.object({
+  estado_pago: z.enum([PAYMENT_STATUS.Paid, PAYMENT_STATUS.Rejected]),
+});
+
+/** Estados que siguen en marcha: el tablero los muestra siempre, aunque sean de ayer. */
+const ACTIVE_STATES = [
+  ORDER_STATUS.Received,
+  ORDER_STATUS.PendingPayment,
+  ORDER_STATUS.Confirmed,
+  ORDER_STATUS.Paid,
+  ORDER_STATUS.Preparing,
+  ORDER_STATUS.Ready,
+  ORDER_STATUS.OnTheWay,
+];
+/** Horas durante las que el tablero sigue mostrando los pedidos entregados o cancelados. */
+const BOARD_CLOSED_HOURS = 12;
 
 const busyModeSchema = z.object({
   minutos_extra: z.number().int().min(1).max(240),
@@ -51,10 +75,15 @@ export function panelRoutes(deps: AppDeps) {
     if (branches !== null && branches.length === 0) {
       return fail(c, 403, API_ERROR.Forbidden, { reason: "branch_out_of_scope" });
     }
+    // «tablero»: pedidos en marcha (de cualquier fecha) y los cerrados de las últimas horas.
+    const board = c.req.query("vista") === "tablero";
+    const now = deps.now();
     const rows = await deps.sql`
       SELECT p.id, p.pedido_codigo, p.estado, p.estado_pago, p.tipo_despacho, p.canal,
              p.nombre_pedido, p.telefono, p.direccion, p.items, p.subtotal, p.costo_envio,
-             p.total, p.metodo_pago, p.tiempo_estimado, p.notas, p.created_at, p.updated_at,
+             p.total, p.metodo_pago, p.tiempo_estimado, p.notas,
+             p.created_at AT TIME ZONE 'UTC' AS created_at,
+             p.updated_at AT TIME ZONE 'UTC' AS updated_at,
              p.sucursal_id, s.nombre AS local_nombre
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
@@ -62,10 +91,17 @@ export function panelRoutes(deps: AppDeps) {
         AND  (${estado ?? null}::text IS NULL OR p.estado = ${estado ?? null})
         AND  p.estado <> ${ORDER_STATUS.InCart}
         ${branches === null ? deps.sql`` : deps.sql`AND p.sucursal_id IN ${deps.sql(branches)}`}
+        ${
+          board
+            ? deps.sql`AND (p.estado IN ${deps.sql(ACTIVE_STATES)}
+                OR COALESCE(p.updated_at, p.created_at) >
+                   (${now}::timestamptz AT TIME ZONE 'UTC') - make_interval(hours => ${BOARD_CLOSED_HOURS}))`
+            : deps.sql``
+        }
       ORDER  BY p.created_at DESC
       LIMIT  ${PAGE_SIZE}
     `;
-    return c.json({ pedidos: rows });
+    return c.json({ pedidos: rows, ahora: now.toISOString() });
   });
 
   app.patch(
@@ -116,8 +152,12 @@ export function panelRoutes(deps: AppDeps) {
 
         // El trigger fn_log_estado_pedido lee estos valores para el historial de estados.
         await tx`SELECT set_config('app.origen', 'panel', true), set_config('app.actor', ${user.email ?? user.userId}, true)`;
+        // Pasar a «pagado» confirma también el cobro: si no, el pedido no podría entregarse.
+        const paid = target === ORDER_STATUS.Paid && order.estado_pago === PAYMENT_STATUS.Pending;
         await tx`
-          UPDATE public.pedidos SET estado = ${target}, updated_at = now()
+          UPDATE public.pedidos
+          SET    estado = ${target}, updated_at = now(),
+                 estado_pago = ${paid ? PAYMENT_STATUS.Paid : order.estado_pago}
           WHERE  id = ${id} AND restaurante_id = ${restaurant.id}
         `;
         await tx`
@@ -177,12 +217,19 @@ export function panelRoutes(deps: AppDeps) {
     const restaurant = c.get("restaurant");
     const branches = branchFilter(c.get("access"));
     const rows = await deps.sql`
-      SELECT id, nombre, slug, direccion, telefono, es_principal AS principal, activo,
-             acepta_recogida AS recogida, acepta_reparto AS reparto
-      FROM   public.sucursal
-      WHERE  restaurante_id = ${restaurant.id}
-        ${branches === null ? deps.sql`` : deps.sql`AND id IN ${deps.sql(branches)}`}
-      ORDER  BY es_principal DESC, nombre
+      SELECT s.id, s.nombre, s.slug, s.direccion, s.telefono, s.es_principal AS principal, s.activo,
+             s.acepta_recogida AS recogida, s.acepta_reparto AS reparto,
+             (SELECT json_build_object('minutos_extra', m.minutos_extra, 'servicio', m.servicio,
+                                       'hasta', m.hasta)
+              FROM   public.modo_ocupado m
+              WHERE  m.restaurante_id = s.restaurante_id AND m.sucursal_id = s.id
+                AND  m.finalizado_at IS NULL AND m.desde <= ${deps.now()} AND m.hasta > ${deps.now()}
+              ORDER  BY m.hasta DESC
+              LIMIT  1) AS modo_ocupado
+      FROM   public.sucursal s
+      WHERE  s.restaurante_id = ${restaurant.id}
+        ${branches === null ? deps.sql`` : deps.sql`AND s.id IN ${deps.sql(branches)}`}
+      ORDER  BY s.es_principal DESC, s.nombre
     `;
     return c.json({ locales: rows });
   });
@@ -243,8 +290,8 @@ export function panelRoutes(deps: AppDeps) {
              ON  p.sucursal_id = s.id
              AND p.restaurante_id = ${restaurant.id}
              AND p.estado NOT IN ${deps.sql(NOT_A_SALE)}
-             AND p.created_at >= ${desde}::date
-             AND p.created_at <  ${hasta}::date + 1
+             AND p.created_at >= ((${desde}::date)::timestamp AT TIME ZONE ${restaurant.zonaHoraria}) AT TIME ZONE 'UTC'
+             AND p.created_at <  ((${hasta}::date + 1)::timestamp AT TIME ZONE ${restaurant.zonaHoraria}) AT TIME ZONE 'UTC'
       WHERE  s.restaurante_id = ${restaurant.id}
         ${branches === null ? deps.sql`` : deps.sql`AND s.id IN ${deps.sql(branches)}`}
       GROUP  BY s.id, s.nombre, s.es_principal
@@ -346,6 +393,149 @@ export function panelRoutes(deps: AppDeps) {
         requestId: c.get("requestId"),
       });
       return c.json({ finalizados: ended.count });
+    },
+  );
+
+  /**
+   * Confirma (o rechaza) el cobro de un pedido con pago diferido (transferencia, Bizum). Si el
+   * pedido estaba en «pendiente_pago», pasa a «pagado». El estado del pedido no se toca en otro caso.
+   */
+  app.patch(
+    "/:slug/orders/:id/pago",
+    requirePermission(deps, PERMISSION.OrdersUpdate),
+    async (c) => {
+      const restaurant = c.get("restaurant");
+      const user = c.get("user");
+      const id = Number.parseInt(c.req.param("id"), 10);
+      if (!Number.isSafeInteger(id) || id < 1) {
+        return fail(c, 400, API_ERROR.InvalidBody, { field: "id" });
+      }
+      const parsed = paymentBodySchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) {
+        return fail(c, 400, API_ERROR.InvalidBody, { field: "estado_pago" });
+      }
+      const target = parsed.data.estado_pago;
+
+      const result = await deps.sql.begin(async (tx) => {
+        const rows = await tx<
+          { id: number; estado: string; estado_pago: string; sucursal_id: number | null }[]
+        >`
+          SELECT id, estado, estado_pago, sucursal_id
+          FROM   public.pedidos
+          WHERE  id = ${id} AND restaurante_id = ${restaurant.id}
+          FOR UPDATE
+        `;
+        const order = rows[0];
+        if (!order || !canAccessBranch(c.get("access"), order.sucursal_id)) {
+          return { kind: "not_found" as const };
+        }
+        if (order.estado_pago !== PAYMENT_STATUS.Pending) {
+          return { kind: "rejected" as const, from: order.estado_pago };
+        }
+        const nextStatus =
+          target === PAYMENT_STATUS.Paid && order.estado === ORDER_STATUS.PendingPayment
+            ? ORDER_STATUS.Paid
+            : order.estado;
+        await tx`SELECT set_config('app.origen', 'panel', true), set_config('app.actor', ${user.email ?? user.userId}, true)`;
+        await tx`
+          UPDATE public.pedidos
+          SET    estado_pago = ${target}, estado = ${nextStatus}, updated_at = now()
+          WHERE  id = ${id} AND restaurante_id = ${restaurant.id}
+        `;
+        if (nextStatus !== order.estado) {
+          await tx`
+            INSERT INTO public.outbox_evento
+              (restaurante_id, tipo, agregado_tipo, agregado_id, payload, clave_idempotencia)
+            VALUES (
+              ${restaurant.id}, ${OUTBOX_EVENT.OrderStatusChanged}, 'pedido', ${String(id)},
+              ${tx.json({ pedido_id: id, desde: order.estado, hacia: nextStatus })},
+              ${`${OUTBOX_EVENT.OrderStatusChanged}:${id}:${order.estado}:${nextStatus}`}
+            )
+            ON CONFLICT (clave_idempotencia) DO NOTHING
+          `;
+        }
+        return { kind: "updated" as const, from: order.estado_pago, estado: nextStatus };
+      });
+
+      if (result.kind === "not_found") {
+        return fail(c, 404, API_ERROR.OrderNotFound);
+      }
+      await audit(deps.sql, {
+        restauranteId: restaurant.id,
+        actorTipo: "usuario",
+        actorId: user.userId,
+        accion: "orders.payment",
+        recursoTipo: "pedido",
+        recursoId: String(id),
+        resultado: result.kind === "updated" ? "ok" : "denegado",
+        detalle: { desde: result.from, hacia: target },
+        requestId: c.get("requestId"),
+      });
+      if (result.kind === "rejected") {
+        return fail(c, 422, API_ERROR.InvalidTransition, {
+          from: result.from,
+          to: target,
+          reason: "payment_not_pending",
+        });
+      }
+      return c.json({ id, estado_pago: target, estado: result.estado });
+    },
+  );
+
+  /**
+   * Lo que el usuario puede hacer en este restaurante: el panel lo usa para mostrar u ocultar
+   * secciones y botones. La API vuelve a comprobar cada permiso en cada petición.
+   */
+  app.get("/:slug/acceso", async (c) => {
+    const restaurant = c.get("restaurant");
+    const user = c.get("user");
+    const access = c.get("access");
+    const roles = await deps.sql<{ code: string; nombre: string }[]>`
+      SELECT r.code, r.nombre
+      FROM   public.local_memberships m
+      JOIN   public.membresia_rol mr ON mr.membership_id = m.id
+      JOIN   public.rol r            ON r.id = mr.rol_id
+      WHERE  m.user_id = ${user.userId}::uuid AND m.restaurante_id = ${restaurant.id}
+      ORDER  BY r.id
+    `;
+    return c.json({
+      usuario: { email: user.email },
+      restaurante: {
+        nombre: restaurant.nombre,
+        slug: restaurant.slug,
+        zona_horaria: restaurant.zonaHoraria,
+      },
+      roles,
+      permisos: [...access.permissions].filter(
+        (permission) => authorize(access, permission).allowed,
+      ),
+      modulos: [...access.activeModules],
+      locales: access.branchScope === "all" ? "todos" : [...access.branchScope],
+    });
+  });
+
+  /**
+   * Estadísticas de un periodo (fechas en la zona horaria del restaurante, ambas incluidas) y
+   * comparación con el periodo anterior de la misma duración.
+   */
+  app.get(
+    "/:slug/reports/overview",
+    requirePermission(deps, PERMISSION.AnalyticsView),
+    async (c) => {
+      const restaurant = c.get("restaurant");
+      const range = parseReportRange(c.req.query("desde"), c.req.query("hasta"));
+      if (!range) {
+        return fail(c, 400, API_ERROR.InvalidBody, { field: "desde/hasta" });
+      }
+      const requested = parseBranchQuery(c.req.query("local"));
+      if (requested === "invalid") {
+        return fail(c, 400, API_ERROR.InvalidBody, { field: "local" });
+      }
+      const branches = branchFilter(c.get("access"), requested);
+      if (branches !== null && branches.length === 0) {
+        return fail(c, 403, API_ERROR.Forbidden, { reason: "branch_out_of_scope" });
+      }
+      return c.json(await loadSalesOverview(deps.sql, restaurant, range, branches));
     },
   );
 
