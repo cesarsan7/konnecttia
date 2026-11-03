@@ -9,7 +9,6 @@
 -- Fase:       MVP
 -- =============================================================================
 
-BEGIN;
 
 -- Token aleatorio para el enlace de seguimiento. El código visible (AAMMDD-NNNN) es
 -- secuencial y adivinable: deja de servir para consultar datos del cliente.
@@ -43,4 +42,3 @@ CREATE TABLE public.outbox_evento (
 CREATE INDEX ix_outbox_pendientes ON public.outbox_evento (disponible_en)
   WHERE estado IN ('pendiente', 'fallido');
 
-COMMIT;
