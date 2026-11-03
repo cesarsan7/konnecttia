@@ -18,10 +18,11 @@ pnpm test                            # pruebas de todos los paquetes
 
 ## Estado
 
-| Pieza                                                     | Estado                                           |
-| --------------------------------------------------------- | ------------------------------------------------ |
-| `apps/site` — landing konnecttia.com                      | Lista para staging                               |
-| `packages/domain` — precio en servidor, alérgenos, zonas  | Lista, con pruebas                               |
-| `packages/access` — módulos y RBAC                        | Lista, con pruebas                               |
-| `packages/db` — migraciones                               | Base + 2 migraciones probadas; 2 propuestas      |
-| `apps/api`, `apps/easyorder`, `apps/admin`, `apps/worker` | Pendientes (ver `docs/konnecTTia.md`, sección 7) |
+| Pieza                                                                 | Estado                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------ |
+| `apps/site` — landing konnecttia.com                                  | Lista para staging                               |
+| `packages/domain` — precio en servidor, alérgenos, zonas              | Lista, con pruebas                               |
+| `packages/access` — módulos y RBAC                                    | Lista, con pruebas                               |
+| `packages/db` — migraciones                                           | Base + 2 migraciones probadas; 2 propuestas      |
+| `apps/api` — checkout seguro, seguimiento por token, panel de pedidos | En curso: base lista, con pruebas de integración |
+| `apps/easyorder`, `apps/admin`, `apps/worker`                         | Pendientes (ver `docs/konnecTTia.md`, sección 7) |
