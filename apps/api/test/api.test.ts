@@ -291,5 +291,30 @@ describe.skipIf(!TEST_DATABASE_URL)("API de pedidos (integración con PostgreSQL
       expect(items[0]?.extras.map((extra) => extra.name)).toEqual(["Queso"]);
       expect(items[0]?.allergens.status).toBe("not_declared");
     });
+
+    it("indica qué servicios y métodos de pago ofrece el restaurante", async () => {
+      const response = await ctx.app.request("/public/prueba-a/menu");
+      const menu = (await response.json()) as { restaurante: Record<string, unknown> };
+      expect(menu.restaurante).toMatchObject({
+        recogida: true,
+        reparto: true,
+        metodos_pago: ["efectivo", "tarjeta", "transferencia"],
+      });
+    });
+
+    it("lista las zonas de reparto con su envío y mínimo", async () => {
+      const response = await ctx.app.request("/public/prueba-a/zonas");
+      const { zonas } = (await response.json()) as { zonas: Record<string, unknown>[] };
+      expect(zonas).toEqual([
+        {
+          id: 1401,
+          nombre: "Arrecife centro",
+          envio: 2.5,
+          minimo: 15,
+          tiempo: "30-40 min",
+          local: "Cafetería de prueba A",
+        },
+      ]);
+    });
   });
 });

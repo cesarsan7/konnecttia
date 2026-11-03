@@ -1,0 +1,400 @@
+"use client";
+
+import { addCents, type Cents, centsFromDecimal } from "@konnecttia/domain";
+import { useId, useMemo, useRef, useState } from "react";
+import type { Api } from "@/lib/api";
+import { type CartLine, lineCents, setQuantity, toOrderItems } from "@/lib/cart";
+import { describeApiError, normalizePhone, paymentLabel } from "@/lib/checkout";
+import { eurosFromCents } from "@/lib/format";
+import type { Branch, CreatedOrder, DeliveryZone, Fulfillment, Menu } from "@/lib/types";
+
+type Point = { readonly lat: number; readonly lng: number };
+
+type Props = {
+  readonly api: Api;
+  readonly slug: string;
+  readonly restaurant: Menu["restaurante"];
+  readonly branches: readonly Branch[];
+  readonly branchId: number | null;
+  readonly onBranchChange: (id: number) => void;
+  readonly zones: readonly DeliveryZone[];
+  readonly point: Point | null;
+  readonly locating: boolean;
+  readonly onLocate: () => void;
+  readonly lines: readonly CartLine[];
+  readonly onLinesChange: (lines: CartLine[]) => void;
+  readonly subtotal: Cents;
+  readonly onBack: () => void;
+  readonly onCreated: (order: CreatedOrder) => void;
+};
+
+const newKey = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `k-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** Checkout en una pantalla: carrito, entrega, datos y pago. */
+export function Checkout(props: Props) {
+  const { restaurant, branches, zones, lines, subtotal } = props;
+  const formId = useId();
+  const options: Fulfillment[] = [
+    ...(restaurant.recogida ? (["retiro"] as const) : []),
+    ...(restaurant.reparto ? (["delivery"] as const) : []),
+  ];
+  const [fulfillment, setFulfillment] = useState<Fulfillment>(options[0] ?? "retiro");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [zoneId, setZoneId] = useState<number | null>(null);
+  const [payment, setPayment] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  // Misma clave en los reintentos: si la red falla tras crear el pedido, no se duplica.
+  const idempotencyKey = useRef(newKey());
+
+  const pickupBranches = branches.filter((branch) => branch.recogida);
+  const zone = zones.find((candidate) => candidate.id === zoneId) ?? null;
+  const fee: Cents =
+    fulfillment === "delivery" && zone ? centsFromDecimal(zone.envio) : (0 as Cents);
+  const minimum: Cents = zone ? centsFromDecimal(zone.minimo) : (0 as Cents);
+  const missing = fulfillment === "delivery" && zone && subtotal < minimum ? minimum - subtotal : 0;
+  const estimate = addCents(subtotal, fee);
+  const usesPoint = fulfillment === "delivery" && zoneId === null && props.point !== null;
+
+  const problem = useMemo((): string | null => {
+    if (lines.length === 0) return "Tu carrito está vacío.";
+    if (!name.trim()) return "Escribe tu nombre.";
+    if (!normalizePhone(phone)) return "Escribe un teléfono válido.";
+    if (fulfillment === "retiro" && pickupBranches.length > 1 && props.branchId === null) {
+      return "Elige el local donde recogerás el pedido.";
+    }
+    if (fulfillment === "delivery") {
+      if (!address.trim()) return "Escribe la dirección de entrega.";
+      if (zoneId === null && props.point === null) {
+        return "Elige tu zona o usa tu ubicación para calcular el reparto.";
+      }
+      if (missing > 0) {
+        return `Te faltan ${eurosFromCents(missing as Cents)} para el pedido mínimo de reparto. Añade algo más o cambia a recogida.`;
+      }
+    }
+    if (!payment) return "Elige cómo vas a pagar.";
+    return null;
+  }, [
+    lines.length,
+    name,
+    phone,
+    fulfillment,
+    pickupBranches.length,
+    props.branchId,
+    address,
+    zoneId,
+    props.point,
+    missing,
+    payment,
+  ]);
+
+  async function submit() {
+    if (problem || sending) return;
+    setSending(true);
+    setError(null);
+    const body = {
+      nombre: name.trim(),
+      telefono: normalizePhone(phone),
+      tipo_despacho: fulfillment,
+      metodo_pago: payment,
+      ...(notes.trim() ? { notas: notes.trim() } : {}),
+      ...(fulfillment === "retiro" && props.branchId !== null
+        ? { sucursal_id: props.branchId }
+        : {}),
+      ...(fulfillment === "delivery"
+        ? {
+            direccion: address.trim(),
+            ...(zoneId !== null ? { zona_id: zoneId } : {}),
+            ...(usesPoint && props.point ? { lat: props.point.lat, lng: props.point.lng } : {}),
+          }
+        : {}),
+      items: toOrderItems(lines),
+    };
+    const result = await props.api.createOrder(props.slug, body, idempotencyKey.current);
+    setSending(false);
+    if (result.ok) {
+      props.onCreated(result.data);
+      return;
+    }
+    if (result.body?.error === "branch_required" && result.body.locales?.[0]) {
+      setError("Elige en qué local quieres recoger el pedido.");
+      return;
+    }
+    setError(describeApiError(result.status, result.body));
+  }
+
+  return (
+    <section className="checkout" aria-labelledby={`${formId}-title`}>
+      <div className="checkout-head">
+        <button type="button" className="link-btn" onClick={props.onBack}>
+          ← Seguir pidiendo
+        </button>
+        <h1 id={`${formId}-title`} className="title">
+          Tu pedido
+        </h1>
+      </div>
+
+      <ul className="lines">
+        {lines.map((line) => (
+          <li key={line.key} className="line">
+            <div>
+              <strong>{line.name}</strong>
+              <span className="muted">
+                {" "}
+                · {line.variantName}
+                {line.extras.length > 0 && ` · ${line.extras.map((e) => e.name).join(", ")}`}
+              </span>
+              {line.note && <div className="muted small">«{line.note}»</div>}
+            </div>
+            <div className="line-side">
+              <fieldset className="stepper small" aria-label={`Cantidad de ${line.name}`}>
+                <button
+                  type="button"
+                  aria-label="Quitar uno"
+                  onClick={() =>
+                    props.onLinesChange(setQuantity(lines, line.key, line.quantity - 1))
+                  }
+                >
+                  −
+                </button>
+                <output>{line.quantity}</output>
+                <button
+                  type="button"
+                  aria-label="Añadir uno"
+                  onClick={() =>
+                    props.onLinesChange(setQuantity(lines, line.key, line.quantity + 1))
+                  }
+                >
+                  +
+                </button>
+              </fieldset>
+              <span className="price">{eurosFromCents(lineCents(line))}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <form
+        className="form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        {options.length > 1 && (
+          <fieldset className="segmented">
+            <legend>¿Cómo lo quieres?</legend>
+            {options.map((option) => (
+              <label key={option} className={fulfillment === option ? "on" : ""}>
+                <input
+                  type="radio"
+                  name="fulfillment"
+                  checked={fulfillment === option}
+                  onChange={() => setFulfillment(option)}
+                />
+                {option === "retiro" ? "Recoger en el local" : "A domicilio"}
+              </label>
+            ))}
+          </fieldset>
+        )}
+
+        {fulfillment === "retiro" && pickupBranches.length > 0 && (
+          <fieldset className="group">
+            <legend>Local de recogida</legend>
+            {pickupBranches.map((branch) => (
+              <label key={branch.id} className={`choice${branch.abierto ? "" : " disabled"}`}>
+                <input
+                  type="radio"
+                  name="branch"
+                  disabled={!branch.abierto}
+                  checked={props.branchId === branch.id}
+                  onChange={() => props.onBranchChange(branch.id)}
+                />
+                <span>
+                  {branch.nombre}
+                  {branch.direccion && (
+                    <span className="muted small block">{branch.direccion}</span>
+                  )}
+                </span>
+                <span className="muted small">
+                  {branch.abierto
+                    ? branch.distancia_km !== null
+                      ? `${branch.distancia_km} km`
+                      : "Abierto"
+                    : "Cerrado"}
+                </span>
+              </label>
+            ))}
+            {pickupBranches.length > 1 && (
+              <button
+                type="button"
+                className="link-btn"
+                onClick={props.onLocate}
+                disabled={props.locating}
+              >
+                {props.locating
+                  ? "Buscando tu ubicación…"
+                  : "Usar mi ubicación para ver el más cercano"}
+              </button>
+            )}
+          </fieldset>
+        )}
+
+        {fulfillment === "delivery" && (
+          <fieldset className="group">
+            <legend>Entrega</legend>
+            <label className="field">
+              <span>Dirección</span>
+              <input
+                type="text"
+                autoComplete="street-address"
+                maxLength={300}
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                placeholder="Calle, número, piso"
+              />
+            </label>
+            {zones.length > 0 && (
+              <label className="field">
+                <span>Zona</span>
+                <select
+                  value={zoneId ?? ""}
+                  onChange={(event) =>
+                    setZoneId(event.target.value ? Number(event.target.value) : null)
+                  }
+                >
+                  <option value="">{props.point ? "Según mi ubicación" : "Elige tu zona"}</option>
+                  {zones.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.nombre} · envío {eurosFromCents(centsFromDecimal(option.envio))}
+                      {option.minimo > 0
+                        ? ` · mínimo ${eurosFromCents(centsFromDecimal(option.minimo))}`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={props.onLocate}
+              disabled={props.locating}
+            >
+              {props.locating
+                ? "Buscando tu ubicación…"
+                : props.point
+                  ? "Ubicación recibida ✓ (actualizar)"
+                  : "Usar mi ubicación"}
+            </button>
+            {missing > 0 && (
+              <p className="notice" role="status">
+                Te faltan {eurosFromCents(missing as Cents)} para el pedido mínimo de esta zona.{" "}
+                {restaurant.recogida && (
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => setFulfillment("retiro")}
+                  >
+                    Cambiar a recogida
+                  </button>
+                )}
+              </p>
+            )}
+          </fieldset>
+        )}
+
+        <fieldset className="group">
+          <legend>Tus datos</legend>
+          <label className="field">
+            <span>Nombre</span>
+            <input
+              type="text"
+              autoComplete="name"
+              maxLength={120}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>Teléfono</span>
+            <input
+              type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="612 345 678"
+            />
+          </label>
+          <label className="field">
+            <span>Notas para el local (opcional)</span>
+            <textarea
+              maxLength={500}
+              rows={2}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </label>
+        </fieldset>
+
+        <fieldset className="group">
+          <legend>Pago</legend>
+          {restaurant.metodos_pago.map((method) => (
+            <label key={method} className="choice">
+              <input
+                type="radio"
+                name="payment"
+                checked={payment === method}
+                onChange={() => setPayment(method)}
+              />
+              <span>{paymentLabel(method)}</span>
+            </label>
+          ))}
+          {payment === "transferencia" && (
+            <p className="muted small">
+              Te daremos los datos para la transferencia. El pedido queda pendiente hasta que el
+              local confirme el pago.
+            </p>
+          )}
+        </fieldset>
+
+        <dl className="totals">
+          <div>
+            <dt>Productos</dt>
+            <dd>{eurosFromCents(subtotal)}</dd>
+          </div>
+          {fulfillment === "delivery" && (
+            <div>
+              <dt>Envío</dt>
+              <dd>{zone ? eurosFromCents(fee) : "Se calcula al confirmar"}</dd>
+            </div>
+          )}
+          <div className="total">
+            <dt>Total estimado</dt>
+            <dd>{eurosFromCents(estimate)}</dd>
+          </div>
+        </dl>
+        <p className="muted small">
+          El total final lo calcula el local al confirmar (puede incluir suplementos como envases).
+          Usaremos tus datos solo para gestionar este pedido.
+        </p>
+
+        {(error || problem) && (
+          <p className={error ? "error" : "hint"} role={error ? "alert" : "status"}>
+            {error ?? problem}
+          </p>
+        )}
+        <button type="submit" className="btn primary block" disabled={problem !== null || sending}>
+          {sending ? "Enviando…" : "Enviar pedido"}
+        </button>
+      </form>
+    </section>
+  );
+}

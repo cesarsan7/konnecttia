@@ -182,6 +182,53 @@ export function publicRoutes(deps: AppDeps) {
     });
   });
 
+  // Zonas de reparto activas de los locales que reparten, para elegirlas en el checkout.
+  app.get("/:slug/zonas", async (c) => {
+    const restaurant = c.get("restaurant");
+    if (!restaurant.deliveryEnabled) {
+      return c.json({ zonas: [] });
+    }
+    const branches = (await loadBranches(deps.sql, restaurant.id)).filter((branch) =>
+      branchServes(branch, FULFILLMENT.Delivery),
+    );
+    const names = new Map(branches.map((branch) => [branch.id, branch.name]));
+    if (names.size === 0) {
+      return c.json({ zonas: [] });
+    }
+    const rows = await deps.sql<
+      {
+        delivery_zone_id: number;
+        zone_name: string;
+        fee: string;
+        min_order_amount: string | null;
+        estimated_minutes_min: number | null;
+        estimated_minutes_max: number | null;
+        sucursal_id: number;
+      }[]
+    >`
+      SELECT delivery_zone_id, zone_name, fee, min_order_amount, estimated_minutes_min,
+             estimated_minutes_max, sucursal_id
+      FROM   public.delivery_zone
+      WHERE  restaurante_id = ${restaurant.id}
+        AND  is_active = true
+        AND  sucursal_id IN ${deps.sql([...names.keys()])}
+      ORDER  BY zone_name
+    `;
+    return c.json({
+      zonas: rows.map((zone) => ({
+        id: zone.delivery_zone_id,
+        nombre: zone.zone_name,
+        envio: Number(zone.fee),
+        minimo: Number(zone.min_order_amount ?? 0),
+        tiempo:
+          zone.estimated_minutes_min !== null && zone.estimated_minutes_max !== null
+            ? `${zone.estimated_minutes_min}-${zone.estimated_minutes_max} min`
+            : null,
+        local: names.get(zone.sucursal_id) ?? null,
+      })),
+    });
+  });
+
   app.get("/:slug/menu", async (c) => {
     const restaurant = c.get("restaurant");
     const requested = branchIdFromQuery(c.req.query("local"));
@@ -207,7 +254,14 @@ export function publicRoutes(deps: AppDeps) {
     const abierto = branch ? isOpen(branch) : active.some(isOpen);
     const hidden = branch ? await unavailableItems(deps.sql, branch.id) : new Set<number>();
     return c.json({
-      restaurante: { nombre: restaurant.nombre, slug: restaurant.slug },
+      restaurante: {
+        nombre: restaurant.nombre,
+        slug: restaurant.slug,
+        // Lo que la web necesita para montar el checkout sin adivinar.
+        recogida: restaurant.pickupEnabled && active.some((b) => b.acceptsPickup),
+        reparto: restaurant.deliveryEnabled && active.some((b) => b.acceptsDelivery),
+        metodos_pago: restaurant.paymentMethods,
+      },
       local: branch ? { id: branch.id, nombre: branch.name } : null,
       abierto,
       categories: menu.categories
