@@ -39,6 +39,12 @@ export const CONFIG_KEY = {
   DeliveryEtaMin: "delivery_eta_min_minutes",
   DeliveryEtaMax: "delivery_eta_max_minutes",
   DeliveryEtaLegacy: "estimated_time_delivery",
+  /** URL del webhook de avisos de estado (n8n). Sustituye a chatwoot_webhook_prod. */
+  N8nWebhookAvisos: "n8n_webhook_avisos",
+  /** URL del webhook de entrada de mensajes de Chatwoot (n8n, chatwootnew). */
+  N8nWebhookEntrada: "n8n_webhook_entrada",
+  /** Clave antigua del dashboard de EasyOrder; solo se lee si falta la nueva. */
+  LegacyWebhookAvisos: "chatwoot_webhook_prod",
   /** JSON con reglas de suplemento, p. ej. envases: [{"label":"Envases","below":25,"amount":1}] */
   SurchargeRules: "surcharge_rules",
 } as const;
@@ -244,4 +250,13 @@ export function fulfillmentEnabled(restaurant: Restaurant, fulfillment: Fulfillm
   return fulfillment === FULFILLMENT.Delivery
     ? restaurant.deliveryEnabled
     : restaurant.pickupEnabled;
+}
+
+/** URL del webhook de avisos de n8n: clave nueva y, mientras exista el dashboard antiguo, la vieja. */
+export function notificationWebhookUrl(config: ReadonlyMap<string, string>): string | null {
+  for (const key of [CONFIG_KEY.N8nWebhookAvisos, CONFIG_KEY.LegacyWebhookAvisos]) {
+    const value = config.get(key)?.trim();
+    if (value && /^https?:\/\//.test(value)) return value;
+  }
+  return null;
 }
