@@ -238,6 +238,7 @@ export function busyModeSettings(config: ReadonlyMap<string, string>): BusyModeS
 
 export type DeliveryZoneTerms = {
   readonly zoneId: number;
+  readonly name: string;
   readonly postalCode: string | null;
   readonly eta: EtaBase | null;
   readonly minOrderCents: Cents;
@@ -254,6 +255,7 @@ export async function findDeliveryZone(
   const rows = await sql<
     {
       delivery_zone_id: number;
+      zone_name: string;
       fee: string;
       min_order_amount: string | null;
       estimated_minutes_min: number | null;
@@ -265,7 +267,7 @@ export async function findDeliveryZone(
       envio_gratis_desde: string | null;
     }[]
   >`
-    SELECT delivery_zone_id, fee, min_order_amount, estimated_minutes_min,
+    SELECT delivery_zone_id, zone_name, fee, min_order_amount, estimated_minutes_min,
            estimated_minutes_max, postal_code, tipo_tarifa, tarifa_por_km, tarifa_maxima,
            envio_gratis_desde
     FROM   public.delivery_zone
@@ -280,6 +282,7 @@ export async function findDeliveryZone(
     value === null ? null : cents(eurosToCents(value));
   return {
     zoneId: zone.delivery_zone_id,
+    name: zone.zone_name,
     minOrderCents: cents(eurosToCents(zone.min_order_amount)),
     freeFromCents: optionalCents(zone.envio_gratis_desde),
     postalCode: zone.postal_code,

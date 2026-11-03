@@ -300,3 +300,20 @@ export function priceOrder(
     },
   };
 }
+
+/**
+ * Condiciones de reparto para un subtotal (sin calcular las líneas): las mismas reglas de mínimo
+ * y envío gratis que `priceOrder`. La usa la cotización del agente de WhatsApp.
+ */
+export function deliveryChargeFor(
+  subtotalCents: Cents,
+  terms: DeliveryTerms,
+): { feeCents: Cents; meetsMinimum: boolean; missingCents: Cents } {
+  const freeFrom = terms.freeFromCents ?? null;
+  const missing = terms.minOrderCents - subtotalCents;
+  return {
+    feeCents: freeFrom !== null && subtotalCents >= freeFrom ? cents(0) : terms.feeCents,
+    meetsMinimum: missing <= 0,
+    missingCents: cents(Math.max(0, missing)),
+  };
+}

@@ -3,7 +3,7 @@ import { ALLERGEN_STATUS, declareAllergens, NOT_DECLARED } from "./allergens";
 import { FULFILLMENT } from "./delivery";
 import { catalogFrom, type MenuItem } from "./menu";
 import { cents, centsFromDecimal } from "./money";
-import { PRICING_ERROR, priceOrder, SURCHARGE_KIND } from "./pricing";
+import { deliveryChargeFor, PRICING_ERROR, priceOrder, SURCHARGE_KIND } from "./pricing";
 
 // Cartas de ejemplo basadas en los menús públicos de los pilotos (Siempre Juntos y La Ripia).
 const salchimaduro: MenuItem = {
@@ -230,5 +230,25 @@ describe("priceOrder", () => {
     });
     const missing = priceOrder(catalog, [{ itemId: 999, variantId: 1, quantity: 1 }], pickup);
     expect(!missing.ok && missing.errors[0]?.code).toBe(PRICING_ERROR.ItemNotFound);
+  });
+});
+
+describe("condiciones de reparto para un subtotal", () => {
+  const terms = { feeCents: cents(200), minOrderCents: cents(2500), freeFromCents: cents(4000) };
+
+  it("indica cuánto falta para el mínimo", () => {
+    expect(deliveryChargeFor(cents(2000), terms)).toEqual({
+      feeCents: 200,
+      meetsMinimum: false,
+      missingCents: 500,
+    });
+  });
+
+  it("aplica el envío gratis a partir del importe configurado", () => {
+    expect(deliveryChargeFor(cents(4000), terms)).toEqual({
+      feeCents: 0,
+      meetsMinimum: true,
+      missingCents: 0,
+    });
   });
 });
