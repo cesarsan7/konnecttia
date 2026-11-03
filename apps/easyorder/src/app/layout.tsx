@@ -1,3 +1,6 @@
+// Fuentes de la marca Konnecttia, autoalojadas (sin peticiones a Google desde el navegador).
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/manrope";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";

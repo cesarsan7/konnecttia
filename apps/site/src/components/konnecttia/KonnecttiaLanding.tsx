@@ -299,6 +299,9 @@ export default function KonnecttiaLanding() {
               <a href="#como-funciona">Cómo funciona</a>
               <a href="#marca">Quiénes somos</a>
               <a href="#preguntas">Preguntas</a>
+              <a className="menu-login" href="/acceder">
+                Acceder
+              </a>
               <a className="btn btn-primary" href="#contacto">
                 Solicitar una demo
               </a>
@@ -987,7 +990,7 @@ export default function KonnecttiaLanding() {
                 <h3>Soluciones</h3>
                 <ul>
                   <li>
-                    <a href="#easyorder">EasyOrder</a>
+                    <a href="/acceder">EasyOrder · Acceso restaurantes</a>
                   </li>
                   <li>
                     <a href="#ia">Agente de WhatsApp</a>
