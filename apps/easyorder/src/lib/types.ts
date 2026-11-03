@@ -9,7 +9,15 @@ export type MenuVariant = {
   readonly isDefault: boolean;
 };
 
-export type MenuExtra = { readonly id: number; readonly name: string; readonly price: number };
+export type AllergenPayload = { readonly status: string; readonly allergens?: readonly string[] };
+
+export type MenuExtra = {
+  readonly id: number;
+  readonly name: string;
+  readonly price: number;
+  /** Ausente en respuestas antiguas: se trata como «no informados». */
+  readonly allergens?: AllergenPayload;
+};
 
 export type MenuItem = {
   readonly id: number;
@@ -18,7 +26,7 @@ export type MenuItem = {
   readonly imageUrl: string | null;
   readonly variants: readonly MenuVariant[];
   readonly extras: readonly MenuExtra[];
-  readonly allergens: { readonly status: string; readonly allergens?: readonly string[] };
+  readonly allergens: AllergenPayload;
 };
 
 export type Menu = {

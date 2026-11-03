@@ -100,18 +100,19 @@ OVERRIDING SYSTEM VALUE VALUES
   (3101, 'Radio Centro', 2.00, 0, 103, 28.9637, -13.5477, 5, NULL),
   (3102, 'Radio Playa', 1.50, 0, 103, 28.9539, -13.5772, 3, 3002);
 
--- Propietario (todos los locales) y cajero limitado a Playa Honda.
+-- Propietario (todos los locales), cajero y encargado limitados a Playa Honda.
 INSERT INTO public.local_memberships (user_id, restaurante_id, rol) VALUES
   ('00000000-0000-0000-0000-0000000000c1', 103, 'owner'),
-  ('00000000-0000-0000-0000-0000000000c2', 103, 'viewer');
+  ('00000000-0000-0000-0000-0000000000c2', 103, 'viewer'),
+  ('00000000-0000-0000-0000-0000000000c3', 103, 'manager');
 INSERT INTO public.membresia_rol (membership_id, rol_id)
 SELECT m.id, r.id FROM public.local_memberships m
 JOIN public.rol r ON r.restaurante_id IS NULL
- AND r.code = CASE WHEN m.rol = 'owner' THEN 'owner' ELSE 'staff' END
+ AND r.code = CASE m.rol WHEN 'owner' THEN 'owner' WHEN 'manager' THEN 'manager' ELSE 'staff' END
 WHERE m.restaurante_id = 103;
 INSERT INTO public.membresia_sucursal (membership_id, sucursal_id)
 SELECT id, 3002 FROM public.local_memberships
-WHERE user_id = '00000000-0000-0000-0000-0000000000c2';
+WHERE user_id IN ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000c3');
 
 INSERT INTO public.restaurante_plan (restaurante_id, plan_code) VALUES (103, 'premium');
 INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)

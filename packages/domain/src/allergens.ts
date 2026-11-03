@@ -62,3 +62,41 @@ export function allergenLabel(info: AllergenInfo): string {
   }
   return info.allergens.length === 0 ? "Sin alérgenos declarados" : info.allergens.join(", ");
 }
+
+const ALLERGEN_SET: ReadonlySet<string> = new Set(ALLERGENS);
+
+export function isAllergen(value: string): value is Allergen {
+  return ALLERGEN_SET.has(value);
+}
+
+/**
+ * Lee la columna `alergenos` de la base: `null` = no informados, lista (vacía o no) = declarados.
+ * Un código desconocido invalida la declaración (mejor «no informados» que un dato incompleto).
+ */
+export function allergensFromStored(value: readonly string[] | null | undefined): AllergenInfo {
+  if (value === null || value === undefined) return NOT_DECLARED;
+  if (!value.every(isAllergen)) return NOT_DECLARED;
+  return declareAllergens(value as readonly Allergen[]);
+}
+
+/** Orden fijo del reglamento, para guardar y mostrar siempre igual. */
+export function sortAllergens(values: readonly Allergen[]): Allergen[] {
+  return ALLERGENS.filter((allergen) => values.includes(allergen));
+}
+
+export const ALLERGEN_LABEL: Readonly<Record<Allergen, string>> = {
+  gluten: "Gluten",
+  crustaceos: "Crustáceos",
+  huevos: "Huevos",
+  pescado: "Pescado",
+  cacahuetes: "Cacahuetes",
+  soja: "Soja",
+  lacteos: "Lácteos",
+  frutos_de_cascara: "Frutos de cáscara",
+  apio: "Apio",
+  mostaza: "Mostaza",
+  sesamo: "Sésamo",
+  sulfitos: "Sulfitos",
+  altramuces: "Altramuces",
+  moluscos: "Moluscos",
+};

@@ -20,6 +20,10 @@ export const API_ERROR = {
   InvalidTransition: "transition_not_allowed",
   RateLimited: "rate_limited",
   ServiceUnavailable: "service_unavailable",
+  NotFound: "not_found",
+  Conflict: "conflict",
+  InvalidImage: "invalid_image",
+  StorageNotConfigured: "storage_not_configured",
 } as const;
 
 export type ApiError = (typeof API_ERROR)[keyof typeof API_ERROR];
