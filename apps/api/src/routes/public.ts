@@ -3,6 +3,8 @@ import {
   chooseDeliveryZone,
   deliveryFee,
   distanceKm,
+  ETA_SERVICE,
+  type EtaService,
   FULFILLMENT,
   type GeoPoint,
   type PricingContext,
@@ -25,6 +27,7 @@ import {
   zoneBranch,
 } from "../repositories/branches";
 import { loadCatalogForItems, loadPublicMenu } from "../repositories/catalog";
+import { loadEtaContext } from "../repositories/eta";
 import { createOrder, findOrderByTrackingToken } from "../repositories/orders";
 import {
   deliveryEta,
@@ -160,6 +163,8 @@ export function publicRoutes(deps: AppDeps) {
       pickupOrder.map((candidate) => [candidate.branch.id, candidate.distanceKm]),
     );
     const order = new Map(pickupOrder.map((candidate, index) => [candidate.branch.id, index]));
+    const etaCtx = await loadEtaContext(deps.sql, restaurant, config, deps.now());
+    const pickupBase = pickupEta(config);
     return c.json({
       locales: visible
         .map((branch) => ({
@@ -175,6 +180,10 @@ export function publicRoutes(deps: AppDeps) {
           reparto: branch.acceptsDelivery && restaurant.deliveryEnabled,
           abierto: isOpen(branch),
           distancia_km: roundKm(distance.get(branch.id) ?? null),
+          // Tiempo de recogida actual (base + hora punta + modo ocupado + cola).
+          tiempo_recogida: branch.acceptsPickup
+            ? etaCtx.resolve(pickupBase, ETA_SERVICE.Pickup, branch.id)
+            : null,
         }))
         .sort(
           (a, b) =>
@@ -225,6 +234,7 @@ export function publicRoutes(deps: AppDeps) {
       ORDER  BY zone_name
     `;
     const amount = (value: string | null) => (value === null ? null : Number(value));
+    const etaCtx = await loadEtaContext(deps.sql, restaurant, config, deps.now());
     return c.json({
       zonas: rows.map((zone) => ({
         id: zone.delivery_zone_id,
@@ -235,9 +245,10 @@ export function publicRoutes(deps: AppDeps) {
         envio_maximo: amount(zone.tarifa_maxima),
         gratis_desde: amount(zone.envio_gratis_desde),
         minimo: Number(zone.min_order_amount ?? 0),
-        tiempo: deliveryEta(
-          { min: zone.estimated_minutes_min, max: zone.estimated_minutes_max },
-          config,
+        tiempo: etaCtx.resolve(
+          deliveryEta({ min: zone.estimated_minutes_min, max: zone.estimated_minutes_max }, config),
+          ETA_SERVICE.Delivery,
+          zone.sucursal_id,
         ),
         toda_la_ciudad: zone.cubre_todo,
         local: names.get(zone.sucursal_id) ?? null,
@@ -344,7 +355,8 @@ export function publicRoutes(deps: AppDeps) {
       fulfillment: FULFILLMENT.Pickup,
       surcharges: surchargeRules(config),
     };
-    let eta = pickupEta(config);
+    let etaBase = pickupEta(config);
+    let etaService: EtaService = ETA_SERVICE.Pickup;
     let postalCode: string | null = null;
     let branch: BranchRecord | undefined;
 
@@ -418,12 +430,18 @@ export function publicRoutes(deps: AppDeps) {
           freeFromCents: zone.freeFromCents,
         },
       };
-      eta = zone.eta;
+      etaBase = zone.eta;
+      etaService = ETA_SERVICE.Delivery;
       postalCode = zone.postalCode;
     }
     if (!branch) {
       return fail(c, 422, API_ERROR.BranchNotAvailable);
     }
+    const eta = (await loadEtaContext(deps.sql, restaurant, config, deps.now())).resolve(
+      etaBase,
+      etaService,
+      branch.id,
+    );
 
     const lines: RequestedLine[] = body.items.map((item) => ({
       itemId: item.menu_item_id,

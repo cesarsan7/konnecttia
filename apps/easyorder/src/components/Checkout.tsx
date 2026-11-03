@@ -239,9 +239,12 @@ export function Checkout(props: Props) {
                 </span>
                 <span className="muted small">
                   {branch.abierto
-                    ? branch.distancia_km !== null
-                      ? `${branch.distancia_km} km`
-                      : "Abierto"
+                    ? [
+                        branch.distancia_km !== null ? `${branch.distancia_km} km` : null,
+                        branch.tiempo_recogida ? `listo en ${branch.tiempo_recogida}` : "Abierto",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")
                     : "Cerrado"}
                 </span>
               </label>
