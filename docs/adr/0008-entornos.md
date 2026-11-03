@@ -24,12 +24,12 @@ herramienta comercial: no se puede romper.
    sin visitas.
 2. **Staging se monta en `n8nlearning` con datos propios:**
 
-   | Servicio                   | Qué es                                                                   |
-   | -------------------------- | ------------------------------------------------------------------------ |
-   | `postgres-staging` (nuevo) | Copia de `restaurante_mvp` + migraciones 0001–0003 de Konnecttia         |
-   | `konnecttia-api` (nuevo)   | `apps/api` del monorepo, rama `main`, contra `postgres-staging`          |
-   | `n8n` (reutilizado)        | Copia de los flujos de `la_isla`, con credenciales que apuntan a staging |
-   | `chatwoot` (reutilizado)   | Bandeja de pruebas con un número de WhatsApp de pruebas                  |
+   | Servicio                                     | Qué es                                                                   |
+   | -------------------------------------------- | ------------------------------------------------------------------------ |
+   | `postgres-dev` (nuevo, base `easyorder_dev`) | Copia de `restaurante_mvp` + migraciones 0001–0003 de Konnecttia         |
+   | `konnecttia-api` (nuevo)                     | `apps/api` del monorepo, rama `main`, contra `postgres-dev`              |
+   | `n8n` (reutilizado)                          | Copia de los flujos de `la_isla`, con credenciales que apuntan a staging |
+   | `chatwoot` (reutilizado)                     | Bandeja de pruebas con un número de WhatsApp de pruebas                  |
 
    Ningún servicio de staging conoce la contraseña ni la URL de la base de la demo.
 3. Los flujos buenos son los de `la_isla`. Antes de copiarlos se **exportan desde la instancia**
@@ -41,13 +41,13 @@ herramienta comercial: no se puede romper.
 Se crean dos proyectos limpios, con dominios propios (`*.konnecttia.com`) para no depender de los
 dominios por defecto de EasyPanel:
 
-|                     | `prod`                                                             | `staging`                               |
-| ------------------- | ------------------------------------------------------------------ | --------------------------------------- |
-| Base de datos       | `restaurante`                                                      | `restaurante_staging` (servicio propio) |
-| n8n                 | **Uno para todos los restaurantes**                                | Uno, con los flujos en prueba           |
-| Chatwoot            | **Uno, una cuenta por restaurante** (se unifican los dos actuales) | Encendido solo para probar el agente    |
-| API / web / landing | Rama `main` aprobada                                               | Cada cambio fusionado                   |
-| WhatsApp            | Números de los restaurantes                                        | Número de pruebas                       |
+|                     | `prod`                                                             | `staging`                            |
+| ------------------- | ------------------------------------------------------------------ | ------------------------------------ |
+| Base de datos       | `easyorder_prd`                                                    | `easyorder_dev` (servicio propio)    |
+| n8n                 | **Uno para todos los restaurantes**                                | Uno, con los flujos en prueba        |
+| Chatwoot            | **Uno, una cuenta por restaurante** (se unifican los dos actuales) | Encendido solo para probar el agente |
+| API / web / landing | Rama `main` aprobada                                               | Cada cambio fusionado                |
+| WhatsApp            | Números de los restaurantes                                        | Número de pruebas                    |
 
 ### Un solo n8n y un solo Chatwoot
 

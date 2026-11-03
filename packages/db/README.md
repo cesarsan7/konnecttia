@@ -24,6 +24,21 @@ Migraciones SQL de la base de datos compartida por la API, el worker y los flujo
 
 ## Uso
 
+### Desde el VPS (EasyPanel), sin instalar nada
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cesarsan7/konnecttia/main/infra/scripts/migrate-easypanel.sh -o /root/migrate-easypanel.sh
+# 1. Prueba: aplica todo dentro de una transacción y lo deshace. No cambia nada.
+bash /root/migrate-easypanel.sh n8nlearning_postgres-dev easyorder_dev --baseline --check
+# 2. Aplicación real (cada migración y su registro, en una transacción).
+bash /root/migrate-easypanel.sh n8nlearning_postgres-dev easyorder_dev --baseline
+```
+
+El script pide la contraseña por teclado y se niega a tocar un host que no termine en `-dev`
+salvo que se indique `--produccion`.
+
+### En local o en CI
+
 ```bash
 # Base que ya es EasyOrder (producción o una copia para staging):
 DATABASE_URL=... infra/scripts/migrate.sh --baseline

@@ -12,7 +12,6 @@
 -- packages/access/src; una prueba de packages/db lo comprueba.
 -- =============================================================================
 
-BEGIN;
 
 CREATE TABLE public.modulo (
   code        text PRIMARY KEY,
@@ -295,4 +294,3 @@ SELECT m.id, r.id
 FROM public.local_memberships m
 JOIN public.rol r ON r.code = m.rol AND r.restaurante_id IS NULL;
 
-COMMIT;
