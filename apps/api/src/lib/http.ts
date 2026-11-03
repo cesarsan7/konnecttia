@@ -9,6 +9,8 @@ export const API_ERROR = {
   DeliveryNotAvailable: "delivery_not_available",
   PickupNotAvailable: "pickup_not_available",
   DeliveryZoneNotFound: "zone_not_found",
+  BranchRequired: "branch_required",
+  BranchNotAvailable: "branch_not_available",
   InvalidItems: "invalid_items",
   IdempotencyKeyRequired: "idempotency_key_required",
   OrderNotFound: "order_not_found",

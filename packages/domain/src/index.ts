@@ -1,4 +1,5 @@
 export * from "./allergens";
+export * from "./branches";
 export * from "./delivery";
 export * from "./menu";
 export * from "./money";

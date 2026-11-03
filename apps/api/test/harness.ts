@@ -16,6 +16,8 @@ export const USERS = {
   ownerA: { userId: "00000000-0000-0000-0000-0000000000a1", email: "owner-a@test.local" },
   viewerA: { userId: "00000000-0000-0000-0000-0000000000a2", email: "viewer-a@test.local" },
   ownerB: { userId: "00000000-0000-0000-0000-0000000000b1", email: "owner-b@test.local" },
+  ownerC: { userId: "00000000-0000-0000-0000-0000000000c1", email: "owner-c@test.local" },
+  cashierPlaya: { userId: "00000000-0000-0000-0000-0000000000c2", email: "cajero-c@test.local" },
 } as const satisfies Record<string, AuthenticatedUser>;
 
 export type TestContext = {

@@ -25,7 +25,7 @@ export async function loadAccessContext(
   const membership = memberships[0];
   if (!membership) return null;
 
-  const [modules, permissions] = await Promise.all([
+  const [modules, permissions, branches] = await Promise.all([
     sql<{ modulo_code: string }[]>`
       SELECT modulo_code FROM public.restaurante_modulo
       WHERE  restaurante_id = ${restauranteId} AND estado = ${ACTIVE_MODULE_STATE}
@@ -38,12 +38,16 @@ export async function loadAccessContext(
       WHERE  mr.membership_id = ${membership.id}
         AND  (r.restaurante_id IS NULL OR r.restaurante_id = ${restauranteId})
     `,
+    sql<{ sucursal_id: number }[]>`
+      SELECT sucursal_id FROM public.membresia_sucursal WHERE membership_id = ${membership.id}
+    `,
   ]);
 
   return buildAccessContext({
     restauranteId,
     contractedModules: modules.map((row) => row.modulo_code as ModuleCode),
     rolePermissions: [permissions.map((row) => row.permiso_code as PermissionCode)],
+    branchIds: branches.map((row) => row.sucursal_id),
   });
 }
 
