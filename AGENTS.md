@@ -70,6 +70,8 @@ pnpm db:test     # aplica todas las migraciones en un Postgres temporal
   Las variables obligatorias se validan al arrancar: si falta una, la app no arranca.
 - **Webhooks entrantes:** autenticados (firma o secreto compartido) e idempotentes.
 - **Sin magic strings:** constantes o enums con nombre.
+- **Configuración:** sin valores de negocio en el código. Toda clave nueva de `restaurante_config` va en español
+  (`snake_case`) y se documenta en `config_clave` (migración); una prueba lo exige para las que lee la API.
 - **Pruebas:** toda regla de dominio nueva lleva prueba unitaria; todo cambio de acceso, prueba de que el
   restaurante A no ve datos del B y, si afecta a locales, que un usuario limitado a un local no ve
   ni opera los de otro (`canAccessBranch` / `branchFilter`).
