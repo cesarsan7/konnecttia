@@ -1,0 +1,11 @@
+# El build de las imágenes parte del código fuente; nada local ni secreto entra en ellas.
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+.git
+coverage
