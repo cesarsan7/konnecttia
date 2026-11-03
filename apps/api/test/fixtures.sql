@@ -116,3 +116,13 @@ WHERE user_id = '00000000-0000-0000-0000-0000000000c2';
 INSERT INTO public.restaurante_plan (restaurante_id, plan_code) VALUES (103, 'premium');
 INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)
 SELECT 103, modulo_code, 'plan' FROM public.plan_modulo WHERE plan_code = 'premium';
+
+-- ---------------------------------------------------------------------------
+-- Restaurante D: horario real (sin apertura manual) para probar festivos.
+-- Martes cerrado; domingo 08:00–00:00. La API de pruebas corre el martes 3/11/2026 a las 13:00.
+-- ---------------------------------------------------------------------------
+INSERT INTO public.restaurante (id, nombre, slug, zona_horaria, payment_methods)
+OVERRIDING SYSTEM VALUE VALUES (104, 'Cafetería de festivos', 'prueba-d', 'Atlantic/Canary', '["efectivo"]');
+INSERT INTO public.horarios (restaurante_id, dia, disponible, apertura_1, cierre_1) VALUES
+  (104, 'Martes', false, NULL, NULL),
+  (104, 'Domingo', true, '08:00', '00:00');

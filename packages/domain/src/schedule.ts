@@ -28,7 +28,20 @@ export type DaySchedule = {
 /** Apertura o cierre forzado desde el panel (`is_open_override`). `null` = seguir el horario. */
 export type OpenOverride = boolean | null;
 
-type LocalTime = { readonly weekdayIndex: number; readonly minutes: number };
+/**
+ * Día festivo (fecha local "YYYY-MM-DD"). Ese día se aplica el horario del domingo, salvo que el
+ * festivo indique que el local cierra todo el día.
+ */
+export type Holiday = { readonly date: string; readonly closed: boolean };
+
+const SUNDAY_INDEX = 6;
+
+type LocalTime = {
+  readonly weekdayIndex: number;
+  readonly minutes: number;
+  /** Fecha local "YYYY-MM-DD". */
+  readonly date: string;
+};
 
 function toMinutes(time: string): number {
   const [hours = "0", minutes = "0"] = time.split(":");
@@ -50,6 +63,9 @@ export function localTime(instant: Date, timeZone: string): LocalTime {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   }).formatToParts(instant);
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? "";
@@ -57,7 +73,13 @@ export function localTime(instant: Date, timeZone: string): LocalTime {
   return {
     weekdayIndex: weekdays.indexOf(value("weekday")),
     minutes: Number(value("hour")) * 60 + Number(value("minute")),
+    date: `${value("year")}-${value("month")}-${value("day")}`,
   };
+}
+
+function previousDate(date: string): string {
+  const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day - 1)).toISOString().slice(0, 10);
 }
 
 function findDay(schedule: readonly DaySchedule[], weekdayIndex: number): DaySchedule | undefined {
@@ -90,13 +112,21 @@ export function isOpenAt(
   timeZone: string,
   instant: Date,
   override: OpenOverride = null,
+  holidays: readonly Holiday[] = [],
 ): boolean {
   if (override !== null) {
     return override;
   }
-  const { weekdayIndex, minutes } = localTime(instant, timeZone);
+  const { weekdayIndex, minutes, date } = localTime(instant, timeZone);
+  const holidayByDate = new Map(holidays.map((holiday) => [holiday.date, holiday]));
+  // Horario que rige una fecha: el del domingo si es festivo, ninguno si el festivo cierra.
+  const dayFor = (localDate: string, index: number): DaySchedule | undefined => {
+    const holiday = holidayByDate.get(localDate);
+    if (!holiday) return findDay(schedule, index);
+    return holiday.closed ? undefined : findDay(schedule, SUNDAY_INDEX);
+  };
 
-  for (const slot of slots(findDay(schedule, weekdayIndex))) {
+  for (const slot of slots(dayFor(date, weekdayIndex))) {
     if (slot.close > slot.open) {
       if (minutes >= slot.open && minutes < slot.close) return true;
     } else if (minutes >= slot.open) {
@@ -104,7 +134,7 @@ export function isOpenAt(
     }
   }
   // Madrugada: turno de ayer que cruzó la medianoche.
-  for (const slot of slots(findDay(schedule, weekdayIndex - 1))) {
+  for (const slot of slots(dayFor(previousDate(date), weekdayIndex - 1))) {
     if (slot.close <= slot.open && minutes < slot.close) return true;
   }
   return false;

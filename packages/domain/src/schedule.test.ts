@@ -68,3 +68,61 @@ describe("isOpenAt", () => {
     expect(isOpenAt(sinTilde, TZ, new Date("2026-11-04T11:00:00Z"))).toBe(true);
   });
 });
+
+describe("festivos", () => {
+  // Como Cafetería Siempre Juntos: martes a sábado 16:00–00:00; domingos y festivos 08:00–00:00.
+  const cafeteria = [
+    day("Lunes", null, null, null, null, false),
+    day("Martes", "16:00", "00:00"),
+    day("Miércoles", "16:00", "00:00"),
+    day("Jueves", "16:00", "00:00"),
+    day("Viernes", "16:00", "00:00"),
+    day("Sábado", "16:00", "00:00"),
+    day("Domingo", "08:00", "00:00"),
+  ];
+  // Martes 8 de diciembre de 2026 (Inmaculada Concepción), Canarias en UTC+0.
+  const manana = new Date("2026-12-08T10:00:00Z");
+  const noche = new Date("2026-12-08T23:30:00Z");
+
+  it("sin festivo, un martes por la mañana está cerrado", () => {
+    expect(isOpenAt(cafeteria, TZ, manana)).toBe(false);
+    expect(isOpenAt(cafeteria, TZ, noche)).toBe(true);
+  });
+
+  it("un festivo usa el horario del domingo", () => {
+    const festivos = [{ date: "2026-12-08", closed: false }];
+    expect(isOpenAt(cafeteria, TZ, manana, null, festivos)).toBe(true);
+    expect(isOpenAt(cafeteria, TZ, noche, null, festivos)).toBe(true);
+  });
+
+  it("un festivo puede cerrar todo el día", () => {
+    const festivos = [{ date: "2026-12-08", closed: true }];
+    expect(isOpenAt(cafeteria, TZ, noche, null, festivos)).toBe(false);
+  });
+
+  it("un festivo en lunes abre aunque el lunes sea de descanso", () => {
+    // Lunes 7 de diciembre de 2026.
+    const lunes = new Date("2026-12-07T12:00:00Z");
+    expect(isOpenAt(cafeteria, TZ, lunes)).toBe(false);
+    expect(isOpenAt(cafeteria, TZ, lunes, null, [{ date: "2026-12-07", closed: false }])).toBe(
+      true,
+    );
+  });
+
+  it("el turno de madrugada sigue el horario del día en que empezó", () => {
+    // Viernes que cierra a la 01:00; el sábado es festivo cerrado: a las 00:30 sigue abierto.
+    const madrugada = new Date("2026-11-07T00:30:00Z");
+    expect(isOpenAt(schedule, TZ, madrugada, null, [{ date: "2026-11-07", closed: true }])).toBe(
+      true,
+    );
+    // Si el festivo cerrado es el viernes, ese turno no existe.
+    expect(isOpenAt(schedule, TZ, madrugada, null, [{ date: "2026-11-06", closed: true }])).toBe(
+      false,
+    );
+  });
+
+  it("la apertura o el cierre manual mandan sobre el festivo", () => {
+    const festivos = [{ date: "2026-12-08", closed: true }];
+    expect(isOpenAt(cafeteria, TZ, noche, true, festivos)).toBe(true);
+  });
+});
