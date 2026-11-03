@@ -126,3 +126,24 @@ OVERRIDING SYSTEM VALUE VALUES (104, 'Cafetería de festivos', 'prueba-d', 'Atla
 INSERT INTO public.horarios (restaurante_id, dia, disponible, apertura_1, cierre_1) VALUES
   (104, 'Martes', false, NULL, NULL),
   (104, 'Domingo', true, '08:00', '00:00');
+
+-- ---------------------------------------------------------------------------
+-- Restaurante E: tarifas de reparto (por km con tope y envío gratis; toda la ciudad).
+-- Sin tiempos configurados: el tiempo estimado queda «a confirmar» (null).
+-- ---------------------------------------------------------------------------
+INSERT INTO public.restaurante (id, nombre, slug, zona_horaria, payment_methods)
+OVERRIDING SYSTEM VALUE VALUES (105, 'Pizzería de tarifas', 'prueba-e', 'Atlantic/Canary', '["efectivo"]');
+INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value) VALUES (105, 'is_open_override', 'true');
+UPDATE public.sucursal SET lat = 28.9637, lng = -13.5477 WHERE restaurante_id = 105 AND es_principal;
+INSERT INTO public.menu_category (menu_category_id, name, sort_order, restaurante_id)
+OVERRIDING SYSTEM VALUE VALUES (5001, 'Pizzas', 1, 105);
+INSERT INTO public.menu_item (menu_item_id, menu_category_id, name, restaurante_id, is_active)
+OVERRIDING SYSTEM VALUE VALUES (5201, 5001, 'Barbacoa', 105, true);
+INSERT INTO public.menu_variant (menu_variant_id, menu_item_id, variant_name, price, restaurante_id, is_default)
+OVERRIDING SYSTEM VALUE VALUES (5301, 5201, 'Mediana', 10.00, 105, true);
+INSERT INTO public.delivery_zone
+  (delivery_zone_id, zone_name, fee, min_order_amount, restaurante_id, lat_center, lng_center, radius_km,
+   tipo_tarifa, tarifa_por_km, tarifa_maxima, envio_gratis_desde, cubre_todo)
+OVERRIDING SYSTEM VALUE VALUES
+  (5101, 'Cerca', 1.50, 0, 105, 28.9637, -13.5477, 2, 'por_km', 0.50, 4.00, 30, false),
+  (5102, 'Toda la ciudad', 5.00, 0, 105, NULL, NULL, NULL, 'fija', NULL, NULL, NULL, true);

@@ -60,7 +60,12 @@ export type SurchargeRule = {
   readonly appliesTo?: readonly Fulfillment[];
 };
 
-export type DeliveryTerms = { readonly feeCents: Cents; readonly minOrderCents: Cents };
+export type DeliveryTerms = {
+  readonly feeCents: Cents;
+  readonly minOrderCents: Cents;
+  /** Envío gratis cuando los productos alcanzan este importe. `null`/ausente: nunca. */
+  readonly freeFromCents?: Cents | null;
+};
 
 export type PricingContext = {
   readonly fulfillment: Fulfillment;
@@ -272,8 +277,11 @@ export function priceOrder(
     )
     .map((rule) => ({ label: rule.label, amountCents: rule.amountCents }));
 
+  const freeFrom = context.delivery?.freeFromCents ?? null;
   const deliveryFeeCents =
-    context.fulfillment === FULFILLMENT.Delivery && context.delivery
+    context.fulfillment === FULFILLMENT.Delivery &&
+    context.delivery &&
+    !(freeFrom !== null && subtotalCents >= freeFrom)
       ? context.delivery.feeCents
       : cents(0);
 

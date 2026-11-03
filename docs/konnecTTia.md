@@ -123,6 +123,24 @@ Detalle y consecuencias en [ADR 0007](adr/0007-sucursales.md).
   pantalla, grupos de modificadores, panel en directo, prácticas de calidad). Su código no tiene
   licencia y no se copia.
 
+### Parámetros de reparto y tiempos (sin valores en el código)
+
+Todo se configura en la base de datos, por restaurante o por zona:
+
+| Qué                                                                                                                                                          | Dónde                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| Zonas: cobertura por radio, código postal o toda la ciudad (`cubre_todo`)                                                                                    | `delivery_zone`      |
+| Tarifa fija o por km (`tipo_tarifa`, `fee`, `tarifa_por_km`, `tarifa_maxima`)                                                                                | `delivery_zone`      |
+| Envío gratis desde (`envio_gratis_desde`) y pedido mínimo (`min_order_amount`)                                                                               | `delivery_zone`      |
+| Tiempo de reparto de la zona (`estimated_minutes_min` / `_max`)                                                                                              | `delivery_zone`      |
+| Tiempo de reparto general: `delivery_eta_text` o `delivery_eta_min_minutes` / `delivery_eta_max_minutes` (y, como último recurso, `estimated_time_delivery`) | `restaurante_config` |
+| Tiempo de recogida: `pickup_eta_text` o `pickup_eta_minutes` (último recurso `estimated_time_pickup`)                                                        | `restaurante_config` |
+| Suplementos por pedido pequeño (`surcharge_rules`, JSON)                                                                                                     | `restaurante_config` |
+
+Si no hay tiempo configurado, el pedido muestra «tiempo a confirmar»: la API no inventa uno.
+Pendiente: que el subflujo Despacho de n8n lea `tipo_tarifa`, `envio_gratis_desde` y `cubre_todo`
+(hoy solo usa la tarifa fija de la zona) y elimine sus valores por defecto (20, 30 y 45 min).
+
 ## 5. Seguridad y aislamiento
 
 Corregido o en curso en este repositorio:

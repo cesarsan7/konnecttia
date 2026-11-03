@@ -26,7 +26,7 @@ export type NewOrder = {
   readonly customerPoint: { readonly lat: number; readonly lng: number } | null;
   readonly distanciaKm: number | null;
   readonly metodoPago: string;
-  readonly tiempoEstimado: string;
+  readonly tiempoEstimado: string | null;
   readonly notas: string | null;
   readonly quote: Quote;
 };

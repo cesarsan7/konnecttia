@@ -1,5 +1,5 @@
 import type { Id } from "./menu";
-import type { Cents } from "./money";
+import { type Cents, cents } from "./money";
 
 export const FULFILLMENT = {
   Pickup: "retiro",
@@ -48,4 +48,46 @@ export function findDeliveryZone(
     .filter((zone) => zone.active && distanceKm(zone.center, point) <= zone.radiusKm)
     .sort((a, b) => a.radiusKm - b.radiusKm);
   return covering[0] ?? null;
+}
+
+/** Cómo se calcula el envío de una zona. */
+export const DELIVERY_FEE_KIND = {
+  /** Importe fijo. */
+  Flat: "fija",
+  /** Importe base más un importe por km desde el local, con tope opcional. */
+  PerKm: "por_km",
+} as const;
+
+export type DeliveryFeeKind = (typeof DELIVERY_FEE_KIND)[keyof typeof DELIVERY_FEE_KIND];
+
+export type DeliveryFeeRule = {
+  readonly kind: DeliveryFeeKind;
+  readonly baseCents: Cents;
+  readonly perKmCents: Cents | null;
+  readonly maxCents: Cents | null;
+};
+
+export type DeliveryFeeResult =
+  | { readonly ok: true; readonly feeCents: Cents }
+  | { readonly ok: false; readonly reason: "DISTANCE_REQUIRED" | "INVALID_RULE" };
+
+/**
+ * Envío de una zona. Por km: la distancia (en línea recta desde el local) se redondea hacia
+ * arriba a la décima de km; el resultado nunca supera el tope si lo hay.
+ */
+export function deliveryFee(rule: DeliveryFeeRule, distanceKm: number | null): DeliveryFeeResult {
+  if (rule.kind === DELIVERY_FEE_KIND.Flat) {
+    return { ok: true, feeCents: rule.baseCents };
+  }
+  if (rule.perKmCents === null) return { ok: false, reason: "INVALID_RULE" };
+  if (distanceKm === null || !Number.isFinite(distanceKm) || distanceKm < 0) {
+    return { ok: false, reason: "DISTANCE_REQUIRED" };
+  }
+  const tenths = Math.ceil(Number((distanceKm * 10).toFixed(6)));
+  const variable = Math.round((rule.perKmCents * tenths) / 10);
+  const total = rule.baseCents + variable;
+  return {
+    ok: true,
+    feeCents: cents(rule.maxCents === null ? total : Math.min(total, rule.maxCents)),
+  };
 }

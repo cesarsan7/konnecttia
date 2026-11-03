@@ -4,7 +4,7 @@ import { addCents, type Cents, centsFromDecimal } from "@konnecttia/domain";
 import { useId, useMemo, useRef, useState } from "react";
 import type { Api } from "@/lib/api";
 import { type CartLine, lineCents, setQuantity, toOrderItems } from "@/lib/cart";
-import { describeApiError, normalizePhone, paymentLabel } from "@/lib/checkout";
+import { describeApiError, describeZoneFee, normalizePhone, paymentLabel } from "@/lib/checkout";
 import { eurosFromCents } from "@/lib/format";
 import type { Branch, CreatedOrder, DeliveryZone, Fulfillment, Menu } from "@/lib/types";
 
@@ -55,12 +55,22 @@ export function Checkout(props: Props) {
 
   const pickupBranches = branches.filter((branch) => branch.recogida);
   const zone = zones.find((candidate) => candidate.id === zoneId) ?? null;
-  const fee: Cents =
-    fulfillment === "delivery" && zone ? centsFromDecimal(zone.envio) : (0 as Cents);
   const minimum: Cents = zone ? centsFromDecimal(zone.minimo) : (0 as Cents);
   const missing = fulfillment === "delivery" && zone && subtotal < minimum ? minimum - subtotal : 0;
-  const estimate = addCents(subtotal, fee);
-  const usesPoint = fulfillment === "delivery" && zoneId === null && props.point !== null;
+  const freeDelivery =
+    zone?.gratis_desde != null && subtotal >= centsFromDecimal(zone.gratis_desde);
+  // Envío conocido solo con tarifa fija; por km depende de la distancia y lo calcula el servidor.
+  const knownFee: Cents | null =
+    fulfillment !== "delivery"
+      ? (0 as Cents)
+      : !zone
+        ? null
+        : freeDelivery
+          ? (0 as Cents)
+          : zone.tipo_tarifa === "fija"
+            ? centsFromDecimal(zone.envio)
+            : null;
+  const estimate = addCents(subtotal, knownFee ?? (0 as Cents));
 
   const problem = useMemo((): string | null => {
     if (lines.length === 0) return "Tu carrito está vacío.";
@@ -73,6 +83,9 @@ export function Checkout(props: Props) {
       if (!address.trim()) return "Escribe la dirección de entrega.";
       if (zoneId === null && props.point === null) {
         return "Elige tu zona o usa tu ubicación para calcular el reparto.";
+      }
+      if (zone?.tipo_tarifa === "por_km" && props.point === null) {
+        return "Esta zona cobra por distancia: pulsa «Usar mi ubicación» para calcular el envío.";
       }
       if (missing > 0) {
         return `Te faltan ${eurosFromCents(missing as Cents)} para el pedido mínimo de reparto. Añade algo más o cambia a recogida.`;
@@ -89,6 +102,7 @@ export function Checkout(props: Props) {
     props.branchId,
     address,
     zoneId,
+    zone?.tipo_tarifa,
     props.point,
     missing,
     payment,
@@ -111,7 +125,8 @@ export function Checkout(props: Props) {
         ? {
             direccion: address.trim(),
             ...(zoneId !== null ? { zona_id: zoneId } : {}),
-            ...(usesPoint && props.point ? { lat: props.point.lat, lng: props.point.lng } : {}),
+            // La ubicación se envía siempre que exista: elige local y calcula tarifas por km.
+            ...(props.point ? { lat: props.point.lat, lng: props.point.lng } : {}),
           }
         : {}),
       items: toOrderItems(lines),
@@ -272,10 +287,7 @@ export function Checkout(props: Props) {
                   <option value="">{props.point ? "Según mi ubicación" : "Elige tu zona"}</option>
                   {zones.map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.nombre} · envío {eurosFromCents(centsFromDecimal(option.envio))}
-                      {option.minimo > 0
-                        ? ` · mínimo ${eurosFromCents(centsFromDecimal(option.minimo))}`
-                        : ""}
+                      {option.nombre} · {describeZoneFee(option)}
                     </option>
                   ))}
                 </select>
@@ -373,7 +385,7 @@ export function Checkout(props: Props) {
           {fulfillment === "delivery" && (
             <div>
               <dt>Envío</dt>
-              <dd>{zone ? eurosFromCents(fee) : "Se calcula al confirmar"}</dd>
+              <dd>{knownFee !== null ? eurosFromCents(knownFee) : "Se calcula al confirmar"}</dd>
             </div>
           )}
           <div className="total">

@@ -28,6 +28,8 @@ const ERROR_MESSAGE: Readonly<Record<string, string>> = {
   local_closed: "El local está cerrado ahora mismo. Prueba con otro local o más tarde.",
   branch_required: "Elige en qué local quieres recoger el pedido.",
   branch_not_available: "Ese local no está disponible. Elige otro.",
+  location_required:
+    "Para calcular el envío de esa zona necesitamos tu ubicación. Pulsa «Usar mi ubicación».",
   zone_not_found: "No repartimos en esa dirección. Elige otra zona o recoge en el local.",
   delivery_not_available: "Ahora mismo no hay reparto. Puedes recogerlo en el local.",
   pickup_not_available: "Ahora mismo no se puede recoger en el local.",
@@ -86,4 +88,27 @@ export function trackingSteps(fulfillment: string | null): readonly string[] {
   return fulfillment === "delivery"
     ? ["recibido", "confirmado", "en_preparacion", "en_camino", "entregado"]
     : ["recibido", "confirmado", "en_preparacion", "listo", "entregado"];
+}
+
+/** Texto de la tarifa de una zona para el selector («2,00 €», «1,50 € + 0,50 €/km»…). */
+export function describeZoneFee(zone: {
+  readonly tipo_tarifa: string;
+  readonly envio: number;
+  readonly por_km: number | null;
+  readonly envio_maximo: number | null;
+  readonly gratis_desde: number | null;
+  readonly minimo: number;
+}): string {
+  const money = (value: number) =>
+    value.toLocaleString("es-ES", { style: "currency", currency: "EUR" });
+  const parts = [
+    zone.tipo_tarifa === "por_km" && zone.por_km !== null
+      ? `envío ${money(zone.envio)} + ${money(zone.por_km)}/km${zone.envio_maximo !== null ? ` (máx. ${money(zone.envio_maximo)})` : ""}`
+      : zone.envio === 0
+        ? "envío gratis"
+        : `envío ${money(zone.envio)}`,
+    ...(zone.gratis_desde !== null ? [`gratis desde ${money(zone.gratis_desde)}`] : []),
+    ...(zone.minimo > 0 ? [`mínimo ${money(zone.minimo)}`] : []),
+  ];
+  return parts.join(" · ");
 }

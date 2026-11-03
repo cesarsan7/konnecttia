@@ -309,9 +309,14 @@ describe.skipIf(!TEST_DATABASE_URL)("API de pedidos (integración con PostgreSQL
         {
           id: 1401,
           nombre: "Arrecife centro",
+          tipo_tarifa: "fija",
           envio: 2.5,
+          por_km: null,
+          envio_maximo: null,
+          gratis_desde: null,
           minimo: 15,
           tiempo: "30-40 min",
+          toda_la_ciudad: false,
           local: "Cafetería de prueba A",
         },
       ]);
