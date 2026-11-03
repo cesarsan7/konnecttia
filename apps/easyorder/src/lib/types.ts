@@ -53,9 +53,15 @@ export type Branch = {
 export type DeliveryZone = {
   readonly id: number;
   readonly nombre: string;
+  readonly tipo_tarifa: "fija" | "por_km";
+  /** Tarifa fija, o importe base si es por km. */
   readonly envio: number;
+  readonly por_km: number | null;
+  readonly envio_maximo: number | null;
+  readonly gratis_desde: number | null;
   readonly minimo: number;
   readonly tiempo: string | null;
+  readonly toda_la_ciudad: boolean;
   readonly local: string | null;
 };
 
@@ -68,7 +74,7 @@ export type CreatedOrder = {
     readonly nombre: string;
     readonly direccion: string | null;
   };
-  readonly tiempo_estimado: string;
+  readonly tiempo_estimado: string | null;
   readonly subtotal: number;
   readonly suplementos: readonly { readonly concepto: string; readonly importe: number }[];
   readonly costo_envio: number;

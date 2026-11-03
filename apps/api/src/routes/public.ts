@@ -1,6 +1,7 @@
 import {
   branchServes,
   chooseDeliveryZone,
+  deliveryFee,
   distanceKm,
   FULFILLMENT,
   type GeoPoint,
@@ -26,6 +27,7 @@ import {
 import { loadCatalogForItems, loadPublicMenu } from "../repositories/catalog";
 import { createOrder, findOrderByTrackingToken } from "../repositories/orders";
 import {
+  deliveryEta,
   findDeliveryZone,
   fulfillmentEnabled,
   loadConfig,
@@ -188,9 +190,11 @@ export function publicRoutes(deps: AppDeps) {
     if (!restaurant.deliveryEnabled) {
       return c.json({ zonas: [] });
     }
-    const branches = (await loadBranches(deps.sql, restaurant.id)).filter((branch) =>
-      branchServes(branch, FULFILLMENT.Delivery),
-    );
+    const [allBranches, config] = await Promise.all([
+      loadBranches(deps.sql, restaurant.id),
+      loadConfig(deps.sql, restaurant.id),
+    ]);
+    const branches = allBranches.filter((branch) => branchServes(branch, FULFILLMENT.Delivery));
     const names = new Map(branches.map((branch) => [branch.id, branch.name]));
     if (names.size === 0) {
       return c.json({ zonas: [] });
@@ -204,26 +208,38 @@ export function publicRoutes(deps: AppDeps) {
         estimated_minutes_min: number | null;
         estimated_minutes_max: number | null;
         sucursal_id: number;
+        tipo_tarifa: string;
+        tarifa_por_km: string | null;
+        tarifa_maxima: string | null;
+        envio_gratis_desde: string | null;
+        cubre_todo: boolean;
       }[]
     >`
       SELECT delivery_zone_id, zone_name, fee, min_order_amount, estimated_minutes_min,
-             estimated_minutes_max, sucursal_id
+             estimated_minutes_max, sucursal_id, tipo_tarifa, tarifa_por_km, tarifa_maxima,
+             envio_gratis_desde, cubre_todo
       FROM   public.delivery_zone
       WHERE  restaurante_id = ${restaurant.id}
         AND  is_active = true
         AND  sucursal_id IN ${deps.sql([...names.keys()])}
       ORDER  BY zone_name
     `;
+    const amount = (value: string | null) => (value === null ? null : Number(value));
     return c.json({
       zonas: rows.map((zone) => ({
         id: zone.delivery_zone_id,
         nombre: zone.zone_name,
+        tipo_tarifa: zone.tipo_tarifa,
         envio: Number(zone.fee),
+        por_km: amount(zone.tarifa_por_km),
+        envio_maximo: amount(zone.tarifa_maxima),
+        gratis_desde: amount(zone.envio_gratis_desde),
         minimo: Number(zone.min_order_amount ?? 0),
-        tiempo:
-          zone.estimated_minutes_min !== null && zone.estimated_minutes_max !== null
-            ? `${zone.estimated_minutes_min}-${zone.estimated_minutes_max} min`
-            : null,
+        tiempo: deliveryEta(
+          { min: zone.estimated_minutes_min, max: zone.estimated_minutes_max },
+          config,
+        ),
+        toda_la_ciudad: zone.cubre_todo,
         local: names.get(zone.sucursal_id) ?? null,
       })),
     });
@@ -383,10 +399,25 @@ export function publicRoutes(deps: AppDeps) {
         zoneId = choice.zoneId;
       }
       const zone = await findDeliveryZone(deps.sql, restaurant.id, zoneId, config);
-      if (!zone) {
+      if (!zone || !branch) {
         return fail(c, 422, API_ERROR.DeliveryZoneNotFound);
       }
-      pricingContext = { ...pricingContext, fulfillment: FULFILLMENT.Delivery, delivery: zone };
+      // Distancia en línea recta del local al cliente (para tarifas por km).
+      const km =
+        customerPoint && branch.location ? distanceKm(customerPoint, branch.location) : null;
+      const fee = deliveryFee(zone.fee, km);
+      if (!fee.ok) {
+        return fail(c, 422, API_ERROR.LocationRequired);
+      }
+      pricingContext = {
+        ...pricingContext,
+        fulfillment: FULFILLMENT.Delivery,
+        delivery: {
+          feeCents: fee.feeCents,
+          minOrderCents: zone.minOrderCents,
+          freeFromCents: zone.freeFromCents,
+        },
+      };
       eta = zone.eta;
       postalCode = zone.postalCode;
     }

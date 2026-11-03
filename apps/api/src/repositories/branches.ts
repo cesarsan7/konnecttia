@@ -177,6 +177,7 @@ type ZoneRow = {
   lat_center: string | null;
   lng_center: string | null;
   radius_km: string | null;
+  cubre_todo: boolean;
 };
 
 /**
@@ -189,12 +190,24 @@ export async function coveringZones(
   customer: { readonly point: GeoPoint | null; readonly postalCode: string | null },
 ): Promise<ZoneCoverage[]> {
   const rows = await sql<ZoneRow[]>`
-    SELECT delivery_zone_id, sucursal_id, postal_code, lat_center, lng_center, radius_km
+    SELECT delivery_zone_id, sucursal_id, postal_code, lat_center, lng_center, radius_km,
+           cubre_todo
     FROM   public.delivery_zone
     WHERE  restaurante_id = ${restauranteId} AND is_active = true
   `;
   return rows.flatMap((zone): ZoneCoverage[] => {
     const radiusKm = zone.radius_km === null ? null : Number(zone.radius_km);
+    // Tarifa única para toda la ciudad: cubre cualquier dirección (va detrás de las zonas con radio).
+    if (zone.cubre_todo) {
+      return [
+        {
+          zoneId: zone.delivery_zone_id,
+          branchId: zone.sucursal_id,
+          distanceToCenterKm: null,
+          radiusKm: null,
+        },
+      ];
+    }
     if (customer.point && zone.lat_center !== null && zone.lng_center !== null && radiusKm) {
       const distance = distanceKm(customer.point, {
         lat: Number(zone.lat_center),

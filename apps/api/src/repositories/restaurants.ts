@@ -1,7 +1,9 @@
 import {
+  type Cents,
   cents,
   type DaySchedule,
-  type DeliveryTerms,
+  DELIVERY_FEE_KIND,
+  type DeliveryFeeRule,
   FULFILLMENT,
   type Fulfillment,
   type OpenOverride,
@@ -23,17 +25,23 @@ export type Restaurant = {
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/**
+ * Claves de `restaurante_config` que usa la API. Son las mismas que usa n8n (Despacho); las
+ * `estimated_time_*` son de la versión inicial de EasyOrder y se aceptan como último recurso.
+ * No hay valores por defecto en el código: si falta la configuración, el tiempo queda «a confirmar».
+ */
 export const CONFIG_KEY = {
   OpenOverride: "is_open_override",
+  PickupEtaText: "pickup_eta_text",
   PickupEtaMinutes: "pickup_eta_minutes",
+  PickupEtaLegacy: "estimated_time_pickup",
+  DeliveryEtaText: "delivery_eta_text",
   DeliveryEtaMin: "delivery_eta_min_minutes",
   DeliveryEtaMax: "delivery_eta_max_minutes",
+  DeliveryEtaLegacy: "estimated_time_delivery",
   /** JSON con reglas de suplemento, p. ej. envases: [{"label":"Envases","below":25,"amount":1}] */
   SurchargeRules: "surcharge_rules",
 } as const;
-
-const DEFAULT_PICKUP_ETA_MINUTES = 20;
-const DEFAULT_DELIVERY_ETA = { min: 30, max: 45 } as const;
 
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {
   if (!SLUG_PATTERN.test(slug) || slug.length > 100) {
@@ -129,15 +137,56 @@ export function surchargeRules(config: ReadonlyMap<string, string>): SurchargeRu
   }));
 }
 
-export function pickupEta(config: ReadonlyMap<string, string>): string {
-  const minutes = Number.parseInt(config.get(CONFIG_KEY.PickupEtaMinutes) ?? "", 10);
-  return `${Number.isFinite(minutes) ? minutes : DEFAULT_PICKUP_ETA_MINUTES} min`;
+function minutesFrom(config: ReadonlyMap<string, string>, key: string): number | null {
+  const value = Number.parseInt(config.get(key) ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-export type DeliveryZoneTerms = DeliveryTerms & {
+function textFrom(config: ReadonlyMap<string, string>, key: string): string | null {
+  const value = config.get(key)?.trim();
+  return value ? value.slice(0, 40) : null;
+}
+
+/** "30 min" si mínimo y máximo coinciden; "30-45 min" si no; `null` si no hay datos. */
+export function formatEta(min: number | null, max: number | null): string | null {
+  const low = min ?? max;
+  const high = max ?? min;
+  if (low === null || high === null) return null;
+  return low === high ? `${low} min` : `${Math.min(low, high)}-${Math.max(low, high)} min`;
+}
+
+/** Tiempo de recogida configurado para el restaurante, o `null` («a confirmar»). */
+export function pickupEta(config: ReadonlyMap<string, string>): string | null {
+  return (
+    textFrom(config, CONFIG_KEY.PickupEtaText) ??
+    formatEta(minutesFrom(config, CONFIG_KEY.PickupEtaMinutes), null) ??
+    formatEta(minutesFrom(config, CONFIG_KEY.PickupEtaLegacy), null)
+  );
+}
+
+/** Tiempo de reparto: el de la zona; si no, el del restaurante; si no, `null`. */
+export function deliveryEta(
+  zone: { readonly min: number | null; readonly max: number | null },
+  config: ReadonlyMap<string, string>,
+): string | null {
+  return (
+    formatEta(zone.min, zone.max) ??
+    textFrom(config, CONFIG_KEY.DeliveryEtaText) ??
+    formatEta(
+      minutesFrom(config, CONFIG_KEY.DeliveryEtaMin),
+      minutesFrom(config, CONFIG_KEY.DeliveryEtaMax),
+    ) ??
+    formatEta(minutesFrom(config, CONFIG_KEY.DeliveryEtaLegacy), null)
+  );
+}
+
+export type DeliveryZoneTerms = {
   readonly zoneId: number;
   readonly postalCode: string | null;
-  readonly eta: string;
+  readonly eta: string | null;
+  readonly minOrderCents: Cents;
+  readonly freeFromCents: Cents | null;
+  readonly fee: DeliveryFeeRule;
 };
 
 export async function findDeliveryZone(
@@ -154,10 +203,15 @@ export async function findDeliveryZone(
       estimated_minutes_min: number | null;
       estimated_minutes_max: number | null;
       postal_code: string | null;
+      tipo_tarifa: string;
+      tarifa_por_km: string | null;
+      tarifa_maxima: string | null;
+      envio_gratis_desde: string | null;
     }[]
   >`
     SELECT delivery_zone_id, fee, min_order_amount, estimated_minutes_min,
-           estimated_minutes_max, postal_code
+           estimated_minutes_max, postal_code, tipo_tarifa, tarifa_por_km, tarifa_maxima,
+           envio_gratis_desde
     FROM   public.delivery_zone
     WHERE  delivery_zone_id = ${zoneId}
       AND  restaurante_id   = ${restauranteId}
@@ -166,20 +220,23 @@ export async function findDeliveryZone(
   `;
   const zone = rows[0];
   if (!zone) return null;
-  const fromConfig = (key: string, fallback: number) => {
-    const value = Number.parseInt(config.get(key) ?? "", 10);
-    return Number.isFinite(value) ? value : fallback;
-  };
-  const etaMin =
-    zone.estimated_minutes_min ?? fromConfig(CONFIG_KEY.DeliveryEtaMin, DEFAULT_DELIVERY_ETA.min);
-  const etaMax =
-    zone.estimated_minutes_max ?? fromConfig(CONFIG_KEY.DeliveryEtaMax, DEFAULT_DELIVERY_ETA.max);
+  const optionalCents = (value: string | null) =>
+    value === null ? null : cents(eurosToCents(value));
   return {
     zoneId: zone.delivery_zone_id,
-    feeCents: cents(eurosToCents(zone.fee)),
     minOrderCents: cents(eurosToCents(zone.min_order_amount)),
+    freeFromCents: optionalCents(zone.envio_gratis_desde),
     postalCode: zone.postal_code,
-    eta: `${etaMin}-${etaMax} min`,
+    eta: deliveryEta({ min: zone.estimated_minutes_min, max: zone.estimated_minutes_max }, config),
+    fee: {
+      kind:
+        zone.tipo_tarifa === DELIVERY_FEE_KIND.PerKm
+          ? DELIVERY_FEE_KIND.PerKm
+          : DELIVERY_FEE_KIND.Flat,
+      baseCents: cents(eurosToCents(zone.fee)),
+      perKmCents: optionalCents(zone.tarifa_por_km),
+      maxCents: optionalCents(zone.tarifa_maxima),
+    },
   };
 }
 
