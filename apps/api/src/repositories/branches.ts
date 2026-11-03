@@ -4,6 +4,7 @@ import {
   type DaySchedule,
   distanceKm,
   type GeoPoint,
+  type Holiday,
   isOpenAt,
   type OpenOverride,
   type ZoneCoverage,
@@ -114,12 +115,13 @@ export async function openChecker(
   restaurantOverride: OpenOverride,
   now: Date,
 ): Promise<(branch: Branch) => boolean> {
-  const [general, own] = await Promise.all([
+  const [general, own, holidays] = await Promise.all([
     loadSchedule(sql, restaurant.id),
     loadBranchSchedules(
       sql,
       branches.map((branch) => branch.id),
     ),
+    loadHolidays(sql, restaurant.id, now),
   ]);
   const forced = new Map(branches.map((branch) => [branch.id, branch.forcedOpen]));
   return (branch) =>
@@ -128,7 +130,36 @@ export async function openChecker(
       restaurant.zonaHoraria,
       now,
       forced.get(branch.id) ?? restaurantOverride,
+      holidaysFor(holidays, branch.id),
     );
+}
+
+type HolidayRow = { fecha: string; cerrado: boolean; sucursal_id: number | null };
+
+/** Festivos alrededor de `now` (basta ±2 días para cubrir cualquier zona horaria). */
+async function loadHolidays(sql: Sql, restauranteId: number, now: Date): Promise<HolidayRow[]> {
+  return sql<HolidayRow[]>`
+    SELECT to_char(fecha, 'YYYY-MM-DD') AS fecha, cerrado, sucursal_id
+    FROM   public.festivo
+    WHERE  restaurante_id = ${restauranteId}
+      AND  fecha BETWEEN ${now.toISOString()}::date - 2 AND ${now.toISOString()}::date + 2
+  `;
+}
+
+/** Festivos de un local: los del restaurante, salvo que el local tenga uno propio esa fecha. */
+function holidaysFor(rows: readonly HolidayRow[], branchId: number): Holiday[] {
+  const byDate = new Map<string, Holiday>();
+  for (const row of rows) {
+    if (row.sucursal_id === null && !byDate.has(row.fecha)) {
+      byDate.set(row.fecha, { date: row.fecha, closed: row.cerrado });
+    }
+  }
+  for (const row of rows) {
+    if (row.sucursal_id === branchId) {
+      byDate.set(row.fecha, { date: row.fecha, closed: row.cerrado });
+    }
+  }
+  return [...byDate.values()];
 }
 
 /** Productos que un local no ofrece ahora mismo (agotados o no servidos allí). */
