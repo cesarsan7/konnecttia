@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { canCancel, laneOf, newArrivals, orderLines, orderNotes, primaryAction } from "./orders";
+import {
+  canCancel,
+  laneOf,
+  newArrivals,
+  orderLines,
+  orderNotes,
+  primaryAction,
+  summarizeLines,
+} from "./orders";
 import { change, niceTicks, peakHour, presetRange, todayIn } from "./stats";
 import type { PanelOrder } from "./types";
 
@@ -90,6 +98,23 @@ describe("tablero de pedidos", () => {
       { quantity: 1, name: "Pizza", variant: null, extras: [], note: null },
     ]);
     expect(orderLines("no es una lista")).toEqual([]);
+  });
+
+  it("resume en una línea lo que pidió el cliente", () => {
+    expect(
+      summarizeLines(
+        orderLines([
+          {
+            item_name: "Arepa",
+            variant_name: "Grande",
+            quantity: 2,
+            extras: [{ name: "Queso", quantity: 2 }],
+          },
+          { nombre: "Batido", cantidad: 1 },
+        ]),
+      ),
+    ).toBe("2× Arepa (Grande) + Queso · 1× Batido");
+    expect(summarizeLines([])).toBe("Sin productos");
   });
 
   it("muestra las notas del cliente pero no los suplementos", () => {

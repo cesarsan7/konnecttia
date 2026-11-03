@@ -51,6 +51,10 @@ export const CONFIG_KEY = {
   N8nWebhookEntrada: "n8n_webhook_entrada",
   /** Clave antigua del dashboard de EasyOrder; solo se lee si falta la nueva. */
   LegacyWebhookAvisos: "chatwoot_webhook_prod",
+  /** Lista JSON de minutos extra que ofrece el botón «Modo ocupado» del panel. */
+  BusyModeOptions: "modo_ocupado_opciones",
+  /** Minutos que dura el modo ocupado antes de apagarse solo. */
+  BusyModeDuration: "modo_ocupado_duracion_minutos",
   /** JSON con reglas de suplemento, p. ej. envases: [{"label":"Envases","below":25,"amount":1}] */
   SurchargeRules: "surcharge_rules",
 } as const;
@@ -207,6 +211,29 @@ export function queueRule(config: ReadonlyMap<string, string>): QueueRule | null
   if (perOrder === null) return null;
   const free = Number.parseInt(config.get(CONFIG_KEY.QueueFreeOrders) ?? "0", 10);
   return { minutesPerOrder: perOrder, freeOrders: Number.isFinite(free) && free > 0 ? free : 0 };
+}
+
+export type BusyModeSettings = { readonly opciones: number[]; readonly duracion_minutos: number };
+
+const busyOptionsSchema = z.array(z.number().int().min(1).max(240)).min(1).max(6);
+
+/**
+ * Opciones del «modo ocupado» del restaurante. Sin configuración (o con un valor no válido) el
+ * panel no ofrece el botón: no hay valores por defecto en el código.
+ */
+export function busyModeSettings(config: ReadonlyMap<string, string>): BusyModeSettings | null {
+  const rawOptions = config.get(CONFIG_KEY.BusyModeOptions);
+  const duration = Number(config.get(CONFIG_KEY.BusyModeDuration));
+  if (!rawOptions || !Number.isInteger(duration) || duration < 5 || duration > 720) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawOptions);
+  } catch {
+    return null;
+  }
+  const options = busyOptionsSchema.safeParse(parsed);
+  if (!options.success) return null;
+  return { opciones: [...new Set(options.data)].sort((a, b) => a - b), duracion_minutos: duration };
 }
 
 export type DeliveryZoneTerms = {

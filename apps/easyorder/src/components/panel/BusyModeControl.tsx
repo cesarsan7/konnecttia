@@ -4,22 +4,21 @@ import { useState } from "react";
 import type { PanelBranch } from "@/lib/panel/types";
 import { Icon } from "./Icon";
 
-/** Minutos extra que ofrece el botón de modo ocupado (durante una hora). */
-const OPTIONS = [10, 20, 30] as const;
-
 type Props = {
   readonly branch: PanelBranch;
   readonly showName: boolean;
   readonly timeZone: string;
+  /** Minutos extra que ofrece el restaurante (restaurante_config.modo_ocupado_opciones). */
+  readonly options: readonly number[];
   /** null = volver a los tiempos normales. */
   readonly onChange: (minutes: number | null) => Promise<void>;
 };
 
 /**
  * «Modo ocupado»: suma minutos al tiempo que ven los clientes al pedir (web y, cuando n8n lo lea,
- * WhatsApp). Se apaga solo al cabo de una hora.
+ * WhatsApp). Se apaga solo al cabo del tiempo configurado (modo_ocupado_duracion_minutos).
  */
-export function BusyModeControl({ branch, showName, timeZone, onChange }: Props) {
+export function BusyModeControl({ branch, showName, timeZone, options, onChange }: Props) {
   const [saving, setSaving] = useState(false);
   const busy = branch.modo_ocupado;
 
@@ -60,7 +59,7 @@ export function BusyModeControl({ branch, showName, timeZone, onChange }: Props)
             Quitar
           </button>
         ) : (
-          OPTIONS.map((minutes) => (
+          options.map((minutes) => (
             <button
               key={minutes}
               type="button"

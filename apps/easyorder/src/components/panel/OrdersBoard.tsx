@@ -18,6 +18,7 @@ import {
   paymentLabel,
   primaryAction,
   STATUS_LABEL,
+  summarizeLines,
   WAITING_TOO_LONG_MINUTES,
 } from "@/lib/panel/orders";
 import type { PanelBranch, PanelOrder } from "@/lib/panel/types";
@@ -49,6 +50,8 @@ export function OrdersBoard() {
   const [fresh, setFresh] = useState<ReadonlySet<number>>(new Set());
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [cancelling, setCancelling] = useState<PanelOrder | null>(null);
+  const [detail, setDetail] = useState<DetailMode>("auto");
+  const [overrides, setOverrides] = useState<Readonly<Record<number, boolean>>>({});
   const seen = useRef<Set<number> | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -170,8 +173,27 @@ export function OrdersBoard() {
     dialog.current?.showModal();
   }
 
+  useEffect(() => {
+    setDetail(storedDetailMode());
+  }, []);
+
+  function setAllDetail(mode: DetailMode) {
+    setDetail(mode);
+    setOverrides({});
+    try {
+      localStorage.setItem(DETAIL_KEY, mode);
+    } catch {
+      // Sin almacenamiento: solo dura esta visita.
+    }
+  }
+
+  const isExpanded = (order: PanelOrder) =>
+    overrides[order.id] ??
+    (detail === "todo" ? true : detail === "nada" ? false : laneOf(order) === "nuevos");
+
   const showBranches = branches.length > 1;
   const visibleBranches = branchId ? branches.filter((branch) => branch.id === branchId) : branches;
+  const busySettings = access.ajustes.modo_ocupado;
   const activeBusy = visibleBranches.filter((branch) => branch.modo_ocupado).length;
 
   return (
@@ -227,7 +249,7 @@ export function OrdersBoard() {
         </fieldset>
       ) : null}
 
-      {permissions.changeStatus && visibleBranches.length > 0 ? (
+      {permissions.changeStatus && busySettings && visibleBranches.length > 0 ? (
         <details className="k-busy-panel" open={activeBusy > 0 || visibleBranches.length === 1}>
           <summary>
             <Icon name="flame" size={18} />
@@ -245,17 +267,18 @@ export function OrdersBoard() {
                 branch={branch}
                 showName={showBranches}
                 timeZone={access.restaurante.zona_horaria}
+                options={busySettings.opciones}
                 onChange={async (minutes) => {
                   const result =
                     minutes === null
                       ? await api.stopBusy(slug, branch.id)
-                      : await api.startBusy(slug, branch.id, minutes, 60);
+                      : await api.startBusy(slug, branch.id, minutes);
                   if (!result.ok) toast(describePanelError(result.status, result.body), "error");
                   else
                     toast(
                       minutes === null
                         ? `${branch.nombre}: tiempos normales`
-                        : `${branch.nombre}: +${minutes} min durante 1 hora`,
+                        : `${branch.nombre}: +${minutes} min durante ${busySettings.duracion_minutos} min`,
                     );
                   await loadBranches();
                 }}
@@ -279,6 +302,24 @@ export function OrdersBoard() {
             <span className="k-count">{byLane[item.id].length}</span>
           </button>
         ))}
+      </div>
+
+      <div className="k-board-tools">
+        <span className="k-small k-muted">Detalle de los pedidos:</span>
+        <fieldset className="k-segment k-segment-sm">
+          <legend className="k-sr-only">Detalle de los pedidos</legend>
+          {DETAIL_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={detail === option.id ? "is-on" : ""}
+              aria-pressed={detail === option.id}
+              onClick={() => setAllDetail(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </fieldset>
       </div>
 
       {orders === null ? (
@@ -324,6 +365,13 @@ export function OrdersBoard() {
                         permissions={permissions}
                         onAction={(action) => run(order, action)}
                         onCancel={() => askCancel(order)}
+                        expanded={isExpanded(order)}
+                        onToggle={() =>
+                          setOverrides((current) => ({
+                            ...current,
+                            [order.id]: !isExpanded(order),
+                          }))
+                        }
                       />
                     </li>
                   ))}
@@ -388,7 +436,26 @@ type CardProps = {
   readonly permissions: { readonly changeStatus: boolean; readonly confirmPayment: boolean };
   readonly onAction: (action: OrderAction) => void;
   readonly onCancel: () => void;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
 };
+
+type DetailMode = "auto" | "todo" | "nada";
+const DETAIL_KEY = "easyorder.panel.detalle";
+const DETAIL_OPTIONS: readonly { id: DetailMode; label: string }[] = [
+  { id: "auto", label: "Solo nuevos" },
+  { id: "todo", label: "Todos" },
+  { id: "nada", label: "Ninguno" },
+];
+
+function storedDetailMode(): DetailMode {
+  try {
+    const value = localStorage.getItem(DETAIL_KEY);
+    return value === "todo" || value === "nada" ? value : "auto";
+  } catch {
+    return "auto";
+  }
+}
 
 function OrderCard({
   order,
@@ -400,12 +467,16 @@ function OrderCard({
   permissions,
   onAction,
   onCancel,
+  expanded,
+  onToggle,
 }: CardProps) {
   const lane = laneOf(order);
   const minutes = minutesSince(order.created_at, now);
   const late = lane === "nuevos" && minutes >= WAITING_TOO_LONG_MINUTES;
   const lines = orderLines(order.items);
   const notes = orderNotes(order.notas);
+  const hasNotes = notes.length > 0 || lines.some((line) => line.note);
+  const detailId = `pedido-${order.id}-detalle`;
   const action = primaryAction(order, permissions);
   const paymentPending = order.estado_pago === "pendiente";
   const delivery = order.tipo_despacho === "delivery";
@@ -422,8 +493,18 @@ function OrderCard({
       aria-label={`Pedido ${order.pedido_codigo ?? order.id}`}
     >
       <header className="k-order-head">
-        <div>
+        <button
+          type="button"
+          className="k-order-toggle"
+          aria-expanded={expanded}
+          aria-controls={detailId}
+          onClick={onToggle}
+        >
+          <span className="k-sr-only">{expanded ? "Ocultar detalle de " : "Ver detalle de "}</span>
           <span className="k-order-code">{order.pedido_codigo ?? `#${order.id}`}</span>
+          <Icon name={expanded ? "chevronUp" : "chevronDown"} size={18} />
+        </button>
+        <div className="k-order-tags">
           <span className={`k-chip k-chip-${order.estado}`}>
             {STATUS_LABEL[order.estado] ?? order.estado}
           </span>
@@ -439,9 +520,11 @@ function OrderCard({
 
       <div className="k-order-who">
         <strong>{order.nombre_pedido ?? "Cliente"}</strong>
-        <a className="k-small" href={`tel:${order.telefono}`}>
-          <Icon name="phone" size={14} /> {order.telefono}
-        </a>
+        {expanded ? (
+          <a className="k-small" href={`tel:${order.telefono}`}>
+            <Icon name="phone" size={14} /> {order.telefono}
+          </a>
+        ) : null}
       </div>
 
       <p className="k-order-mode">
@@ -452,38 +535,47 @@ function OrderCard({
           {order.tiempo_estimado ? ` · ${order.tiempo_estimado}` : ""}
         </span>
       </p>
-      {delivery && order.direccion ? (
-        <a
-          className="k-order-address k-small"
-          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.direccion)}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <Icon name="pin" size={14} /> {order.direccion}
-        </a>
-      ) : null}
+      {expanded ? (
+        <div id={detailId} className="k-order-detail">
+          {delivery && order.direccion ? (
+            <a
+              className="k-order-address k-small"
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.direccion)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Icon name="pin" size={14} /> {order.direccion}
+            </a>
+          ) : null}
 
-      <ul className="k-lines">
-        {lines.map((line, index) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: las líneas de un pedido no cambian de orden.
-          <li key={index}>
-            <span className="k-qty">{line.quantity}×</span>
-            <span>
-              {line.name}
-              {line.variant ? <span className="k-muted"> · {line.variant}</span> : null}
-              {line.extras.length > 0 ? (
-                <span className="k-line-extras">+ {line.extras.join(", ")}</span>
-              ) : null}
-              {line.note ? <span className="k-line-note">«{line.note}»</span> : null}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {notes.length > 0 ? (
-        <p className="k-order-note">
-          <strong>Nota:</strong> {notes.join(" · ")}
-        </p>
-      ) : null}
+          <ul className="k-lines">
+            {lines.map((line, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: las líneas de un pedido no cambian de orden.
+              <li key={index}>
+                <span className="k-qty">{line.quantity}×</span>
+                <span>
+                  {line.name}
+                  {line.variant ? <span className="k-muted"> · {line.variant}</span> : null}
+                  {line.extras.length > 0 ? (
+                    <span className="k-line-extras">+ {line.extras.join(", ")}</span>
+                  ) : null}
+                  {line.note ? <span className="k-line-note">«{line.note}»</span> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {notes.length > 0 ? (
+            <p className="k-order-note">
+              <strong>Nota:</strong> {notes.join(" · ")}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <button type="button" id={detailId} className="k-order-summary" onClick={onToggle}>
+          <span className="k-summary-text">{summarizeLines(lines)}</span>
+          {hasNotes ? <span className="k-chip k-chip-note">Con notas</span> : null}
+        </button>
+      )}
 
       <div className="k-order-total">
         <span className={`k-pay${paymentPending ? " is-pending" : ""}`}>

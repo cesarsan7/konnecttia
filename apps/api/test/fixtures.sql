@@ -147,3 +147,10 @@ INSERT INTO public.delivery_zone
 OVERRIDING SYSTEM VALUE VALUES
   (5101, 'Cerca', 1.50, 0, 105, 28.9637, -13.5477, 2, 'por_km', 0.50, 4.00, 30, false),
   (5102, 'Toda la ciudad', 5.00, 0, 105, NULL, NULL, NULL, 'fija', NULL, NULL, NULL, true);
+
+-- Opciones del modo ocupado (en producción las carga la migración 0009).
+INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value) VALUES
+  (101, 'modo_ocupado_opciones', '[10, 15, 20, 30]'),
+  (101, 'modo_ocupado_duracion_minutos', '60'),
+  (103, 'modo_ocupado_opciones', '[10, 15, 20, 30]'),
+  (103, 'modo_ocupado_duracion_minutos', '60');
