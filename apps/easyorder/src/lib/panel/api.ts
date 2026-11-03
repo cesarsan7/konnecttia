@@ -51,10 +51,10 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         body: JSON.stringify({ estado_pago: "pagado" }),
       }),
     branches: (slug: string) => request<{ locales: PanelBranch[] }>(panel(slug, "/locales")),
-    startBusy: (slug: string, branchId: number, minutes: number, duration: number) =>
+    startBusy: (slug: string, branchId: number, minutes: number) =>
       request(panel(slug, `/locales/${branchId}/modo-ocupado`), {
         method: "POST",
-        body: JSON.stringify({ minutos_extra: minutes, duracion_minutos: duration }),
+        body: JSON.stringify({ minutos_extra: minutes }),
       }),
     stopBusy: (slug: string, branchId: number) =>
       request(panel(slug, `/locales/${branchId}/modo-ocupado`), { method: "DELETE" }),

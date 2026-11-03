@@ -132,6 +132,18 @@ export function orderLines(items: unknown): OrderLine[] {
   });
 }
 
+/** Resumen en una línea de lo que pidió el cliente: «2× Arepa (Grande) · 1× Batido». */
+export function summarizeLines(lines: readonly OrderLine[]): string {
+  if (lines.length === 0) return "Sin productos";
+  return lines
+    .map((line) => {
+      const variant = line.variant ? ` (${line.variant})` : "";
+      const extras = line.extras.length > 0 ? ` + ${line.extras.join(", ")}` : "";
+      return `${line.quantity}× ${line.name}${variant}${extras}`;
+    })
+    .join(" · ");
+}
+
 /** Notas generales del pedido (no las de cada producto ni los suplementos). */
 export function orderNotes(notas: unknown): string[] {
   if (typeof notas === "string") return notas.trim() ? [notas.trim()] : [];

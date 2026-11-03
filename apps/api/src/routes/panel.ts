@@ -15,6 +15,7 @@ import { resolveRestaurant } from "../middleware/tenant";
 import { audit } from "../repositories/access";
 import { OUTBOX_EVENT } from "../repositories/orders";
 import { loadSalesOverview, parseReportRange } from "../repositories/reports";
+import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 
 const PAGE_SIZE = 100;
 
@@ -39,7 +40,8 @@ const BOARD_CLOSED_HOURS = 12;
 
 const busyModeSchema = z.object({
   minutos_extra: z.number().int().min(1).max(240),
-  duracion_minutos: z.number().int().min(5).max(720),
+  /** Se ignora: la duración la fija modo_ocupado_duracion_minutos. Se acepta por compatibilidad. */
+  duracion_minutos: z.number().int().min(5).max(720).optional(),
   servicio: z.enum(["recogida", "reparto", "ambos"]).default("ambos"),
   motivo: z.string().trim().max(200).optional(),
 });
@@ -334,8 +336,16 @@ export function panelRoutes(deps: AppDeps) {
         });
       }
       const body = parsed.data;
+      // Las opciones y la duración son las del restaurante (restaurante_config).
+      const settings = busyModeSettings(await loadConfig(deps.sql, restaurant.id));
+      if (!settings) {
+        return fail(c, 409, API_ERROR.InvalidBody, { reason: "busy_mode_not_configured" });
+      }
+      if (!settings.opciones.includes(body.minutos_extra)) {
+        return fail(c, 400, API_ERROR.InvalidBody, { field: "minutos_extra" });
+      }
       const now = deps.now();
-      const until = new Date(now.getTime() + body.duracion_minutos * 60_000);
+      const until = new Date(now.getTime() + settings.duracion_minutos * 60_000);
       const rows = await deps.sql<{ id: number }[]>`
         INSERT INTO public.modo_ocupado
           (restaurante_id, sucursal_id, servicio, minutos_extra, desde, hasta, motivo, creado_por)
@@ -498,7 +508,9 @@ export function panelRoutes(deps: AppDeps) {
       WHERE  m.user_id = ${user.userId}::uuid AND m.restaurante_id = ${restaurant.id}
       ORDER  BY r.id
     `;
+    const config = await loadConfig(deps.sql, restaurant.id);
     return c.json({
+      ajustes: { modo_ocupado: busyModeSettings(config) },
       usuario: { email: user.email },
       restaurante: {
         nombre: restaurant.nombre,

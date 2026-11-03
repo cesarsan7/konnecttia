@@ -169,6 +169,27 @@ describe.skipIf(!TEST_DATABASE_URL)("panel del restaurante", () => {
       );
     });
 
+    it("el modo ocupado usa las opciones y la duración del restaurante", async () => {
+      const access = await ctx.app.request("/panel/prueba-c/acceso", { headers: auth("ownerC") });
+      const body = (await access.json()) as { ajustes: { modo_ocupado: unknown } };
+      expect(body.ajustes.modo_ocupado).toEqual({
+        opciones: [10, 15, 20, 30],
+        duracion_minutos: 60,
+      });
+
+      const notOffered = await ctx.app.request("/panel/prueba-c/locales/3003/modo-ocupado", {
+        method: "POST",
+        headers: { ...auth("ownerC"), ...json },
+        body: JSON.stringify({ minutos_extra: 25 }),
+      });
+      expect(notOffered.status).toBe(400);
+
+      // B no tiene la configuración: el panel no ofrece el botón y la API lo rechaza.
+      const basic = await ctx.app.request("/panel/prueba-b/acceso", { headers: auth("ownerB") });
+      const basicBody = (await basic.json()) as { ajustes: { modo_ocupado: unknown } };
+      expect(basicBody.ajustes.modo_ocupado).toBeNull();
+    });
+
     it("cada local indica si tiene el modo ocupado activo", async () => {
       await ctx.app.request("/panel/prueba-c/locales/3002/modo-ocupado", {
         method: "POST",

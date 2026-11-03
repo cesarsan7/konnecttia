@@ -12,7 +12,14 @@ export type MyRestaurants = {
   }[];
 };
 
+export type BusyModeSettings = {
+  readonly opciones: readonly number[];
+  readonly duracion_minutos: number;
+};
+
 export type PanelAccess = {
+  /** Ajustes del restaurante que usa el panel (restaurante_config). null = no configurado. */
+  readonly ajustes: { readonly modo_ocupado: BusyModeSettings | null };
   readonly usuario: { readonly email: string | null };
   readonly restaurante: {
     readonly nombre: string;
