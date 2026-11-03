@@ -138,6 +138,11 @@ Todo se configura en la base de datos, por restaurante o por zona:
 | Suplementos por pedido pequeño (`surcharge_rules`, JSON)                                                                                                     | `restaurante_config` |
 
 Si no hay tiempo configurado, el pedido muestra «tiempo a confirmar»: la API no inventa uno.
+
+Tiempo variable (migración 0008): base + la franja punta mayor que coincida (`franja_pico`, por
+día y hora, por local o para todos) + el modo ocupado activo (`modo_ocupado`, botón del panel con
+duración) + cola (`cola_minutos_por_pedido` por cada pedido activo por encima de
+`cola_pedidos_sin_espera`). Un texto fijo (`*_eta_text`) se muestra tal cual, sin ajustes.
 Pendiente: que el subflujo Despacho de n8n lea `tipo_tarifa`, `envio_gratis_desde` y `cubre_todo`
 (hoy solo usa la tarifa fija de la zona) y elimine sus valores por defecto (20, 30 y 45 min).
 

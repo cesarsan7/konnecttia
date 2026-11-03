@@ -4,9 +4,11 @@ import {
   type DaySchedule,
   DELIVERY_FEE_KIND,
   type DeliveryFeeRule,
+  type EtaRange,
   FULFILLMENT,
   type Fulfillment,
   type OpenOverride,
+  type QueueRule,
   SURCHARGE_KIND,
   type SurchargeRule,
 } from "@konnecttia/domain";
@@ -39,6 +41,10 @@ export const CONFIG_KEY = {
   DeliveryEtaMin: "delivery_eta_min_minutes",
   DeliveryEtaMax: "delivery_eta_max_minutes",
   DeliveryEtaLegacy: "estimated_time_delivery",
+  /** Minutos extra por pedido activo por encima del umbral (ajuste por cola). */
+  QueueMinutesPerOrder: "cola_minutos_por_pedido",
+  /** Pedidos activos que no suman tiempo. */
+  QueueFreeOrders: "cola_pedidos_sin_espera",
   /** URL del webhook de avisos de estado (n8n). Sustituye a chatwoot_webhook_prod. */
   N8nWebhookAvisos: "n8n_webhook_avisos",
   /** URL del webhook de entrada de mensajes de Chatwoot (n8n, chatwootnew). */
@@ -153,43 +159,60 @@ function textFrom(config: ReadonlyMap<string, string>, key: string): string | nu
   return value ? value.slice(0, 40) : null;
 }
 
-/** "30 min" si mínimo y máximo coinciden; "30-45 min" si no; `null` si no hay datos. */
-export function formatEta(min: number | null, max: number | null): string | null {
+/** Base del tiempo estimado: un texto fijo del restaurante o un rango en minutos. */
+export type EtaBase =
+  | { readonly kind: "texto"; readonly text: string }
+  | { readonly kind: "rango"; readonly range: EtaRange };
+
+function rangeOf(min: number | null, max: number | null): EtaBase | null {
   const low = min ?? max;
   const high = max ?? min;
   if (low === null || high === null) return null;
-  return low === high ? `${low} min` : `${Math.min(low, high)}-${Math.max(low, high)} min`;
+  return { kind: "rango", range: { min: Math.min(low, high), max: Math.max(low, high) } };
 }
 
-/** Tiempo de recogida configurado para el restaurante, o `null` («a confirmar»). */
-export function pickupEta(config: ReadonlyMap<string, string>): string | null {
+function textOf(config: ReadonlyMap<string, string>, key: string): EtaBase | null {
+  const text = textFrom(config, key);
+  return text ? { kind: "texto", text } : null;
+}
+
+/** Base de recogida configurada para el restaurante, o `null` («a confirmar»). */
+export function pickupEta(config: ReadonlyMap<string, string>): EtaBase | null {
   return (
-    textFrom(config, CONFIG_KEY.PickupEtaText) ??
-    formatEta(minutesFrom(config, CONFIG_KEY.PickupEtaMinutes), null) ??
-    formatEta(minutesFrom(config, CONFIG_KEY.PickupEtaLegacy), null)
+    textOf(config, CONFIG_KEY.PickupEtaText) ??
+    rangeOf(minutesFrom(config, CONFIG_KEY.PickupEtaMinutes), null) ??
+    rangeOf(minutesFrom(config, CONFIG_KEY.PickupEtaLegacy), null)
   );
 }
 
-/** Tiempo de reparto: el de la zona; si no, el del restaurante; si no, `null`. */
+/** Base de reparto: la de la zona; si no, la del restaurante; si no, `null`. */
 export function deliveryEta(
   zone: { readonly min: number | null; readonly max: number | null },
   config: ReadonlyMap<string, string>,
-): string | null {
+): EtaBase | null {
   return (
-    formatEta(zone.min, zone.max) ??
-    textFrom(config, CONFIG_KEY.DeliveryEtaText) ??
-    formatEta(
+    rangeOf(zone.min, zone.max) ??
+    textOf(config, CONFIG_KEY.DeliveryEtaText) ??
+    rangeOf(
       minutesFrom(config, CONFIG_KEY.DeliveryEtaMin),
       minutesFrom(config, CONFIG_KEY.DeliveryEtaMax),
     ) ??
-    formatEta(minutesFrom(config, CONFIG_KEY.DeliveryEtaLegacy), null)
+    rangeOf(minutesFrom(config, CONFIG_KEY.DeliveryEtaLegacy), null)
   );
+}
+
+/** Ajuste por cola configurado (`cola_*`), o `null` si el restaurante no lo usa. */
+export function queueRule(config: ReadonlyMap<string, string>): QueueRule | null {
+  const perOrder = minutesFrom(config, CONFIG_KEY.QueueMinutesPerOrder);
+  if (perOrder === null) return null;
+  const free = Number.parseInt(config.get(CONFIG_KEY.QueueFreeOrders) ?? "0", 10);
+  return { minutesPerOrder: perOrder, freeOrders: Number.isFinite(free) && free > 0 ? free : 0 };
 }
 
 export type DeliveryZoneTerms = {
   readonly zoneId: number;
   readonly postalCode: string | null;
-  readonly eta: string | null;
+  readonly eta: EtaBase | null;
   readonly minOrderCents: Cents;
   readonly freeFromCents: Cents | null;
   readonly fee: DeliveryFeeRule;

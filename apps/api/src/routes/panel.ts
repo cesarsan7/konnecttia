@@ -13,6 +13,13 @@ const PAGE_SIZE = 100;
 
 const statusBodySchema = z.object({ estado: z.string().refine(isOrderStatus) });
 
+const busyModeSchema = z.object({
+  minutos_extra: z.number().int().min(1).max(240),
+  duracion_minutos: z.number().int().min(5).max(720),
+  servicio: z.enum(["recogida", "reparto", "ambos"]).default("ambos"),
+  motivo: z.string().trim().max(200).optional(),
+});
+
 /** Estados que no cuentan como venta. */
 const NOT_A_SALE = [ORDER_STATUS.InCart, ORDER_STATUS.Cancelled, ORDER_STATUS.Expired];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -258,6 +265,89 @@ export function panelRoutes(deps: AppDeps) {
       },
     });
   });
+
+  /**
+   * «Modo ocupado» de un local: suma minutos al tiempo estimado durante un rato (como el de
+   * Deliveroo). Solo para usuarios con alcance sobre ese local.
+   */
+  app.post(
+    "/:slug/locales/:id/modo-ocupado",
+    requirePermission(deps, PERMISSION.OrdersChangeStatus),
+    async (c) => {
+      const restaurant = c.get("restaurant");
+      const user = c.get("user");
+      const branchId = Number(c.req.param("id"));
+      if (!Number.isSafeInteger(branchId) || !canAccessBranch(c.get("access"), branchId)) {
+        return fail(c, 404, API_ERROR.BranchNotAvailable);
+      }
+      const parsed = busyModeSchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) {
+        return fail(c, 400, API_ERROR.InvalidBody, {
+          field: parsed.error.issues[0]?.path.join("."),
+        });
+      }
+      const body = parsed.data;
+      const now = deps.now();
+      const until = new Date(now.getTime() + body.duracion_minutos * 60_000);
+      const rows = await deps.sql<{ id: number }[]>`
+        INSERT INTO public.modo_ocupado
+          (restaurante_id, sucursal_id, servicio, minutos_extra, desde, hasta, motivo, creado_por)
+        SELECT ${restaurant.id}, s.id, ${body.servicio}, ${body.minutos_extra}, ${now}, ${until},
+               ${body.motivo ?? null}, ${user.email ?? user.userId}
+        FROM   public.sucursal s
+        WHERE  s.id = ${branchId} AND s.restaurante_id = ${restaurant.id}
+        RETURNING id
+      `;
+      if (rows.length === 0) {
+        return fail(c, 404, API_ERROR.BranchNotAvailable);
+      }
+      await audit(deps.sql, {
+        restauranteId: restaurant.id,
+        actorTipo: "usuario",
+        actorId: user.userId,
+        accion: "locales.modo_ocupado.activar",
+        recursoTipo: "sucursal",
+        recursoId: String(branchId),
+        resultado: "ok",
+        detalle: { minutos_extra: body.minutos_extra, hasta: until.toISOString() },
+        requestId: c.get("requestId"),
+      });
+      return c.json(
+        { id: rows[0]?.id, minutos_extra: body.minutos_extra, hasta: until.toISOString() },
+        201,
+      );
+    },
+  );
+
+  app.delete(
+    "/:slug/locales/:id/modo-ocupado",
+    requirePermission(deps, PERMISSION.OrdersChangeStatus),
+    async (c) => {
+      const restaurant = c.get("restaurant");
+      const user = c.get("user");
+      const branchId = Number(c.req.param("id"));
+      if (!Number.isSafeInteger(branchId) || !canAccessBranch(c.get("access"), branchId)) {
+        return fail(c, 404, API_ERROR.BranchNotAvailable);
+      }
+      const ended = await deps.sql`
+        UPDATE public.modo_ocupado SET finalizado_at = ${deps.now()}
+        WHERE  restaurante_id = ${restaurant.id} AND sucursal_id = ${branchId}
+          AND  finalizado_at IS NULL AND hasta > ${deps.now()}
+      `;
+      await audit(deps.sql, {
+        restauranteId: restaurant.id,
+        actorTipo: "usuario",
+        actorId: user.userId,
+        accion: "locales.modo_ocupado.finalizar",
+        recursoTipo: "sucursal",
+        recursoId: String(branchId),
+        resultado: "ok",
+        detalle: { finalizados: ended.count },
+        requestId: c.get("requestId"),
+      });
+      return c.json({ finalizados: ended.count });
+    },
+  );
 
   return app;
 }

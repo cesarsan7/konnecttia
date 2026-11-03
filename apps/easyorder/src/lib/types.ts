@@ -48,6 +48,8 @@ export type Branch = {
   readonly reparto: boolean;
   readonly abierto: boolean;
   readonly distancia_km: number | null;
+  /** Tiempo de recogida actual (incluye hora punta y modo ocupado); null = a confirmar. */
+  readonly tiempo_recogida?: string | null;
 };
 
 export type DeliveryZone = {
