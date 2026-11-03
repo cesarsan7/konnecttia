@@ -1,0 +1,18 @@
+@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/bricolage-grotesque";
+
+/* Fuentes servidas desde el propio sitio: sin peticiones a Google ni cookies de terceros. */
+.kt.kt {
+  --f-display: "Bricolage Grotesque Variable", "Manrope Variable", system-ui, sans-serif;
+  --f-body: "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}
+
+body {
+  margin: 0;
+  background: #fbf7f1;
+}
