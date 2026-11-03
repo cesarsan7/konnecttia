@@ -1,36 +1,26 @@
 -- =============================================================================
--- Alta de Cafetería Siempre Juntos (piloto con dos locales en Arrecife).
+-- Alta de Cafetería Siempre Juntos (piloto con dos locales en Arrecife). Plan Premium.
 -- No es una migración: se ejecuta una vez, primero en easyorder_dev y luego en producción.
+-- Después, cargar la carta con siempre-juntos-carta.sql.
 --
--- Datos confirmados por el promotor (nov 2026):
---   Local 1 · Siempre Juntos 1 · C. Huelva, 2, 35500 Arrecife · 828 052 673 · 28.969852, -13.5473588
---   Local 2 · Siempre Juntos 2 · Calle Carlos V, 9 (barrio San Francisco Javier), Arrecife · 605 424 650
---   Horario de ambos: martes a sábado 16:00–00:00; domingos y festivos 08:00–00:00; lunes cerrado.
---   Reparto: Arrecife.
+-- Datos publicados por el restaurante (carteles de Instagram, nov 2026) y confirmados con el
+-- promotor:
+--   Siempre Juntos 2 · Calle Carlos V, 9 (San Francisco Javier) · 605 424 650
+--     28.9648707, -13.5669843 · domicilio y recogida
+--     Martes a sábado 08:00–00:00 · domingos y festivos 17:00–00:00 · lunes cerrado
+--   Siempre Juntos 1 · C. Huelva, 2 (centro) · 828 052 673
+--     28.969852, -13.5473588 · solo recogida
+--     Martes a sábado 16:00–00:00 · domingos y festivos 17:00–00:00 · lunes cerrado
+--   Reparto (desde Siempre Juntos 2): radio 3 km, envío 2 €, mínimo 25 €, 30 min.
+--   Pago: efectivo y transferencia.
 --
--- Datos que faltan y se pasan como parámetros (el script se detiene si falta alguno):
---   lat2, lng2  coordenadas del local 2
---   envio       precio del envío en euros (p. ej. 2.50)
---   minimo      pedido mínimo para reparto en euros
---   eta_min, eta_max  minutos de entrega estimados
---   pagos       métodos de pago aceptados, JSON (p. ej. '["efectivo","tarjeta","bizum"]')
---   radio       radio de reparto de cada local en km (propuesta: 3)
---
---   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
---     -v lat2=28.97 -v lng2=-13.56 -v envio=2.50 -v minimo=15 -v eta_min=30 -v eta_max=45 \
---     -v radio=3 -v "pagos=[\"efectivo\",\"tarjeta\"]" -f packages/db/seeds/siempre-juntos.sql
+-- Local principal = Siempre Juntos 2: es el que reparte, así que los pedidos que llegan sin
+-- local (p. ej. del agente de WhatsApp) van a él. Su horario es el general del restaurante;
+-- Siempre Juntos 1 tiene horario propio (sucursal_horario).
+-- Todos los valores quedan en la base de datos y se cambian desde allí (o desde el panel).
 -- =============================================================================
 
 \set ON_ERROR_STOP on
-
-\if :{?lat2} \else \echo 'Falta -v lat2' \quit \endif
-\if :{?lng2} \else \echo 'Falta -v lng2' \quit \endif
-\if :{?envio} \else \echo 'Falta -v envio' \quit \endif
-\if :{?minimo} \else \echo 'Falta -v minimo' \quit \endif
-\if :{?eta_min} \else \echo 'Falta -v eta_min' \quit \endif
-\if :{?eta_max} \else \echo 'Falta -v eta_max' \quit \endif
-\if :{?radio} \else \echo 'Falta -v radio' \quit \endif
-\if :{?pagos} \else \echo 'Falta -v pagos' \quit \endif
 
 BEGIN;
 
@@ -41,29 +31,47 @@ BEGIN
   END IF;
 END $$;
 
--- El trigger de 0003 crea el local principal con estos datos (local 1).
+-- El trigger de 0003 crea el local principal con estos datos (Siempre Juntos 2).
 INSERT INTO public.restaurante
   (nombre, slug, direccion, lat, long, telefono, zona_horaria, payment_methods,
    delivery_enabled, pickup_enabled, delivery_min_order)
 VALUES
-  ('Cafetería Siempre Juntos', 'siempre-juntos', 'C. Huelva, 2, 35500 Arrecife, Las Palmas',
-   28.969852, -13.5473588, '+34828052673', 'Atlantic/Canary', :'pagos'::jsonb,
-   true, true, :minimo);
+  ('Cafetería Siempre Juntos', 'siempre-juntos',
+   'Calle Carlos V, 9, barrio San Francisco Javier, 35500 Arrecife',
+   28.9648707, -13.5669843, '+34605424650', 'Atlantic/Canary',
+   '["efectivo", "transferencia"]'::jsonb, true, true, 25);
 
 UPDATE public.sucursal s
-SET    nombre = 'Siempre Juntos 1', slug = 'siempre-juntos-1'
+SET    nombre = 'Siempre Juntos 2', slug = 'siempre-juntos-2'
 FROM   public.restaurante r
 WHERE  r.slug = 'siempre-juntos' AND s.restaurante_id = r.id AND s.es_principal;
 
-INSERT INTO public.sucursal (restaurante_id, nombre, slug, direccion, lat, lng, telefono)
-SELECT id, 'Siempre Juntos 2', 'siempre-juntos-2',
-       'Calle Carlos V, 9, barrio San Francisco Javier, Arrecife', :lat2, :lng2, '+34605424650'
+INSERT INTO public.sucursal
+  (restaurante_id, nombre, slug, direccion, lat, lng, telefono, acepta_recogida, acepta_reparto)
+SELECT id, 'Siempre Juntos 1', 'siempre-juntos-1', 'C. Huelva, 2, 35500 Arrecife (centro)',
+       28.969852, -13.5473588, '+34828052673', true, false
 FROM   public.restaurante WHERE slug = 'siempre-juntos';
 
--- Horario general (ambos locales iguales: no hace falta sucursal_horario).
+-- Horario general (= Siempre Juntos 2).
 INSERT INTO public.horarios (restaurante_id, dia, disponible, apertura_1, cierre_1)
 SELECT r.id, d.dia, d.disponible, d.apertura::time, d.cierre::time
 FROM   public.restaurante r
+CROSS  JOIN (VALUES
+  ('Lunes',     false, NULL,    NULL),
+  ('Martes',    true,  '08:00', '00:00'),
+  ('Miércoles', true,  '08:00', '00:00'),
+  ('Jueves',    true,  '08:00', '00:00'),
+  ('Viernes',   true,  '08:00', '00:00'),
+  ('Sábado',    true,  '08:00', '00:00'),
+  ('Domingo',   true,  '17:00', '00:00')
+) AS d(dia, disponible, apertura, cierre)
+WHERE  r.slug = 'siempre-juntos';
+
+-- Horario propio de Siempre Juntos 1.
+INSERT INTO public.sucursal_horario (sucursal_id, dia, disponible, apertura_1, cierre_1)
+SELECT s.id, d.dia, d.disponible, d.apertura::time, d.cierre::time
+FROM   public.sucursal s
+JOIN   public.restaurante r ON r.id = s.restaurante_id
 CROSS  JOIN (VALUES
   ('Lunes',     false, NULL,    NULL),
   ('Martes',    true,  '16:00', '00:00'),
@@ -71,21 +79,21 @@ CROSS  JOIN (VALUES
   ('Jueves',    true,  '16:00', '00:00'),
   ('Viernes',   true,  '16:00', '00:00'),
   ('Sábado',    true,  '16:00', '00:00'),
-  ('Domingo',   true,  '08:00', '00:00')
+  ('Domingo',   true,  '17:00', '00:00')
 ) AS d(dia, disponible, apertura, cierre)
-WHERE  r.slug = 'siempre-juntos';
+WHERE  r.slug = 'siempre-juntos' AND s.slug = 'siempre-juntos-1';
 
--- Una zona de reparto por local, por radio: reparte el local abierto más cercano al cliente.
+-- Reparto: una zona por radio desde Siempre Juntos 2.
 INSERT INTO public.delivery_zone
   (zone_name, fee, min_order_amount, estimated_minutes_min, estimated_minutes_max,
-   restaurante_id, sucursal_id, lat_center, lng_center, radius_km, is_active)
-SELECT 'Arrecife · ' || s.nombre, :envio, :minimo, :eta_min, :eta_max,
-       s.restaurante_id, s.id, s.lat, s.lng, :radio, true
+   restaurante_id, sucursal_id, lat_center, lng_center, radius_km, tipo_tarifa, is_active)
+SELECT 'Arrecife (3 km desde Carlos V)', 2.00, 25.00, 30, 30,
+       s.restaurante_id, s.id, s.lat, s.lng, 3, 'fija', true
 FROM   public.sucursal s
 JOIN   public.restaurante r ON r.id = s.restaurante_id
-WHERE  r.slug = 'siempre-juntos';
+WHERE  r.slug = 'siempre-juntos' AND s.es_principal;
 
--- Plan premium: incluye «Varios locales». Decisión comercial a confirmar.
+-- Plan Premium (incluye «Varios locales»).
 INSERT INTO public.restaurante_plan (restaurante_id, plan_code)
 SELECT id, 'premium' FROM public.restaurante WHERE slug = 'siempre-juntos';
 INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)
@@ -96,4 +104,4 @@ WHERE  r.slug = 'siempre-juntos';
 
 COMMIT;
 
-\echo 'Siempre Juntos creado. Pendiente: carta, festivos del año, miembros del equipo.'
+\echo 'Siempre Juntos creado. Siguiente: siempre-juntos-carta.sql. Pendiente: tiempo de recogida, festivos del año y equipo.'
