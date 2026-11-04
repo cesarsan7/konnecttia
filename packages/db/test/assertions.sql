@@ -103,3 +103,25 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
 END $$;
+
+-- Alérgenos: por defecto «no informados» (NULL) y solo se aceptan los 14 códigos de la UE.
+INSERT INTO public.menu_category (menu_category_id, name, restaurante_id) VALUES (9101, 'Prueba', 9001);
+INSERT INTO public.menu_item (menu_item_id, menu_category_id, name, restaurante_id)
+VALUES (9201, 9101, 'Sin datos', 9001);
+DO $$
+BEGIN
+  IF (SELECT alergenos FROM public.menu_item WHERE menu_item_id = 9201) IS NOT NULL THEN
+    RAISE EXCEPTION 'FALLO: un producto nuevo no debe tener alérgenos declarados';
+  END IF;
+  UPDATE public.menu_item SET alergenos = '{gluten,lacteos}' WHERE menu_item_id = 9201;
+  BEGIN
+    UPDATE public.menu_item SET alergenos = '{gluten,picante}' WHERE menu_item_id = 9201;
+    RAISE EXCEPTION 'FALLO: se aceptó un alérgeno que no es de la lista de la UE';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO public.extra (name, restaurante_id, alergenos) VALUES ('Malo', 9001, '{nueces}');
+    RAISE EXCEPTION 'FALLO: se aceptó un alérgeno desconocido en un extra';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;

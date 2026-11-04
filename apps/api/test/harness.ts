@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import postgres from "postgres";
 import { createApp } from "../src/app";
-import type { AuthenticatedUser } from "../src/context";
+import type { AppDeps, AuthenticatedUser } from "../src/context";
 import { createSql, type Sql } from "../src/lib/db";
 
 /**
@@ -18,11 +18,17 @@ export const USERS = {
   ownerB: { userId: "00000000-0000-0000-0000-0000000000b1", email: "owner-b@test.local" },
   ownerC: { userId: "00000000-0000-0000-0000-0000000000c1", email: "owner-c@test.local" },
   cashierPlaya: { userId: "00000000-0000-0000-0000-0000000000c2", email: "cajero-c@test.local" },
+  managerPlaya: {
+    userId: "00000000-0000-0000-0000-0000000000c3",
+    email: "encargado-c@test.local",
+  },
 } as const satisfies Record<string, AuthenticatedUser>;
 
 export type TestContext = {
   readonly sql: Sql;
   readonly app: ReturnType<typeof createApp>;
+  /** La misma API con dependencias cambiadas (por ejemplo, un almacén de fotos falso). */
+  readonly appWith: (overrides: Partial<AppDeps>) => ReturnType<typeof createApp>;
   readonly close: () => Promise<void>;
 };
 
@@ -45,17 +51,19 @@ export async function setupTestApp(): Promise<TestContext> {
   const tokens = new Map<string, AuthenticatedUser>(
     Object.entries(USERS).map(([key, user]) => [`token-${key}`, user]),
   );
-  const app = createApp({
+  const deps: AppDeps = {
     sql,
     now: () => new Date("2026-11-03T13:00:00Z"),
     clientIpHeader: "x-real-ip",
     allowedOrigins: [],
     verifyToken: async (token) => tokens.get(token) ?? null,
-  });
+  };
+  const app = createApp(deps);
 
   return {
     sql,
     app,
+    appWith: (overrides) => createApp({ ...deps, ...overrides }),
     close: async () => {
       await sql.end();
       await admin.unsafe(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);

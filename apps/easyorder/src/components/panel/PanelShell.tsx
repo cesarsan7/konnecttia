@@ -14,6 +14,10 @@ export const PERMISSION = {
   OrdersChangeStatus: "orders.change_status",
   OrdersUpdate: "orders.update",
   AnalyticsView: "analytics.view",
+  MenuView: "menu.view",
+  MenuCreate: "menu.create",
+  MenuUpdate: "menu.update",
+  MenuDelete: "menu.delete",
 } as const;
 
 type AccessValue = {
@@ -123,7 +127,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
       icon: "chart",
       permission: PERMISSION.AnalyticsView,
     },
-    { href: `${base}/carta`, label: "Carta", icon: "menu", soon: true },
+    { href: `${base}/carta`, label: "Carta", icon: "menu", permission: PERMISSION.MenuView },
     { href: `${base}/ajustes`, label: "Ajustes", icon: "settings", soon: true },
   ];
 

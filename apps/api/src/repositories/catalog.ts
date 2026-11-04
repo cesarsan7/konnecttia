@@ -1,10 +1,11 @@
 import {
+  type AllergenInfo,
+  allergensFromStored,
   type Catalog,
   catalogFrom,
   cents,
   type MenuItem,
   type ModifierGroup,
-  NOT_DECLARED,
 } from "@konnecttia/domain";
 import { eurosToCents, type Sql } from "../lib/db";
 
@@ -13,8 +14,8 @@ import { eurosToCents, type Sql } from "../lib/db";
  * (menu_category + menu_item + menu_variant + extra).
  *
  * Los extras de EasyOrder se convierten en un grupo de modificadores opcional («Extras»).
- * Los alérgenos aún no existen como campo estructurado: se marcan como «no informados»
- * hasta la migración de alérgenos (nunca como «sin alérgenos»).
+ * Alérgenos: columna `alergenos` (0011). Sin dato => «no informados», nunca «sin alérgenos».
+ * Orden: `sort_order` de categorías, productos, variantes y extras (lo fija el panel).
  */
 
 export const EXTRAS_GROUP_ID = 0;
@@ -26,10 +27,12 @@ type ItemRow = {
   menu_category_id: number;
   category_name: string;
   category_sort: number;
+  sort_order: number;
   name: string;
   description: string | null;
   image_url: string | null;
   is_active: boolean;
+  alergenos: string[] | null;
 };
 
 type VariantRow = {
@@ -39,6 +42,7 @@ type VariantRow = {
   price: string;
   is_active: boolean;
   is_default: boolean;
+  sort_order: number;
 };
 
 type ExtraRow = {
@@ -47,6 +51,8 @@ type ExtraRow = {
   name: string;
   price: string;
   is_active: boolean;
+  sort_order: number;
+  alergenos: string[] | null;
 };
 
 export type PublicMenuItem = {
@@ -64,8 +70,9 @@ export type PublicMenuItem = {
     readonly id: number;
     readonly name: string;
     readonly price: number;
+    readonly allergens: AllergenInfo;
   }[];
-  readonly allergens: typeof NOT_DECLARED;
+  readonly allergens: AllergenInfo;
 };
 
 export type PublicMenu = {
@@ -87,29 +94,31 @@ async function loadRows(
   const [items, variants, extras] = await Promise.all([
     sql<ItemRow[]>`
       SELECT mi.menu_item_id, mi.menu_category_id, mc.name AS category_name,
-             mc.sort_order AS category_sort, mi.name, mi.description, mi.image_url,
-             (mi.is_active AND mc.is_active) AS is_active
+             mc.sort_order AS category_sort, mi.sort_order, mi.name, mi.description,
+             mi.image_url, (mi.is_active AND mc.is_active) AS is_active, mi.alergenos
       FROM   public.menu_item mi
       JOIN   public.menu_category mc
              ON mc.menu_category_id = mi.menu_category_id
             AND mc.restaurante_id   = ${restauranteId}
       WHERE  mi.restaurante_id = ${restauranteId}
         AND  (${onlyItems}::bigint[] IS NULL OR mi.menu_item_id = ANY(${onlyItems}::bigint[]))
+      ORDER  BY mi.sort_order, mi.menu_item_id
     `,
     sql<VariantRow[]>`
       SELECT mv.menu_variant_id, mv.menu_item_id, mv.variant_name, mv.price,
-             mv.is_active, mv.is_default
+             mv.is_active, mv.is_default, mv.sort_order
       FROM   public.menu_variant mv
       JOIN   public.menu_item mi
              ON mi.menu_item_id   = mv.menu_item_id
             AND mi.restaurante_id = ${restauranteId}
       WHERE  mv.restaurante_id = ${restauranteId}
         AND  (${onlyItems}::bigint[] IS NULL OR mv.menu_item_id = ANY(${onlyItems}::bigint[]))
-      ORDER  BY mv.price, mv.menu_variant_id
+      ORDER  BY mv.sort_order, mv.price, mv.menu_variant_id
     `,
     sql<ExtraRow[]>`
       SELECT DISTINCT ON (mi.menu_item_id, e.extra_id)
-             mi.menu_item_id, e.extra_id, e.name, e.price, e.is_active
+             mi.menu_item_id, e.extra_id, e.name, e.price, e.is_active, e.sort_order,
+             e.alergenos
       FROM   public.menu_item mi
       LEFT JOIN public.menu_item_extra mie ON mie.menu_item_id = mi.menu_item_id
       LEFT JOIN public.menu_category_extra mce ON mce.menu_category_id = mi.menu_category_id
@@ -121,6 +130,8 @@ async function loadRows(
       ORDER  BY mi.menu_item_id, e.extra_id
     `,
   ]);
+  // DISTINCT ON obliga a ordenar por id en SQL; el orden visible se aplica aquí.
+  extras.sort((a, b) => a.sort_order - b.sort_order || a.extra_id - b.extra_id);
   return { items, variants, extras };
 }
 
@@ -141,7 +152,7 @@ function toMenuItem(item: ItemRow, rows: CatalogRows): MenuItem {
               priceDeltaCents: cents(eurosToCents(extra.price)),
               active: extra.is_active,
               maxQuantity: MAX_EXTRA_QUANTITY,
-              allergens: NOT_DECLARED,
+              allergens: allergensFromStored(extra.alergenos),
             })),
           },
         ];
@@ -149,7 +160,7 @@ function toMenuItem(item: ItemRow, rows: CatalogRows): MenuItem {
     id: item.menu_item_id,
     name: item.name,
     active: item.is_active,
-    allergens: NOT_DECLARED,
+    allergens: allergensFromStored(item.alergenos),
     variants: rows.variants
       .filter((variant) => variant.menu_item_id === item.menu_item_id)
       .map((variant) => ({
@@ -204,8 +215,13 @@ export async function loadPublicMenu(sql: Sql, restauranteId: number): Promise<P
       })),
       extras: rows.extras
         .filter((extra) => extra.menu_item_id === item.menu_item_id && extra.is_active)
-        .map((extra) => ({ id: extra.extra_id, name: extra.name, price: Number(extra.price) })),
-      allergens: NOT_DECLARED,
+        .map((extra) => ({
+          id: extra.extra_id,
+          name: extra.name,
+          price: Number(extra.price),
+          allergens: allergensFromStored(extra.alergenos),
+        })),
+      allergens: allergensFromStored(item.alergenos),
     });
     categories.set(item.menu_category_id, category);
   }

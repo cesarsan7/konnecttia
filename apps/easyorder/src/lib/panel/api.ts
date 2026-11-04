@@ -1,5 +1,6 @@
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
+import type { AdminMenu } from "./menu";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
 
 /** Cliente de la API del panel. Cada llamada lleva el token de la sesión de Supabase. */
@@ -15,7 +16,9 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         ...init,
         cache: "no-store",
         headers: {
-          ...(init.body ? { "Content-Type": "application/json" } : {}),
+          ...(init.body && !(init.body instanceof FormData)
+            ? { "Content-Type": "application/json" }
+            : {}),
           ...init.headers,
           Authorization: `Bearer ${token}`,
         },
@@ -33,7 +36,29 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
   const panel = (slug: string, path: string) => `/panel/${encodeURIComponent(slug)}${path}`;
   const local = (branchId: number | null) => (branchId ? `&local=${branchId}` : "");
 
+  const send = <T = { id: number }>(slug: string, path: string, method: string, body?: unknown) =>
+    request<T>(panel(slug, path), {
+      method,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+
   return {
+    menu: (slug: string) => request<AdminMenu>(panel(slug, "/carta")),
+    /** Cambios de la carta: `path` relativo a /carta (por ejemplo «/productos/12»). */
+    menuChange: <T = { id: number }>(
+      slug: string,
+      method: "POST" | "PATCH" | "PUT" | "DELETE",
+      path: string,
+      body?: unknown,
+    ) => send<T>(slug, `/carta${path}`, method, body),
+    uploadPhoto: (slug: string, itemId: number, file: File) => {
+      const form = new FormData();
+      form.append("foto", file);
+      return request<{ id: number; imagen_url: string }>(
+        panel(slug, `/carta/productos/${itemId}/foto`),
+        { method: "POST", body: form },
+      );
+    },
     myRestaurants: () => request<MyRestaurants>("/me/restaurantes"),
     access: (slug: string) => request<PanelAccess>(panel(slug, "/acceso")),
     board: (slug: string, branchId: number | null) =>

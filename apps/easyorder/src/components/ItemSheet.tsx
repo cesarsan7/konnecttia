@@ -2,6 +2,7 @@
 
 import { addCents, centsFromDecimal, multiplyCents } from "@konnecttia/domain";
 import { useEffect, useId, useRef, useState } from "react";
+import { allergenNames, lineAllergens } from "@/lib/allergens";
 import { buildLine, type CartLine, MAX_QUANTITY } from "@/lib/cart";
 import { euros, eurosFromCents } from "@/lib/format";
 import type { MenuItem } from "@/lib/types";
@@ -32,6 +33,9 @@ export function ItemSheet({ item, onAdd, onClose }: Props) {
     centsFromDecimal(variant?.price ?? 0),
     ...item.extras.filter((e) => extras.includes(e.id)).map((e) => centsFromDecimal(e.price)),
   );
+
+  const allergens = lineAllergens(item, extras);
+  const allergenList = allergenNames(allergens);
 
   const toggleExtra = (id: number) =>
     setExtras((current) =>
@@ -108,9 +112,24 @@ export function ItemSheet({ item, onAdd, onClose }: Props) {
           />
         </label>
 
-        <p className="allergen-note">
-          Alérgenos: <strong>no informados</strong> para este producto. Si tienes alguna alergia,
-          pregunta al local antes de pedir.
+        <p className="allergen-note" aria-live="polite">
+          {allergens.status === "declared" ? (
+            allergenList.length > 0 ? (
+              <>
+                Alérgenos: <strong>{allergenList.join(", ")}</strong>.
+              </>
+            ) : (
+              <>
+                <strong>No contiene</strong> ninguno de los 14 alérgenos de declaración obligatoria.
+              </>
+            )
+          ) : (
+            <>
+              Alérgenos: <strong>no informados</strong> para este producto
+              {extras.length > 0 ? " o sus extras" : ""}. Si tienes alguna alergia, pregunta al
+              local antes de pedir.
+            </>
+          )}
         </p>
 
         <footer className="sheet-foot">

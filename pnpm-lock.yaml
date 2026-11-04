@@ -127,6 +127,9 @@ importers:
       '@konnecttia/access':
         specifier: workspace:*
         version: link:../access
+      '@konnecttia/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

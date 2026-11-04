@@ -10,6 +10,13 @@ const envSchema = z.object({
   CLIENT_IP_HEADER: z.string().default("x-real-ip"),
   /** Orígenes permitidos para el navegador (CORS), separados por comas. */
   ALLOWED_ORIGINS: z.string().default(""),
+  /**
+   * Opcional: clave de servicio de Supabase para subir fotos de la carta a Storage. Sin ella, el
+   * panel no ofrece subir fotos (solo pegar una URL). Nunca se envía al navegador.
+   */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
+  /** Bucket público de Supabase Storage para las fotos de la carta. */
+  MENU_IMAGES_BUCKET: z.string().min(1).default("menu-images"),
 });
 
 export type Env = z.infer<typeof envSchema>;
