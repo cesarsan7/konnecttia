@@ -75,3 +75,43 @@ export function BusyModeControl({ branch, showName, timeZone, options, onChange 
     </div>
   );
 }
+
+/**
+ * Explicación del modo ocupado (comprobada con repositories/eta.ts de la API): suma minutos al
+ * tiempo estimado que ven los clientes nuevos; no para pedidos ni cambia los ya hechos.
+ */
+export function BusyModeHelp({ duration }: { readonly duration: number | null }) {
+  return (
+    <details className="k-help">
+      <summary>¿Qué hace el modo ocupado?</summary>
+      <ul>
+        <li>
+          Suma los minutos que elijas al{" "}
+          <strong>tiempo de espera que ven los clientes nuevos</strong> de ese local, en la web y
+          por WhatsApp. Ejemplo: si se anuncia «25-35 min», con +15 min se anuncia «40-50 min».
+        </li>
+        <li>
+          <strong>No deja de aceptar pedidos</strong> ni cambia el tiempo de los que ya están
+          hechos. Si necesitas parar los pedidos, pon el local en «Cerrado ahora» (Ajustes →
+          General).
+        </li>
+        <li>
+          Se quita solo
+          {duration ? (
+            <>
+              {" "}
+              a los <strong>{duration} min</strong>
+            </>
+          ) : (
+            " al cabo del tiempo configurado en Ajustes"
+          )}
+          , o antes con «Quitar».
+        </li>
+        <li>
+          Se suma a las horas punta (Ajustes → Horario) y al tiempo extra por pedidos en cola, si
+          está configurado.
+        </li>
+      </ul>
+    </details>
+  );
+}
