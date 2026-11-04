@@ -2889,3 +2889,8 @@
   cursor: pointer;
   width: 100%;
 }
+
+.k-live.is-polling .k-live-dot {
+  animation: none;
+  opacity: 0.6;
+}
