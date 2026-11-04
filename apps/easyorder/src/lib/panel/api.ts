@@ -7,6 +7,7 @@ import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { TablePlan } from "./tables";
 import type { InvitePreview, Team } from "./team";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
+import type { WaiterList } from "./waiters";
 
 /** Cliente de la API del panel. Cada llamada lleva el token de la sesión de Supabase. */
 export function createPanelApi(baseUrl: string, getToken: () => Promise<string | null>) {
@@ -127,6 +128,7 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       }
     },
     tables: (slug: string) => request<TablePlan>(panel(slug, "/mesas")),
+    waiters: (slug: string) => request<WaiterList>(panel(slug, "/mesas/meseros")),
     /** Mesas: `path` relativo a /mesas (por ejemplo «/zonas» o «/12/estado»). */
     tableChange: (
       slug: string,

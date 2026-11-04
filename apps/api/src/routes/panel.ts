@@ -24,6 +24,7 @@ import { registerSettingsRoutes } from "./panel-settings";
 import { registerStreamRoutes } from "./panel-stream";
 import { registerTableRoutes } from "./panel-tables";
 import { registerTeamRoutes } from "./panel-team";
+import { registerWaiterRoutes } from "./panel-waiters";
 
 const PAGE_SIZE = 100;
 
@@ -76,6 +77,7 @@ export function panelRoutes(deps: AppDeps) {
   registerManualOrderRoutes(app, deps);
   registerCustomerRoutes(app, deps);
   registerStreamRoutes(app, deps);
+  registerWaiterRoutes(app, deps);
   registerTableRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {

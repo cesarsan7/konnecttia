@@ -25,11 +25,13 @@ import {
   type TableZone,
   tableTimes,
 } from "@/lib/panel/tables";
+import type { WaiterList } from "@/lib/panel/waiters";
 import { Toggle } from "../menu/Editors";
 import { Modal } from "../menu/Modal";
 import { ManualOrder } from "../orders/ManualOrder";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { WaitersDialog } from "./WaitersDialog";
 
 type Load =
   | { readonly kind: "loading" }
@@ -54,6 +56,8 @@ export function TablesView() {
   const [editMode, setEditMode] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingAlerts, setEditingAlerts] = useState(false);
+  const [editingWaiters, setEditingWaiters] = useState(false);
+  const [waiters, setWaiters] = useState<WaiterList | null>(null);
   const [filter, setFilter] = useState<TableFilter>("todas");
   const [ordering, setOrdering] = useState<DiningTable | null>(null);
   const [editingTable, setEditingTable] = useState<DiningTable | "new" | null>(null);
@@ -80,6 +84,15 @@ export function TablesView() {
       setState({ kind: "error", message: describePanelError(result.status, result.body) });
     }
   }, [api, slug]);
+
+  const loadWaiters = useCallback(async () => {
+    const result = await api.waiters(slug);
+    if (result.ok) setWaiters(result.data);
+  }, [api, slug]);
+
+  useEffect(() => {
+    if (allowed) void loadWaiters();
+  }, [allowed, loadWaiters]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -212,6 +225,13 @@ export function TablesView() {
           </button>
           <button
             type="button"
+            className="k-btn k-btn-secondary k-btn-sm"
+            onClick={() => setEditingWaiters(true)}
+          >
+            Meseros
+          </button>
+          <button
+            type="button"
             className="k-btn k-btn-primary k-btn-sm"
             onClick={() => setEditingTable("new")}
           >
@@ -267,6 +287,7 @@ export function TablesView() {
           table={selected}
           now={now}
           canManage={canManage}
+          waiters={waiters}
           canOrder={canOrder}
           onClose={() => setSelectedId(null)}
           onOrder={() => {
@@ -293,6 +314,18 @@ export function TablesView() {
         />
       ) : null}
 
+      {editingWaiters ? (
+        <WaitersDialog
+          list={waiters}
+          branches={plan.locales}
+          onClose={() => setEditingWaiters(false)}
+          onChanged={(message) => {
+            toast(message);
+            void loadWaiters();
+            void load();
+          }}
+        />
+      ) : null}
       {editingAlerts ? (
         <AlertsDialog
           alerts={plan.avisos}
@@ -373,6 +406,7 @@ function TableTile({
       </span>
       <span className="k-small">
         {table.capacidad ? `${table.capacidad} pers.` : ""}
+        {table.ocupada && table.mesero_nombre ? ` · ${table.mesero_nombre}` : ""}
         {!table.activa ? " · desactivada" : ""}
       </span>
       {times.oldest ? (
@@ -488,6 +522,7 @@ function TableDetail(props: {
   readonly table: DiningTable;
   readonly now: Date;
   readonly canManage: boolean;
+  readonly waiters: WaiterList | null;
   readonly canOrder: boolean;
   readonly onClose: () => void;
   readonly onOrder: () => void;
@@ -502,6 +537,23 @@ function TableDetail(props: {
     changeStatus: can(PERMISSION.OrdersChangeStatus),
     confirmPayment: can(PERMISSION.OrdersUpdate),
   };
+
+  const waitersHere = (props.waiters?.meseros ?? []).filter(
+    (waiter) =>
+      waiter.activo && (waiter.sucursal_id === null || waiter.sucursal_id === table.sucursal_id),
+  );
+
+  async function setWaiter(meseroId: number | null) {
+    setBusyId("mesa");
+    const result = await api.tableChange(slug, "PATCH", `/${table.id}/mesero`, {
+      mesero_id: meseroId,
+    });
+    setBusyId(null);
+    if (!result.ok) return setError(describePanelError(result.status, result.body));
+    props.onChanged(
+      meseroId === null ? `${table.nombre}: sin mesero` : `${table.nombre}: mesero cambiado`,
+    );
+  }
 
   async function setOccupied(ocupada: boolean) {
     setBusyId("mesa");
@@ -557,6 +609,30 @@ function TableDetail(props: {
             <span className="k-muted k-small">{table.capacidad} personas</span>
           ) : null}
         </p>
+        {table.ocupada && (props.canManage ? waitersHere.length > 0 : table.mesero_nombre) ? (
+          props.canManage ? (
+            <label className="k-field k-field-inline">
+              <span>Atiende</span>
+              <select
+                className="k-input"
+                value={table.mesero_id ?? ""}
+                disabled={busyId !== null}
+                onChange={(event) =>
+                  void setWaiter(event.target.value ? Number(event.target.value) : null)
+                }
+              >
+                <option value="">Sin mesero</option>
+                {waitersHere.map((waiter) => (
+                  <option key={waiter.id} value={waiter.id}>
+                    {waiter.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="k-small">Atiende: {table.mesero_nombre}</p>
+          )
+        ) : null}
         {error ? (
           <p className="k-alert" role="alert">
             {error}
@@ -591,6 +667,7 @@ function TableDetail(props: {
                               ),
                             )}`}{" "}
                         · {paymentLabel(order.metodo_pago)}
+                        {order.mesero_nombre ? ` · ${order.mesero_nombre}` : ""}
                         {order.estado_pago === "pendiente" ? " · cobro pendiente" : ""}
                       </span>
                       <span className="k-small">{summarizeLines(orderLines(order.items))}</span>
