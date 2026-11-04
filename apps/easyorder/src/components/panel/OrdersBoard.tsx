@@ -2,30 +2,26 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
 import {
-  canCancel,
-  formatElapsed,
+  BOARD_SORT,
+  type BoardSort,
+  isBoardSort,
   LANES,
   type LaneId,
   laneOf,
-  minutesSince,
   newArrivals,
   type OrderAction,
-  orderLines,
-  orderNotes,
-  paymentLabel,
-  primaryAction,
   STATUS_LABEL,
-  summarizeLines,
-  WAITING_TOO_LONG_MINUTES,
+  sortLaneOrders,
 } from "@/lib/panel/orders";
 import { type StreamState, subscribeBoard } from "@/lib/panel/stream";
 import type { PanelBranch, PanelOrder } from "@/lib/panel/types";
-import { BusyModeControl } from "./BusyModeControl";
+import { BusyModeControl, BusyModeHelp } from "./BusyModeControl";
 import { Icon } from "./Icon";
 import { ManualOrder } from "./orders/ManualOrder";
+import { OrderCard } from "./orders/OrderCard";
+import { OrdersTable } from "./orders/OrdersTable";
 import { usePanel } from "./PanelProvider";
 import { PERMISSION, useAccess } from "./PanelShell";
 import { useChime } from "./useChime";
@@ -58,6 +54,8 @@ export function OrdersBoard() {
   const [cancelling, setCancelling] = useState<PanelOrder | null>(null);
   const [detail, setDetail] = useState<DetailMode>("auto");
   const [overrides, setOverrides] = useState<Readonly<Record<number, boolean>>>({});
+  const [view, setView] = useState<BoardView>("tablero");
+  const [sort, setSort] = useState<BoardSort>("antiguos");
   const seen = useRef<Set<number> | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -160,10 +158,11 @@ export function OrdersBoard() {
       cerrados: [],
     };
     for (const order of orders ?? []) groups[laneOf(order)].push(order);
-    // Lo más antiguo primero en las columnas activas: es lo que más espera.
-    for (const id of ["nuevos", "cocina", "listos"] as const) groups[id].reverse();
+    for (const id of Object.keys(groups) as LaneId[]) {
+      groups[id] = sortLaneOrders(groups[id], sort, id === "cerrados");
+    }
     return groups;
-  }, [orders]);
+  }, [orders, sort]);
 
   const newCount = byLane.nuevos.length;
   useEffect(() => {
@@ -208,7 +207,20 @@ export function OrdersBoard() {
 
   useEffect(() => {
     setDetail(storedDetailMode());
+    const stored = readStored(VIEW_KEY);
+    if (stored === "tabla") setView("tabla");
+    const storedSort = readStored(SORT_KEY);
+    if (isBoardSort(storedSort)) setSort(storedSort);
   }, []);
+
+  function choose<T extends string>(key: string, value: T, apply: (value: T) => void) {
+    apply(value);
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Sin almacenamiento: solo dura esta visita.
+    }
+  }
 
   function setAllDetail(mode: DetailMode) {
     setDetail(mode);
@@ -253,6 +265,20 @@ export function OrdersBoard() {
                 ? `${stream === "en_directo" ? "En directo" : "Actualizado"} · ${lastSync.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: access.restaurante.zona_horaria })}`
                 : "Conectando…"}
           </span>
+          <fieldset className="k-segment k-segment-sm">
+            <legend className="k-sr-only">Vista</legend>
+            {VIEWS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={view === option.id ? "is-on" : ""}
+                aria-pressed={view === option.id}
+                onClick={() => choose(VIEW_KEY, option.id, setView)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </fieldset>
           <button
             type="button"
             className={`k-btn k-btn-secondary k-btn-sm${chime.enabled ? "" : " is-attention"}`}
@@ -310,6 +336,7 @@ export function OrdersBoard() {
                 : "tiempos normales"}
             </span>
           </summary>
+          <BusyModeHelp duration={busySettings.duracion_minutos} />
           <div className="k-busy-row">
             {visibleBranches.map((branch) => (
               <BusyModeControl
@@ -338,99 +365,130 @@ export function OrdersBoard() {
         </details>
       ) : null}
 
-      <div className="k-lane-tabs" role="tablist" aria-label="Estado de los pedidos">
-        {LANES.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={lane === item.id}
-            className={lane === item.id ? "is-on" : ""}
-            onClick={() => setLane(item.id)}
-          >
-            {item.title}
-            <span className="k-count">{byLane[item.id].length}</span>
-          </button>
-        ))}
-      </div>
+      {view === "tabla" ? (
+        <OrdersTable
+          branches={branches}
+          version={lastSync?.getTime() ?? 0}
+          busyIds={pending}
+          permissions={permissions}
+          onAction={(order, action) => void run(order, action)}
+          onCancel={askCancel}
+        />
+      ) : null}
 
-      <div className="k-board-tools">
-        <span className="k-small k-muted">Detalle de los pedidos:</span>
-        <fieldset className="k-segment k-segment-sm">
-          <legend className="k-sr-only">Detalle de los pedidos</legend>
-          {DETAIL_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={detail === option.id ? "is-on" : ""}
-              aria-pressed={detail === option.id}
-              onClick={() => setAllDetail(option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </fieldset>
-      </div>
-
-      {orders === null ? (
-        <div className="k-board" aria-busy="true">
-          {LANES.map((item) => (
-            <section key={item.id} className="k-lane">
-              <div className="k-skeleton" />
-              <div className="k-skeleton" />
-            </section>
-          ))}
-        </div>
-      ) : (
-        <div className="k-board" data-lane={lane}>
-          {LANES.map((item) => (
-            <section
-              key={item.id}
-              className={`k-lane k-lane-${item.id}${lane === item.id ? " is-current" : ""}`}
-              aria-labelledby={`lane-${item.id}`}
-            >
-              <h2 id={`lane-${item.id}`} className="k-lane-title">
+      {view === "tablero" ? (
+        <>
+          <div className="k-lane-tabs" role="tablist" aria-label="Estado de los pedidos">
+            {LANES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={lane === item.id}
+                className={lane === item.id ? "is-on" : ""}
+                onClick={() => setLane(item.id)}
+              >
                 {item.title}
                 <span className="k-count">{byLane[item.id].length}</span>
-              </h2>
-              {byLane[item.id].length === 0 ? (
-                <p className="k-empty">
-                  {item.id === "nuevos"
-                    ? "Sin pedidos nuevos. Te avisaremos con un sonido."
-                    : item.id === "cerrados"
-                      ? "Aquí verás los pedidos de las últimas 12 horas."
-                      : "Nada por aquí."}
-                </p>
-              ) : (
-                <ol className="k-cards">
-                  {byLane[item.id].map((order) => (
-                    <li key={order.id}>
-                      <OrderCard
-                        order={order}
-                        now={now}
-                        fresh={fresh.has(order.id)}
-                        busy={pending.has(order.id)}
-                        showBranch={showBranches && branchId === null}
-                        timeZone={access.restaurante.zona_horaria}
-                        permissions={permissions}
-                        onAction={(action) => run(order, action)}
-                        onCancel={() => askCancel(order)}
-                        expanded={isExpanded(order)}
-                        onToggle={() =>
-                          setOverrides((current) => ({
-                            ...current,
-                            [order.id]: !isExpanded(order),
-                          }))
-                        }
-                      />
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </section>
-          ))}
-        </div>
-      )}
+              </button>
+            ))}
+          </div>
+
+          <div className="k-board-tools">
+            <span className="k-small k-muted">Detalle de los pedidos:</span>
+            <fieldset className="k-segment k-segment-sm">
+              <legend className="k-sr-only">Detalle de los pedidos</legend>
+              {DETAIL_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={detail === option.id ? "is-on" : ""}
+                  aria-pressed={detail === option.id}
+                  onClick={() => setAllDetail(option.id)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </fieldset>
+            <label className="k-select k-select-sm">
+              <span className="k-sr-only">Ordenar las tarjetas</span>
+              <select
+                value={sort}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (isBoardSort(value)) choose(SORT_KEY, value, setSort);
+                }}
+              >
+                {BOARD_SORT.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {orders === null ? (
+            <div className="k-board" aria-busy="true">
+              {LANES.map((item) => (
+                <section key={item.id} className="k-lane">
+                  <div className="k-skeleton" />
+                  <div className="k-skeleton" />
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="k-board" data-lane={lane}>
+              {LANES.map((item) => (
+                <section
+                  key={item.id}
+                  className={`k-lane k-lane-${item.id}${lane === item.id ? " is-current" : ""}`}
+                  aria-labelledby={`lane-${item.id}`}
+                >
+                  <h2 id={`lane-${item.id}`} className="k-lane-title">
+                    {item.title}
+                    <span className="k-count">{byLane[item.id].length}</span>
+                  </h2>
+                  {byLane[item.id].length === 0 ? (
+                    <p className="k-empty">
+                      {item.id === "nuevos"
+                        ? "Sin pedidos nuevos. Te avisaremos con un sonido."
+                        : item.id === "cerrados"
+                          ? "Aquí verás los pedidos de las últimas 12 horas."
+                          : "Nada por aquí."}
+                    </p>
+                  ) : (
+                    <ol className="k-cards">
+                      {byLane[item.id].map((order) => (
+                        <li key={order.id}>
+                          <OrderCard
+                            order={order}
+                            now={now}
+                            fresh={fresh.has(order.id)}
+                            busy={pending.has(order.id)}
+                            showBranch={showBranches && branchId === null}
+                            timeZone={access.restaurante.zona_horaria}
+                            permissions={permissions}
+                            onAction={(action) => run(order, action)}
+                            onCancel={() => askCancel(order)}
+                            expanded={isExpanded(order)}
+                            onToggle={() =>
+                              setOverrides((current) => ({
+                                ...current,
+                                [order.id]: !isExpanded(order),
+                              }))
+                            }
+                          />
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
+        </>
+      ) : null}
 
       <dialog
         ref={dialog}
@@ -488,20 +546,6 @@ export function OrdersBoard() {
   );
 }
 
-type CardProps = {
-  readonly order: PanelOrder;
-  readonly now: Date;
-  readonly fresh: boolean;
-  readonly busy: boolean;
-  readonly showBranch: boolean;
-  readonly timeZone: string;
-  readonly permissions: { readonly changeStatus: boolean; readonly confirmPayment: boolean };
-  readonly onAction: (action: OrderAction) => void;
-  readonly onCancel: () => void;
-  readonly expanded: boolean;
-  readonly onToggle: () => void;
-};
-
 type DetailMode = "auto" | "todo" | "nada";
 const DETAIL_KEY = "easyorder.panel.detalle";
 const DETAIL_OPTIONS: readonly { id: DetailMode; label: string }[] = [
@@ -519,174 +563,18 @@ function storedDetailMode(): DetailMode {
   }
 }
 
-function OrderCard({
-  order,
-  now,
-  fresh,
-  busy,
-  showBranch,
-  timeZone,
-  permissions,
-  onAction,
-  onCancel,
-  expanded,
-  onToggle,
-}: CardProps) {
-  const lane = laneOf(order);
-  const minutes = minutesSince(order.created_at, now);
-  const late = lane === "nuevos" && minutes >= WAITING_TOO_LONG_MINUTES;
-  const lines = orderLines(order.items);
-  const notes = orderNotes(order.notas);
-  const hasNotes = notes.length > 0 || lines.some((line) => line.note);
-  const detailId = `pedido-${order.id}-detalle`;
-  const action = primaryAction(order, permissions);
-  const paymentPending = order.estado_pago === "pendiente";
-  const delivery = order.tipo_despacho === "delivery";
-  const dineIn = order.tipo_despacho === "mesa";
-  const closed = lane === "cerrados";
-  const time = new Date(order.created_at).toLocaleTimeString("es-ES", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone,
-  });
+type BoardView = "tablero" | "tabla";
+const VIEW_KEY = "easyorder.panel.vista";
+const SORT_KEY = "easyorder.panel.orden";
+const VIEWS: readonly { id: BoardView; label: string }[] = [
+  { id: "tablero", label: "Tablero" },
+  { id: "tabla", label: "Tabla" },
+];
 
-  return (
-    <article
-      className={`k-order${fresh ? " is-fresh" : ""}${late ? " is-late" : ""}${closed ? " is-closed" : ""}`}
-      aria-label={`Pedido ${order.pedido_codigo ?? order.id}`}
-    >
-      <header className="k-order-head">
-        <button
-          type="button"
-          className="k-order-toggle"
-          aria-expanded={expanded}
-          aria-controls={detailId}
-          onClick={onToggle}
-        >
-          <span className="k-sr-only">{expanded ? "Ocultar detalle de " : "Ver detalle de "}</span>
-          <span className="k-order-code">{order.pedido_codigo ?? `#${order.id}`}</span>
-          <Icon name={expanded ? "chevronUp" : "chevronDown"} size={18} />
-        </button>
-        <div className="k-order-tags">
-          <span className={`k-chip k-chip-${order.estado}`}>
-            {STATUS_LABEL[order.estado] ?? order.estado}
-          </span>
-          {order.canal === "whatsapp" ? (
-            <span className="k-chip k-chip-channel">WhatsApp</span>
-          ) : null}
-        </div>
-        <span className={`k-elapsed${late ? " is-late" : ""}`} title={`Entró a las ${time}`}>
-          <Icon name="clock" size={16} />
-          {closed ? time : formatElapsed(minutes)}
-        </span>
-      </header>
-
-      <div className="k-order-who">
-        <strong>{order.nombre_pedido ?? "Cliente"}</strong>
-        {expanded && order.telefono ? (
-          <a className="k-small" href={`tel:${order.telefono}`}>
-            <Icon name="phone" size={14} /> {order.telefono}
-          </a>
-        ) : null}
-      </div>
-
-      <p className="k-order-mode">
-        <Icon name={delivery ? "bike" : dineIn ? "table" : "bag"} size={16} />
-        <span>
-          {delivery ? "Reparto" : dineIn ? (order.mesa_nombre ?? "Mesa") : "Recogida"}
-          {showBranch && order.local_nombre ? ` · ${order.local_nombre}` : ""}
-          {order.tiempo_estimado ? ` · ${order.tiempo_estimado}` : ""}
-        </span>
-      </p>
-      {expanded ? (
-        <div id={detailId} className="k-order-detail">
-          {delivery && order.direccion ? (
-            <a
-              className="k-order-address k-small"
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.direccion)}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Icon name="pin" size={14} /> {order.direccion}
-            </a>
-          ) : null}
-
-          <ul className="k-lines">
-            {lines.map((line, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: las líneas de un pedido no cambian de orden.
-              <li key={index}>
-                <span className="k-qty">{line.quantity}×</span>
-                <span>
-                  {line.name}
-                  {line.variant ? <span className="k-muted"> · {line.variant}</span> : null}
-                  {line.extras.length > 0 ? (
-                    <span className="k-line-extras">+ {line.extras.join(", ")}</span>
-                  ) : null}
-                  {line.note ? <span className="k-line-note">«{line.note}»</span> : null}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {notes.length > 0 ? (
-            <p className="k-order-note">
-              <strong>Nota:</strong> {notes.join(" · ")}
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <button type="button" id={detailId} className="k-order-summary" onClick={onToggle}>
-          <span className="k-summary-text">{summarizeLines(lines)}</span>
-          {hasNotes ? <span className="k-chip k-chip-note">Con notas</span> : null}
-        </button>
-      )}
-
-      <div className="k-order-total">
-        <span className={`k-pay${paymentPending ? " is-pending" : ""}`}>
-          {paymentLabel(order.metodo_pago)}
-          {paymentPending
-            ? " · pendiente de cobro"
-            : order.estado_pago === "pagado"
-              ? " · cobrado"
-              : ""}
-        </span>
-        <strong className="k-amount">{euros(Number(order.total))}</strong>
-      </div>
-
-      {!closed && (action || permissions.changeStatus) ? (
-        <footer className="k-order-actions">
-          {action ? (
-            <button
-              type="button"
-              className="k-btn k-btn-go"
-              disabled={busy}
-              onClick={() => onAction(action)}
-            >
-              {action.kind === "payment" ? <Icon name="check" size={18} /> : null}
-              {busy ? "Guardando…" : action.label}
-            </button>
-          ) : null}
-          {paymentPending && action?.kind !== "payment" && permissions.confirmPayment ? (
-            <button
-              type="button"
-              className="k-btn k-btn-secondary"
-              disabled={busy}
-              onClick={() => onAction({ kind: "payment", label: "Confirmar cobro" })}
-            >
-              Confirmar cobro
-            </button>
-          ) : null}
-          {permissions.changeStatus && canCancel(order) ? (
-            <button
-              type="button"
-              className="k-link k-link-danger"
-              disabled={busy}
-              onClick={onCancel}
-            >
-              Cancelar
-            </button>
-          ) : null}
-        </footer>
-      ) : null}
-    </article>
-  );
+function readStored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }

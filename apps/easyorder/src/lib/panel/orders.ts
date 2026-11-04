@@ -193,3 +193,44 @@ export function newArrivals(previous: ReadonlySet<number> | null, orders: readon
   if (previous === null) return [];
   return orders.filter((order) => laneOf(order) === "nuevos" && !previous.has(order.id));
 }
+
+/** Orden de las tarjetas dentro de cada columna del tablero. */
+export const BOARD_SORT = [
+  { id: "antiguos", label: "Más antiguos primero" },
+  { id: "recientes", label: "Más recientes primero" },
+  { id: "importe", label: "Mayor importe primero" },
+  { id: "tipo", label: "Por tipo (mesa, recogida, reparto)" },
+] as const;
+export type BoardSort = (typeof BOARD_SORT)[number]["id"];
+
+const TYPE_ORDER: Readonly<Record<string, number>> = { mesa: 0, retiro: 1, delivery: 2 };
+
+/**
+ * Ordena una columna. En «antiguos», las columnas en marcha muestran primero lo que más espera y
+ * la de terminados lo último que se cerró (como hasta ahora).
+ */
+export function sortLaneOrders<
+  T extends Pick<PanelOrder, "created_at" | "total" | "tipo_despacho">,
+>(orders: readonly T[], mode: BoardSort, closedLane: boolean): T[] {
+  const time = (order: T) => Date.parse(order.created_at);
+  const oldestFirst = (a: T, b: T) => time(a) - time(b);
+  const list = [...orders];
+  switch (mode) {
+    case "recientes":
+      return list.sort((a, b) => time(b) - time(a));
+    case "importe":
+      return list.sort((a, b) => Number(b.total) - Number(a.total) || oldestFirst(a, b));
+    case "tipo":
+      return list.sort(
+        (a, b) =>
+          (TYPE_ORDER[a.tipo_despacho ?? "retiro"] ?? 9) -
+            (TYPE_ORDER[b.tipo_despacho ?? "retiro"] ?? 9) || oldestFirst(a, b),
+      );
+    default:
+      return list.sort(closedLane ? (a, b) => time(b) - time(a) : oldestFirst);
+  }
+}
+
+export function isBoardSort(value: unknown): value is BoardSort {
+  return BOARD_SORT.some((option) => option.id === value);
+}
