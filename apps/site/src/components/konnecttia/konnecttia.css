@@ -1463,3 +1463,239 @@
 .kt figure.hero-visual {
   margin: 0;
 }
+
+/* ---------- Página de EasyOrder (/easyorder) ---------- */
+.kt .menu a[aria-current="page"] {
+  color: var(--teal-700);
+}
+.kt .product-more {
+  margin-top: 36px;
+  text-align: center;
+}
+.kt .tag-soon {
+  display: inline-block;
+  font-family: var(--f-body);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--coral-100);
+  color: var(--coral-700);
+  border-radius: var(--pill);
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: 2px;
+}
+.kt .eo-hero {
+  padding: 56px 0 88px;
+}
+.kt .eo-hero-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 56px;
+  align-items: center;
+}
+.kt .eo-hero h1 .tt {
+  color: var(--teal-700);
+}
+.kt .eo-hero .lead {
+  margin: 22px 0 32px;
+  max-width: 560px;
+}
+.kt .eo-hint {
+  margin-top: 16px;
+  font-size: 15px;
+  color: var(--muted);
+}
+.kt .eo-is {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: 36px;
+  box-shadow: var(--shadow-1);
+}
+.kt .eo-is h2 {
+  font-size: clamp(26px, 2.6vw, 32px);
+  margin-bottom: 14px;
+}
+.kt .eo-is p {
+  color: var(--muted);
+}
+.kt .eo-is h3 {
+  font-size: 17px;
+  margin: 24px 0 10px;
+}
+.kt .eo-is ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 16px;
+}
+.kt .eo-is li + li {
+  margin-top: 6px;
+}
+.kt .eo-alt {
+  background: var(--sand-100);
+}
+.kt .eo-cards4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.kt .eo-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.kt .eo-panel {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 32px;
+}
+.kt .eo-panel > h3 {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+.kt .eo-features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+.kt .eo-features li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.kt .eo-features svg {
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  color: var(--teal);
+}
+.kt .eo-features h4 {
+  margin: 0 0 2px;
+  font-family: var(--f-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.kt .eo-features p {
+  color: var(--muted);
+  font-size: 15px;
+}
+.kt .eo-plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+.kt .eo-plan {
+  display: flex;
+  flex-direction: column;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 32px 28px;
+}
+.kt .eo-plan.featured {
+  border: 2px solid var(--teal);
+  box-shadow: var(--shadow-2);
+}
+.kt .eo-plan-name {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+.kt .eo-plan-sum {
+  color: var(--muted);
+  margin: 6px 0 20px;
+  font-size: 16px;
+}
+.kt .eo-plan-intro {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 12px;
+}
+.kt .eo-plan > ul:not(.eo-features) {
+  list-style: none;
+  margin: 0 0 28px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  font-size: 16px;
+}
+.kt .eo-plan > ul:not(.eo-features) li {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 10px;
+}
+.kt .eo-plan > ul:not(.eo-features) svg {
+  width: 20px;
+  height: 20px;
+  margin-top: 3px;
+  color: var(--teal);
+}
+.kt .eo-plan > .btn {
+  margin-top: auto;
+  justify-content: center;
+}
+.kt .eo-addons {
+  background: var(--night);
+  border-color: var(--night);
+  color: var(--sand-50);
+}
+.kt .eo-addons .eo-plan-sum,
+.kt .eo-addons .eo-features p {
+  color: var(--muted-dark);
+}
+.kt .eo-addons .eo-features {
+  margin-bottom: 28px;
+}
+.kt .eo-addons .eo-features svg {
+  color: var(--teal-300);
+}
+.kt .eo-addons .tag-soon {
+  background: rgba(255, 194, 75, 0.16);
+  color: var(--sun);
+}
+.kt .eo-cta {
+  padding: 0 0 104px;
+}
+@media (max-width: 1020px) {
+  .kt .eo-hero-grid,
+  .kt .eo-split {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .kt .eo-cards4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kt .eo-plans {
+    grid-template-columns: 1fr 1fr;
+  }
+  .kt .eo-addons {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 560px) {
+  .kt .eo-hero {
+    padding: 32px 0 64px;
+  }
+  .kt .eo-cards4,
+  .kt .eo-plans {
+    grid-template-columns: 1fr;
+  }
+  .kt .eo-is,
+  .kt .eo-panel,
+  .kt .eo-plan {
+    padding: 24px 20px;
+  }
+  .kt .eo-cta {
+    padding-bottom: 72px;
+  }
+}
