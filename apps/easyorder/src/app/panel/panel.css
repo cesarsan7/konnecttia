@@ -2781,3 +2781,111 @@
     max-height: 40dvh;
   }
 }
+
+/* Clientes ------------------------------------------------------------------- */
+.k-customer {
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+}
+
+.k-customer-stats {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.k-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.k-customer-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.k-customer-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.k-customer-summary div {
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg-alt);
+}
+
+.k-customer-summary dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.k-customer-summary dd {
+  margin: 2px 0 0;
+  font: 800 1.15rem / 1.2 var(--f-display);
+}
+
+@media (max-width: 720px) {
+  .k-customer {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .k-customer-stats {
+    grid-column: 2;
+    grid-auto-flow: column;
+    justify-content: start;
+    justify-items: start;
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  .k-customer-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Barra inferior: «Más» */
+.k-tab-more {
+  flex: 1;
+  position: relative;
+  display: flex;
+}
+
+.k-tab-more summary {
+  list-style: none;
+  width: 100%;
+}
+
+.k-tab-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.k-tab-sheet {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: min(78vw, 280px);
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--card);
+  box-shadow: 0 12px 32px rgb(14 42 51 / 25%);
+}
+
+.k-tab-sheet button.k-nav-item {
+  border: 0;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}

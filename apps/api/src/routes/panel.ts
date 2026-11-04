@@ -16,6 +16,7 @@ import { audit } from "../repositories/access";
 import { OUTBOX_EVENT } from "../repositories/orders";
 import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
+import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerManualOrderRoutes } from "./panel-orders";
@@ -71,6 +72,7 @@ export function panelRoutes(deps: AppDeps) {
   registerDeliveryRoutes(app, deps);
   registerTeamRoutes(app, deps);
   registerManualOrderRoutes(app, deps);
+  registerCustomerRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");

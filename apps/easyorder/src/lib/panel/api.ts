@@ -1,5 +1,6 @@
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
+import type { CustomerDetail, CustomerList } from "./customers";
 import type { AdminMenu } from "./menu";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { InvitePreview, Team } from "./team";
@@ -93,6 +94,28 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         headers: { "Idempotency-Key": idempotencyKey },
         body: JSON.stringify(body),
       }),
+    customers: (slug: string, query: { q: string; orden: string; pagina: number }) =>
+      request<CustomerList>(
+        panel(
+          slug,
+          `/clientes?${new URLSearchParams({ q: query.q, orden: query.orden, pagina: String(query.pagina) })}`,
+        ),
+      ),
+    customer: (slug: string, id: number) => request<CustomerDetail>(panel(slug, `/clientes/${id}`)),
+    /** Descarga el CSV de clientes (con el token de la sesión). */
+    exportCustomers: async (slug: string): Promise<Blob | null> => {
+      const token = await getToken();
+      if (!token) return null;
+      try {
+        const response = await fetch(`${base}${panel(slug, "/clientes/exportar")}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        return response.ok ? await response.blob() : null;
+      } catch {
+        return null;
+      }
+    },
     uploadPhoto: (slug: string, itemId: number, file: File) => {
       const form = new FormData();
       form.append("foto", file);
