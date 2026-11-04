@@ -1,6 +1,7 @@
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { CustomerDetail, CustomerList } from "./customers";
+import type { OrderHistory } from "./history";
 import type { AdminMenu } from "./menu";
 import type { PreviousOrders } from "./reorder";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
@@ -149,6 +150,9 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       request<{ pedidos: PanelOrder[]; ahora: string }>(
         panel(slug, `/orders?vista=tablero${local(branchId)}`),
       ),
+    /** Historial de pedidos (vista tabla); `query` lo arma historyQuery. */
+    history: (slug: string, query: string) =>
+      request<OrderHistory>(panel(slug, `/orders/historial?${query}`)),
     changeStatus: (slug: string, orderId: number, estado: string) =>
       request<{ id: number; estado: string }>(panel(slug, `/orders/${orderId}/status`), {
         method: "PATCH",

@@ -110,6 +110,87 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 4 de noviembre de 2026.
 | 9   | **Derivar a humano en el panel**            | Ver conversaciones derivadas por el agente y responder                                                                           | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |
 | 10  | **Cobro online**                            | ADR y pasarela                                                                                                                   | —                                               | —                          | Post-MVP |
 
+## Requerimientos del promotor (4/11), aterrizados
+
+Ideas de alto nivel convertidas en piezas. Orden de trabajo: A → B → C → D → E → F. E y F
+necesitan las plantillas de D (roles).
+
+### A · Pedidos: vista tabla, filtros y orden (MVP)
+
+- Problema: con muchos pedidos, el tablero (kanban) obliga a hacer mucho scroll; La Isla tenía una
+  tabla con filtros y orden.
+- Solución: conmutador **Tablero / Tabla** en Pedidos (se recuerda por navegador).
+  - Tabla: una fila por pedido con código, hora, cliente, tipo (recogida, reparto, mesa), local,
+    canal, estado, cobro, total y la acción principal. Clic en la fila abre el detalle.
+  - Filtros: fechas (hoy, ayer, 7 días, mes, rango), estado o «en marcha», tipo, canal, método y
+    estado de cobro, local y búsqueda por código, nombre o teléfono.
+  - Orden por columnas (fecha, código, cliente, estado, total, tiempo de espera), asc/desc.
+  - Paginación en el servidor (la tabla sirve también de historial; el tablero solo muestra lo
+    de las últimas 12 horas).
+- Orden en el tablero: selector «Más antiguos primero» (por defecto, lo que más espera),
+  «Más recientes primero», «Por hora de entrega» y «Por importe».
+- API: `GET /panel/:slug/orders/historial` con `desde`, `hasta` (días del restaurante), `estado`
+  (lista o `activos`), `tipo`, `canal`, `pago`, `metodo`, `local`, `q`, `orden`, `dir`,
+  `pagina`; devuelve `total` e `importe`. El tablero sigue con `GET /orders?vista=tablero`.
+- Hecho en el PR de «vista tabla» (junto con B). En el móvil cada pedido es una tarjeta y los
+  filtros se pliegan.
+- Tablas: solo lectura de `pedidos`. Sin migraciones.
+
+### B · Modo ocupado explicado (MVP)
+
+- Qué hace (comprobado en `repositories/eta.ts`): suma los minutos elegidos al **tiempo
+  estimado que ven los clientes nuevos** del local (web y WhatsApp vía la cotización), durante
+  `modo_ocupado_duracion_minutos`, y se apaga solo. No para los pedidos, no cambia los ya hechos
+  ni avisa a nadie. Se suma a las horas punta (`franja_pico`) y al ajuste por cola.
+- Solución: desplegable «¿Qué hace el modo ocupado?» en el tablero y en Ajustes, con un ejemplo
+  del tiempo resultante («25-35 min → 40-50 min»). Hecho con A.
+
+### C · Mesas: tiempos y avisos (post-MVP)
+
+- Problema: saber si una mesa lleva mucho tiempo esperando o sentada.
+- Solución: en cada mesa, **tiempo en el estado actual** del último pedido («Preparando hace
+  12 min», de `pedido_estado_log`) y **tiempo sentados**. Aviso de color cuando se pasa del umbral:
+  `mesa_aviso_espera_minutos` (pedido sin servir) y `mesa_aviso_estancia_minutos` (estancia).
+  Sin la clave, no hay aviso (nada de valores fijos). En la ventana de mesa, línea de tiempo de
+  cada pedido (recibido, preparando, listo, servido, con hora).
+- Tablas: `pedido_estado_log` (lectura), `config_clave` (2 claves nuevas).
+
+### D · Roles personalizados y plantillas nuevas (MVP para plantillas, post-MVP para editor)
+
+- Hoy: 4 plantillas globales (propietario, encargado, personal, consulta) definidas en código y
+  migraciones; los roles propios de un restaurante solo los crearía el panel interno.
+- Solución en dos capas:
+  1. **Plantillas globales** (las definimos los desarrolladores en `packages/access` + migración):
+     nuevas **Mesero** y **Repartidor**, y los permisos nuevos que piden E y F.
+  2. **Roles propios del restaurante** en Equipo → Roles: crear, editar (nombre y permisos
+     agrupados por módulo) y borrar. Sin escalada: solo se pueden dar permisos que tiene quien
+     edita y de módulos activos. No se borra un rol en uso. Auditoría de cada cambio.
+- El panel interno de Konnecttia (pieza 8) añadirá después: plantillas propias de Konnecttia,
+  activar módulos y ver/editar roles de cualquier restaurante.
+- Tablas: `rol`, `rol_permiso`, `membresia_rol`, `permiso`.
+
+### E · Meseros (post-MVP, módulo `tables`)
+
+- Reutiliza `meseros` (nombre, activo) y `pedidos.mesero_id` del dashboard antiguo; se añade
+  `sucursal_id` y `membership_id` opcional (un mesero puede tener o no usuario en el panel).
+- Mesas → Meseros: alta, baja y edición por local. Al tomar un pedido en mesa se elige el mesero;
+  si quien lo toma es un mesero con usuario, se asigna solo. La ocupación de la mesa guarda el
+  mesero que la atiende.
+- Tabla de pedidos y estadísticas filtrables por mesero (base para propinas en el futuro).
+- Permisos: `tables.manage` gestiona meseros; plantilla Mesero = pedidos (ver, crear, cambiar
+  estado), carta (ver) y mesas (ver, gestionar).
+
+### F · Repartidores y trazabilidad (post-MVP, módulo `delivery`)
+
+- Asignar un pedido de reparto a un repartidor (miembro con rol Repartidor y acceso al local).
+- Permisos nuevos: `delivery.assign` (asignar, encargado) y `orders.deliver_assigned` (el
+  repartidor ve **sus** repartos y los marca «en camino» y «entregado», nada más).
+- Vista «Mis repartos» para el repartidor (móvil primero): dirección, teléfono, cobro pendiente,
+  botones grandes.
+- Trazabilidad: `pedido_reparto` (pedido, repartidor, asignado_por, asignado_at, salida_at,
+  entregado_at) + `pedido_estado_log` con el actor. Filtro por repartidor en la tabla de pedidos.
+- Tablas nuevas: `pedido_reparto`.
+
 ## n8n (staging) pendiente
 
 - Director: sacar el restaurante de la bandeja de Chatwoot por la que entra el mensaje, en lugar

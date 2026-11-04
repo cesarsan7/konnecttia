@@ -3077,6 +3077,233 @@
   margin-top: 6px;
 }
 
+/* Pedidos en tabla (vista «Tabla»). */
+.k-history {
+  display: grid;
+  gap: 12px;
+}
+
+.k-history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-history-filters .k-search {
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.k-history-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.k-history-range input {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.k-select-sm select {
+  padding: 7px 10px;
+  font-size: 0.9rem;
+  width: auto;
+}
+
+.k-select.is-on select {
+  border-color: var(--teal);
+  background: var(--teal-tint);
+}
+
+.k-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+
+.k-otable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.k-otable th,
+.k-otable td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line);
+}
+
+.k-otable thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-alt);
+  font-weight: 800;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.k-otable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.k-otable tbody tr:hover {
+  background: color-mix(in srgb, var(--teal-tint) 45%, transparent);
+}
+
+.k-otable tr.is-closed td {
+  color: var(--muted);
+}
+
+.k-otable .k-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.k-th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.k-th-sort span {
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.k-th-sort span.is-on {
+  color: var(--teal-text);
+}
+
+.k-nowrap {
+  white-space: nowrap;
+}
+
+.k-block {
+  display: block;
+}
+
+.k-mobile-only {
+  display: none;
+}
+
+/* Móvil: cada pedido es una tarjeta compacta (sin columnas ni scroll lateral). */
+@media (max-width: 720px) {
+  .k-mobile-only {
+    display: block;
+  }
+  .k-otable thead,
+  .k-otable .k-col-opt {
+    display: none;
+  }
+  .k-otable,
+  .k-otable tbody {
+    display: block;
+  }
+  .k-otable tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "code total"
+      "who state"
+      "type time"
+      "act act";
+    gap: 4px 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .k-otable td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .k-otable .k-c-code {
+    grid-area: code;
+  }
+  .k-otable .k-c-total {
+    grid-area: total;
+  }
+  .k-otable .k-c-who {
+    grid-area: who;
+  }
+  .k-otable .k-c-state {
+    grid-area: state;
+    justify-self: end;
+  }
+  .k-otable .k-c-type {
+    grid-area: type;
+  }
+  .k-otable .k-c-time {
+    grid-area: time;
+    text-align: right;
+  }
+  .k-otable .k-c-act {
+    grid-area: act;
+  }
+  .k-otable .k-c-act:empty {
+    display: none;
+  }
+  .k-otable .k-c-act .k-btn {
+    width: 100%;
+  }
+  .k-table-wrap {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 720px) {
+  .k-history-filters:not(.is-open) > .k-select {
+    display: none;
+  }
+  .k-history-filters .k-search {
+    max-width: none;
+  }
+  .k-history-filters > .k-mobile-only {
+    display: inline-flex;
+  }
+}
+
+.k-otable .k-c-time .k-small {
+  white-space: nowrap;
+}
+
+.k-help {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.k-help summary {
+  cursor: pointer;
+  color: var(--teal-text);
+  font-weight: 700;
+  width: fit-content;
+}
+
+.k-help ul {
+  margin: 8px 0 4px;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.k-busy-panel .k-help {
+  margin: 4px 0 10px;
+}
+
 /* Equipo → Roles. */
 .k-perm-groups {
   display: grid;
