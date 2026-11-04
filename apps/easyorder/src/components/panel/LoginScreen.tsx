@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { sortByLastUsed } from "@/lib/panel/restaurants";
 import type { MyRestaurants } from "@/lib/panel/types";
 import { EasyOrderLockup } from "./Brand";
 import { usePanel } from "./PanelProvider";
 
 const LAST_RESTAURANT_KEY = "easyorder.panel.restaurante";
 
+/** Recuerda el último restaurante abierto en este navegador (solo para ponerlo primero). */
 export function rememberRestaurant(slug: string) {
   try {
     localStorage.setItem(LAST_RESTAURANT_KEY, slug);
@@ -57,15 +59,14 @@ export function LoginScreen() {
       return;
     }
     const list = result.data.restaurantes;
-    const remembered = lastRestaurant();
-    const target =
-      list.length === 1 ? list[0] : list.find((restaurant) => restaurant.slug === remembered);
-    if (target) {
-      rememberRestaurant(target.slug);
-      router.replace(`/panel/${target.slug}`);
+    // Con un solo restaurante se entra directamente; con varios, siempre se elige.
+    const only = list.length === 1 ? list[0] : undefined;
+    if (only) {
+      rememberRestaurant(only.slug);
+      router.replace(`/panel/${only.slug}`);
       return;
     }
-    setChoices(list);
+    setChoices(sortByLastUsed(list, lastRestaurant()));
   }, [api, router]);
 
   // Con una sesión ya abierta, se entra directamente.
@@ -140,7 +141,7 @@ export function LoginScreen() {
                 </p>
               ) : (
                 <ul className="k-choice-list">
-                  {choices.map((restaurant) => (
+                  {choices.map((restaurant, index) => (
                     <li key={restaurant.slug}>
                       <button
                         type="button"
@@ -151,7 +152,12 @@ export function LoginScreen() {
                         }}
                       >
                         <span className="k-choice-name">{restaurant.nombre}</span>
-                        <span className="k-muted k-small">{restaurant.roles.join(", ")}</span>
+                        <span className="k-muted k-small">
+                          {restaurant.roles.join(", ")}
+                          {index === 0 && restaurant.slug === lastRestaurant()
+                            ? " · último usado"
+                            : ""}
+                        </span>
                       </button>
                     </li>
                   ))}
