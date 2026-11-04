@@ -121,6 +121,23 @@ export async function resolveFulfillment(
 ): Promise<FulfillmentResolution> {
   const { point } = request;
 
+  // Mesa: el local es el de la mesa (lo indica el panel). Debe estar abierto.
+  if (request.fulfillment === FULFILLMENT.DineIn) {
+    const branch = branches.find((candidate) => candidate.id === request.branchId);
+    if (!branch || !branchServes(branch, FULFILLMENT.DineIn)) {
+      return failure(API_ERROR.BranchNotAvailable);
+    }
+    if (!isOpen(branch)) return failure(API_ERROR.RestaurantClosed);
+    return {
+      ok: true,
+      branch,
+      delivery: null,
+      etaBase: pickupEta(config),
+      etaService: ETA_SERVICE.Pickup,
+      postalCode: null,
+    };
+  }
+
   if (request.fulfillment === FULFILLMENT.Pickup) {
     let branch: BranchRecord | undefined;
     const hinted =

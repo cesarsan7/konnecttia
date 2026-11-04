@@ -27,10 +27,17 @@ type Channel = (typeof CHANNEL)[keyof typeof CHANNEL];
  */
 export function ManualOrder({
   defaultBranchId,
+  table = null,
   onClose,
   onCreated,
 }: {
   readonly defaultBranchId: number | null;
+  /** Pedido en una mesa: local fijo, sin despacho y con nombre y teléfono opcionales. */
+  readonly table?: {
+    readonly id: number;
+    readonly nombre: string;
+    readonly sucursal_id: number;
+  } | null;
   readonly onClose: () => void;
   readonly onCreated: (message: string) => void;
 }) {
@@ -40,13 +47,13 @@ export function ManualOrder({
   const limited = scope !== "todos";
   const [branches, setBranches] = useState<Branch[]>([]);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
-  const [branchId, setBranchId] = useState<number | null>(defaultBranchId);
+  const [branchId, setBranchId] = useState<number | null>(table?.sucursal_id ?? defaultBranchId);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [picking, setPicking] = useState<MenuItem | null>(null);
   const [query, setQuery] = useState("");
-  const [channel, setChannel] = useState<Channel>(CHANNEL.Phone);
+  const [channel, setChannel] = useState<Channel>(table ? CHANNEL.Counter : CHANNEL.Phone);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [fulfillment, setFulfillment] = useState<"retiro" | "delivery">("retiro");
@@ -118,9 +125,11 @@ export function ManualOrder({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (lines.length === 0) return setError("Añade al menos un producto.");
-    if (!nombre.trim()) return setError("Indica el nombre del cliente.");
-    const phone = normalizePhone(telefono);
-    if (!phone) return setError("Teléfono no válido. Ejemplo: 612 345 678.");
+    if (!table && !nombre.trim()) return setError("Indica el nombre del cliente.");
+    const phone = telefono.trim() ? normalizePhone(telefono) : null;
+    if ((!table || telefono.trim()) && !phone) {
+      return setError("Teléfono no válido. Ejemplo: 612 345 678.");
+    }
     if (!payment) return setError("Elige el método de pago.");
     if (fulfillment === "delivery" && (!zoneId || !direccion.trim())) {
       return setError("Para reparto, elige la zona y escribe la dirección.");
@@ -129,17 +138,30 @@ export function ManualOrder({
     setError(null);
     const result = await api.manualOrder(
       slug,
-      {
-        canal: channel,
-        nombre: nombre.trim(),
-        telefono: phone,
-        tipo_despacho: fulfillment,
-        metodo_pago: payment,
-        ...(fulfillment === "retiro" && branchId ? { sucursal_id: branchId } : {}),
-        ...(fulfillment === "delivery" ? { zona_id: zoneId, direccion: direccion.trim() } : {}),
-        ...(notas.trim() ? { notas: notas.trim() } : {}),
-        items: toOrderItems(lines),
-      },
+      table
+        ? {
+            canal: CHANNEL.Counter,
+            tipo_despacho: "mesa",
+            mesa_id: table.id,
+            ...(nombre.trim() ? { nombre: nombre.trim() } : {}),
+            ...(phone ? { telefono: phone } : {}),
+            metodo_pago: payment,
+            ...(notas.trim() ? { notas: notas.trim() } : {}),
+            items: toOrderItems(lines),
+          }
+        : {
+            canal: channel,
+            nombre: nombre.trim(),
+            // El tablero muestra nombre_pedido: sin él, el pedido saldría como «Cliente».
+            nombre_pedido: nombre.trim(),
+            telefono: phone,
+            tipo_despacho: fulfillment,
+            metodo_pago: payment,
+            ...(fulfillment === "retiro" && branchId ? { sucursal_id: branchId } : {}),
+            ...(fulfillment === "delivery" ? { zona_id: zoneId, direccion: direccion.trim() } : {}),
+            ...(notas.trim() ? { notas: notas.trim() } : {}),
+            items: toOrderItems(lines),
+          },
       idempotency.current,
     );
     setBusy(false);
@@ -156,7 +178,7 @@ export function ManualOrder({
   }
 
   return (
-    <Modal title="Nuevo pedido" onClose={onClose} wide>
+    <Modal title={table ? `Pedido · ${table.nombre}` : "Nuevo pedido"} onClose={onClose} wide>
       <form onSubmit={submit} noValidate className="k-manual">
         <div className="k-manual-grid">
           <section className="k-manual-menu" aria-label="Carta">
@@ -170,7 +192,7 @@ export function ManualOrder({
                   placeholder="Buscar producto"
                 />
               </label>
-              {branches.length > 1 && fulfillment === "retiro" ? (
+              {!table && branches.length > 1 && fulfillment === "retiro" ? (
                 <label className="k-select">
                   <span className="k-sr-only">Local</span>
                   <select
@@ -284,25 +306,29 @@ export function ManualOrder({
               </p>
             ) : null}
 
-            <div className="k-segment k-segment-sm">
-              {[
-                { id: CHANNEL.Phone, label: "Por teléfono" },
-                { id: CHANNEL.Counter, label: "En mostrador" },
-              ].map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={channel === option.id ? "is-on" : ""}
-                  aria-pressed={channel === option.id}
-                  onClick={() => setChannel(option.id)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            {table ? null : (
+              <div className="k-segment k-segment-sm">
+                {[
+                  { id: CHANNEL.Phone, label: "Por teléfono" },
+                  { id: CHANNEL.Counter, label: "En mostrador" },
+                ].map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={channel === option.id ? "is-on" : ""}
+                    aria-pressed={channel === option.id}
+                    onClick={() => setChannel(option.id)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="k-form-grid">
               <label className="k-field">
-                <span>Nombre</span>
+                <span>
+                  Nombre{table ? <span className="k-muted k-optional"> (opcional)</span> : null}
+                </span>
                 <input
                   value={nombre}
                   maxLength={120}
@@ -311,7 +337,9 @@ export function ManualOrder({
                 />
               </label>
               <label className="k-field">
-                <span>Teléfono</span>
+                <span>
+                  Teléfono{table ? <span className="k-muted k-optional"> (opcional)</span> : null}
+                </span>
                 <input
                   value={telefono}
                   inputMode="tel"
@@ -321,7 +349,7 @@ export function ManualOrder({
                 />
               </label>
             </div>
-            {menu?.restaurante.reparto ? (
+            {!table && menu?.restaurante.reparto ? (
               <div className="k-segment k-segment-sm">
                 <button
                   type="button"
@@ -342,10 +370,10 @@ export function ManualOrder({
                 </button>
               </div>
             ) : null}
-            {fulfillment === "retiro" && branch ? (
+            {!table && fulfillment === "retiro" && branch ? (
               <p className="k-small k-muted">Recoge en {branch.nombre}.</p>
             ) : null}
-            {fulfillment === "delivery" ? (
+            {!table && fulfillment === "delivery" ? (
               <div className="k-form-grid">
                 <label className="k-field">
                   <span>Zona</span>

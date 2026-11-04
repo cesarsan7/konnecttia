@@ -149,7 +149,8 @@ export function surchargeRules(config: ReadonlyMap<string, string>): SurchargeRu
     label: rule.label,
     thresholdCents: cents(eurosToCents(rule.below)),
     amountCents: cents(eurosToCents(rule.amount)),
-    ...(rule.appliesTo ? { appliesTo: rule.appliesTo } : {}),
+    // Sin indicar: recogida y reparto. Los pedidos en mesa no llevan envases.
+    appliesTo: rule.appliesTo ?? [FULFILLMENT.Pickup, FULFILLMENT.Delivery],
   }));
 }
 
@@ -300,6 +301,8 @@ export async function findDeliveryZone(
 }
 
 export function fulfillmentEnabled(restaurant: Restaurant, fulfillment: Fulfillment): boolean {
+  // La mesa depende del módulo de mesas (lo comprueba el permiso de la ruta).
+  if (fulfillment === FULFILLMENT.DineIn) return true;
   return fulfillment === FULFILLMENT.Delivery
     ? restaurant.deliveryEnabled
     : restaurant.pickupEnabled;

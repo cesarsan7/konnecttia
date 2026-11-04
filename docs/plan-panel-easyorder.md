@@ -13,10 +13,14 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 | Modo ocupado configurable (`modo_ocupado_opciones`, `modo_ocupado_duracion_minutos`) | 0009                                                                                                                         |
 | Estadísticas                                                                         | `/panel/[slug]/estadisticas`, `GET /panel/:slug/reports/overview`                                                            |
 | Cotización para n8n (Despacho v2)                                                    | `POST /public/:slug/cotizacion`                                                                                              |
-| **Carta (pieza 1)**: PR #23 `feat/panel-carta`, pendiente de revisión y merge        | `/panel/[slug]/carta`, `/panel/:slug/carta/*`, migración 0011                                                                |
-| **Ajustes, parte 1 (pieza 3)**: PR #25 `feat/panel-ajustes`, pendiente de merge      | `/panel/[slug]/ajustes`, `/panel/:slug/ajustes/*`, sin migraciones                                                           |
+| **Carta (pieza 1)**: PR #23 (fusionado), CORS PR #24                                 | `/panel/[slug]/carta`, `/panel/:slug/carta/*`, migración 0011                                                                |
+| **Ajustes, parte 1 (pieza 3)**: PR #25 (fusionado)                                   | `/panel/[slug]/ajustes`, `/panel/:slug/ajustes/*`, sin migraciones                                                           |
 | **Ajustes, parte 2**: zonas y tarifas de reparto, horas punta, suplementos. PR #26   | pestaña Reparto, `/panel/:slug/reparto/zonas`, `/panel/:slug/ajustes/franjas`, `suplementos` en `PATCH /ajustes/restaurante` |
-| **Equipo y roles (pieza 4)**: rama `feat/panel-equipo`, migración 0012               | `/panel/[slug]/equipo`, `/panel/unirse/[token]`, `/panel/:slug/equipo/*`, `/me/invitaciones/:token`                          |
+| **Equipo y roles (pieza 4)**: PR #27, migración 0012                                 | `/panel/[slug]/equipo`, `/panel/unirse/[token]`, `/panel/:slug/equipo/*`, `/me/invitaciones/:token`                          |
+| **Pedido manual (pieza 2)**: PR #28                                                  | «Nuevo pedido» en el tablero, `POST /panel/:slug/orders`, `repositories/place-order.ts`                                      |
+| **Clientes (pieza 5)**: PR #29                                                       | `/panel/[slug]/clientes`, `/panel/:slug/clientes/*` (lista, ficha, exportar CSV)                                             |
+| **Tiempo real (pieza 6)**: PR #30                                                    | `GET /panel/:slug/orders/stream` (SSE)                                                                                       |
+| **Mesas** (post-MVP, módulo `tables`): PR #31                                        | `/panel/[slug]/mesas`, `/panel/:slug/mesas/*`, pedidos `tipo_despacho = mesa`                                                |
 
 ### Notas de la pieza 1 (Carta)
 
@@ -40,7 +44,6 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 - El horario actualiza las filas de `horarios` conservando cómo escribe el día n8n.
 - «Según horario» borra `is_open_override`; abierto/cerrado escriben `true`/`false`.
 - Crear o borrar locales queda para el panel interno de Konnecttia.
-- Mesas no forma parte del MVP (módulo `tables`, plan Premium): va después de las piezas MVP.
 
 ### Notas de Equipo y roles
 
@@ -53,6 +56,20 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
   restaurante nunca se queda sin propietario. `local_memberships.rol` se mantiene para el
   dashboard antiguo (owner / manager / viewer).
 - El menú del panel oculta las secciones sin permiso; «Premium» solo si falta el módulo.
+
+### Notas de pedido manual, clientes, tiempo real y mesas
+
+- Pedido manual: la lógica de `POST /public/:slug/orders` vive en `placeOrder` y la usan la web y el
+  panel. Canal `telefono` o `mostrador`; el teléfono es obligatorio salvo en mesa
+  (`pedidos.telefono` es NOT NULL: en mesa se guarda vacío y no se crea perfil de cliente).
+- Clientes: nunca se expone `usuarios.contexto`; el CSV neutraliza fórmulas y queda en la
+  auditoría. Un usuario limitado a unos locales solo ve clientes y pedidos de esos locales.
+- Tiempo real: n8n escribe en `pedidos` sin outbox, por eso el servidor compara una huella del
+  tablero cada 2 s y avisa por SSE. Si el directo cae, el tablero vuelve al sondeo de 10 s.
+- Mesas: reutiliza `zona_mesa` y `mesa` (con `sucursal_id`). `FULFILLMENT.DineIn = "mesa"` en el
+  dominio: pasa de listo a entregado, sin envío ni suplementos de envases. Solo desde el panel; la
+  web pública no lo ofrece. La mesa se libera al entregar o cancelar su pedido, o a mano.
+- Barra inferior del móvil: 4 secciones y «Más».
 
 ## Reglas para cada pieza nueva
 
@@ -73,11 +90,11 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 | #   | Pieza                                       | Qué incluye                                                                                                                      | Tablas                                          | Permisos                   | Fase     |
 | --- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------- | -------- |
 | 1   | ~~Carta~~                                   | Hecha en el PR #23 (fusionado, 0011 aplicada en staging)                                                                         | —                                               | `menu.*`                   | MVP      |
-| 2   | **Pedido manual**                           | Crear un pedido desde el panel (teléfono o mostrador) con el mismo cálculo del servidor que la web                               | `pedidos` (vía `createOrder`)                   | `orders.create`            | MVP      |
+| 2   | ~~Pedido manual~~                           | Hecho en el PR #28                                                                                                               | —                                               | `orders.create`            | MVP      |
 | 3   | ~~Configuración~~                           | Hecha: parte 1 (PR #25) y parte 2 (zonas, horas punta, suplementos)                                                              | —                                               | `settings.*`, `delivery.*` | MVP      |
 | 4   | ~~Equipo y roles~~                          | Hecho: invitación por enlace (opcionalmente para un email), rol y locales, cambiar y quitar acceso. Roles propios: panel interno | —                                               | `team.*`                   | MVP      |
-| 5   | **Clientes**                                | Lista, ficha con historial de pedidos y dirección frecuente; exportar                                                            | `usuarios`, `pedidos`                           | `customers.*`              | MVP      |
-| 6   | **Tiempo real**                             | Sustituir el sondeo de 10 s por SSE desde `outbox_evento`                                                                        | `outbox_evento`                                 | `orders.view`              | MVP      |
+| 5   | ~~Clientes~~                                | Hecho en el PR #29                                                                                                               | —                                               | `customers.*`              | MVP      |
+| 6   | ~~Tiempo real~~                             | Hecho en el PR #30 (huella del tablero, también detecta cambios de n8n)                                                          | —                                               | `orders.view`              | MVP      |
 | 7   | **Avisos por email**                        | Worker que lee `outbox_evento` y envía al cliente y al local                                                                     | `outbox_evento`                                 | —                          | Fase 3   |
 | 8   | **Panel interno Konnecttia** (`apps/admin`) | Alta de restaurante, plan, módulos y complementos, roles por restaurante                                                         | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
 | 9   | **Derivar a humano en el panel**            | Ver conversaciones derivadas por el agente y responder                                                                           | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |

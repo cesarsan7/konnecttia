@@ -1,4 +1,5 @@
-import { canAccessBranch, PERMISSION } from "@konnecttia/access";
+import { can, canAccessBranch, PERMISSION } from "@konnecttia/access";
+import { FULFILLMENT } from "@konnecttia/domain";
 import type { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -6,14 +7,44 @@ import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { ORDER_CHANNEL } from "../repositories/orders";
-import { placeOrder } from "../repositories/place-order";
+import { type OrderInput, placeOrder } from "../repositories/place-order";
 import { orderBodySchema } from "./public";
 
 const IDEMPOTENCY_HEADER = "Idempotency-Key";
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 
-/** Canal del pedido manual: el equipo lo toma por teléfono o en el mostrador. */
+/** Canal del pedido manual: el equipo lo toma por teléfono o en el mostrador (también en mesa). */
 const manualChannel = z.enum([ORDER_CHANNEL.Phone, ORDER_CHANNEL.Counter]);
+
+const positiveInt = z.number().int().positive();
+
+/** Pedido en mesa: sin dirección ni zona; nombre y teléfono opcionales. */
+const dineInSchema = z.object({
+  mesa_id: positiveInt,
+  nombre: z.string().trim().max(120).optional(),
+  telefono: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9]{7,20}$/)
+    .optional(),
+  metodo_pago: z.string().trim().min(1).max(40),
+  notas: z.string().trim().max(500).optional(),
+  items: z
+    .array(
+      z.object({
+        menu_item_id: positiveInt,
+        menu_variant_id: positiveInt,
+        quantity: positiveInt,
+        extras: z
+          .array(z.object({ extra_id: positiveInt, quantity: positiveInt }))
+          .max(30)
+          .optional(),
+        nota: z.string().trim().max(200).optional(),
+      }),
+    )
+    .min(1)
+    .max(50),
+});
 
 /**
  * Pedido manual desde el panel (orders.create). Usa exactamente el mismo cálculo que la web
@@ -31,21 +62,46 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     }
     const raw = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
     const channel = manualChannel.safeParse(raw?.canal);
-    const parsed = orderBodySchema.safeParse(raw);
-    if (!channel.success || !parsed.success) {
-      return fail(c, 400, API_ERROR.InvalidBody, {
-        issues: [
-          ...(channel.success ? [] : [{ path: "canal", message: "telefono | mostrador" }]),
-          ...(parsed.success
-            ? []
-            : parsed.error.issues.map((issue) => ({
-                path: issue.path.join("."),
-                message: issue.message,
-              }))),
-        ],
-      });
+    let body: OrderInput;
+    if (raw?.tipo_despacho === FULFILLMENT.DineIn) {
+      // Mesa: requiere el módulo de mesas; el local es el de la mesa y el teléfono es opcional.
+      if (!can(access, PERMISSION.TablesView)) {
+        return fail(c, 403, API_ERROR.Forbidden, { permission: PERMISSION.TablesView });
+      }
+      const parsed = dineInSchema.safeParse(raw);
+      if (!channel.success || !parsed.success) return fail(c, 400, API_ERROR.InvalidBody);
+      const [table] = await deps.sql<{ id: number; nombre: string; sucursal_id: number | null }[]>`
+        SELECT id, nombre, sucursal_id FROM public.mesa
+        WHERE  id = ${parsed.data.mesa_id} AND restaurante_id = ${restaurant.id} AND activa
+      `;
+      if (!table || table.sucursal_id === null || !canAccessBranch(access, table.sucursal_id)) {
+        return fail(c, 404, API_ERROR.NotFound, { reason: "table_not_found" });
+      }
+      body = {
+        ...parsed.data,
+        tipo_despacho: FULFILLMENT.DineIn,
+        sucursal_id: table.sucursal_id,
+        nombre: parsed.data.nombre || table.nombre,
+        nombre_pedido: table.nombre,
+        telefono: parsed.data.telefono ?? "",
+      };
+    } else {
+      const parsed = orderBodySchema.safeParse(raw);
+      if (!channel.success || !parsed.success) {
+        return fail(c, 400, API_ERROR.InvalidBody, {
+          issues: [
+            ...(channel.success ? [] : [{ path: "canal", message: "telefono | mostrador" }]),
+            ...(parsed.success
+              ? []
+              : parsed.error.issues.map((issue) => ({
+                  path: issue.path.join("."),
+                  message: issue.message,
+                }))),
+          ],
+        });
+      }
+      body = parsed.data;
     }
-    const body = parsed.data;
     // Un usuario limitado a unos locales solo crea pedidos en ellos.
     if (body.sucursal_id !== undefined && !canAccessBranch(access, body.sucursal_id)) {
       return fail(c, 404, API_ERROR.BranchNotAvailable);
@@ -55,7 +111,7 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       restaurant,
       body,
       `panel-${idempotencyKey}`,
-      channel.data,
+      channel.success ? channel.data : ORDER_CHANNEL.Counter,
       (branchId) => canAccessBranch(access, branchId),
     );
     if (!placed.ok) return fail(c, 422, placed.error, placed.extra);

@@ -2894,3 +2894,61 @@
   animation: none;
   opacity: 0.6;
 }
+
+/* Mesas ---------------------------------------------------------------------- */
+.k-tables-summary {
+  margin: 0;
+}
+
+.k-tables {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.k-table-tile {
+  width: 100%;
+  min-height: 104px;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 2px solid var(--teal);
+  background: var(--teal-tint);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.k-table-tile strong {
+  font: 800 1.05rem / 1.2 var(--f-display);
+}
+
+.k-table-tile.is-busy {
+  border-color: var(--coral);
+  background: var(--coral-tint);
+}
+
+.k-table-tile.is-off {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.k-table-order {
+  margin-top: auto;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.k-table-tile.is-busy .k-table-order {
+  color: var(--coral-text);
+}
+
+.k-table-tile:not(.is-busy) .k-table-order {
+  color: var(--teal-text);
+}

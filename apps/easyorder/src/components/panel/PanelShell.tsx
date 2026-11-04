@@ -27,6 +27,8 @@ export const PERMISSION = {
   TeamManage: "team.manage",
   CustomersView: "customers.view",
   CustomersExport: "customers.export",
+  TablesView: "tables.view",
+  TablesManage: "tables.manage",
 } as const;
 
 type AccessValue = {
@@ -146,6 +148,13 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
       upsellModule: "analytics",
     },
     { href: `${base}/carta`, label: "Carta", icon: "menu", permission: PERMISSION.MenuView },
+    {
+      href: `${base}/mesas`,
+      label: "Mesas",
+      icon: "table",
+      permission: PERMISSION.TablesView,
+      upsellModule: "tables",
+    },
     {
       href: `${base}/clientes`,
       label: "Clientes",

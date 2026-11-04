@@ -35,6 +35,8 @@ export type NewOrder = {
   readonly tiempoEstimado: string | null;
   readonly notas: string | null;
   readonly quote: Quote;
+  /** Pedido en mesa (servicio de mesa). */
+  readonly mesaId?: number | null;
 };
 
 export type CreatedOrder = {
@@ -134,12 +136,15 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
 
   try {
     return await sql.begin(async (tx) => {
-      const usuario = await tx<{ id: number }[]>`
-        SELECT id FROM public.fn_upsert_usuario_perfil(
-          ${order.telefono}, ${order.nombre}, ${order.direccion}, ${order.fulfillment},
-          ${order.restauranteId}
-        ) LIMIT 1
-      `;
+      // Un pedido en mesa puede no tener teléfono: entonces no hay perfil de cliente.
+      const usuario = order.telefono
+        ? await tx<{ id: number }[]>`
+            SELECT id FROM public.fn_upsert_usuario_perfil(
+              ${order.telefono}, ${order.nombre}, ${order.direccion}, ${order.fulfillment},
+              ${order.restauranteId}
+            ) LIMIT 1
+          `
+        : [];
       const inserted = await tx<
         { id: number; pedido_codigo: string | null; tracking_token: string; estado: string }[]
       >`
@@ -147,7 +152,7 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           restaurante_id, telefono, usuario_id, items, subtotal, costo_envio, total,
           tipo_despacho, direccion, postal_code, tiempo_estimado, metodo_pago,
           estado, estado_pago, notas, canal, nombre_pedido, idempotency_key,
-          sucursal_id, lat, lng, distancia_km
+          sucursal_id, lat, lng, distancia_km, mesa_id
         ) VALUES (
           ${order.restauranteId}, ${order.telefono}, ${usuario[0]?.id ?? null},
           ${tx.json(legacyItemsSnapshot(quote))}, ${subtotal},
@@ -157,7 +162,8 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           ${notas.length > 0 ? tx.json(notas) : null}, ${order.canal}, ${order.nombrePedido},
           ${order.idempotencyKey}, ${order.sucursalId}, ${order.customerPoint?.lat ?? null},
           ${order.customerPoint?.lng ?? null},
-          ${order.distanciaKm === null ? null : Math.round(order.distanciaKm * 100) / 100}
+          ${order.distanciaKm === null ? null : Math.round(order.distanciaKm * 100) / 100},
+          ${order.mesaId ?? null}
         )
         RETURNING id, pedido_codigo, tracking_token, estado
       `;
