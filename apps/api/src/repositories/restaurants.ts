@@ -57,6 +57,8 @@ export const CONFIG_KEY = {
   BusyModeDuration: "modo_ocupado_duracion_minutos",
   /** JSON con reglas de suplemento, p. ej. envases: [{"label":"Envases","below":25,"amount":1}] */
   SurchargeRules: "surcharge_rules",
+  /** Pedidos anteriores que se muestran al buscar un teléfono (pedido manual, «Repetir»). */
+  LookupOrdersLimit: "lookup_pedidos_limit",
 } as const;
 
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {

@@ -113,4 +113,56 @@ describe.skipIf(!TEST_DATABASE_URL)("pedido manual desde el panel", () => {
     expect([201, 422]).toContain(assigned.status);
     if (assigned.status === 201) expect(assigned.body.local.id).toBe(3002);
   });
+
+  it("devuelve los últimos pedidos de un teléfono para repetirlos", async () => {
+    const lookup = async (user: User, slug: string, telefono: string) => {
+      const response = await ctx.app.request(
+        `/panel/${slug}/orders/anteriores?telefono=${encodeURIComponent(telefono)}`,
+        { headers: auth(user) },
+      );
+      // biome-ignore lint/suspicious/noExplicitAny: respuestas JSON de la API en las pruebas
+      return { status: response.status, body: (await response.json()) as Record<string, any> };
+    };
+    // Pedido de WhatsApp (n8n) guardado sin «+» ni prefijo: también cuenta.
+    await ctx.sql`
+      INSERT INTO public.pedidos (restaurante_id, telefono, items, total, tipo_despacho, estado, canal, sucursal_id)
+      SELECT 101, '600000123', '[{"nombre":"Pizza antigua","cantidad":1}]', 9, 'retiro', 'entregado', 'whatsapp',
+             (SELECT id FROM public.sucursal WHERE restaurante_id = 101 AND es_principal)
+    `;
+    const result = await lookup("ownerA", "prueba-a", "612 000 000");
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ cliente: null, pedidos: [] });
+
+    const rosa = await lookup("ownerA", "prueba-a", "+34 600 000 123");
+    expect(rosa.body.cliente).toMatchObject({ nombre: "Rosa" });
+    expect(rosa.body.pedidos.length).toBeGreaterThanOrEqual(2);
+    expect(rosa.body.pedidos[0].items[0]).toMatchObject({ nombre: "Pizza antigua" });
+    expect(rosa.body.pedidos[1]).toMatchObject({
+      total: 33,
+      items: [expect.objectContaining({ menu_item_id: 1101, menu_variant_id: 1202, quantity: 2 })],
+    });
+
+    // Límite configurable (lookup_pedidos_limit).
+    await ctx.sql`
+      INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
+      VALUES (101, 'lookup_pedidos_limit', '1')
+    `;
+    expect((await lookup("ownerA", "prueba-a", "600000123")).body.pedidos).toHaveLength(1);
+
+    // Permisos, otro restaurante y teléfono no válido.
+    expect((await lookup("viewerA", "prueba-a", "600000123")).status).toBe(403);
+    expect((await lookup("ownerB", "prueba-a", "600000123")).status).toBe(403);
+    expect((await lookup("ownerA", "prueba-a", "12")).status).toBe(400);
+    expect((await lookup("ownerB", "prueba-b", "600000123")).body.pedidos).toEqual([]);
+  });
+
+  it("un usuario limitado a un local solo ve los pedidos de ese local", async () => {
+    const response = await ctx.app.request("/panel/prueba-c/orders/anteriores?telefono=600000123", {
+      headers: auth("cashierPlaya"),
+    });
+    const body = (await response.json()) as { pedidos: { local_nombre: string }[] };
+    expect(response.status).toBe(200);
+    expect(body.pedidos.length).toBeGreaterThan(0);
+    expect(new Set(body.pedidos.map((p) => p.local_nombre)).size).toBe(1);
+  });
 });
