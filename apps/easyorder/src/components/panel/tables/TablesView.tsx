@@ -16,11 +16,14 @@ import {
   matchesFilter,
   nextTableNumber,
   occupiedFor,
+  shortDuration,
   TABLE_FILTER,
+  type TableAlertsConfig,
   type TableFilter,
   type TableOrder,
   type TablePlan,
   type TableZone,
+  tableTimes,
 } from "@/lib/panel/tables";
 import { Toggle } from "../menu/Editors";
 import { Modal } from "../menu/Modal";
@@ -50,6 +53,7 @@ export function TablesView() {
   const [branchId, setBranchId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [editingAlerts, setEditingAlerts] = useState(false);
   const [filter, setFilter] = useState<TableFilter>("todas");
   const [ordering, setOrdering] = useState<DiningTable | null>(null);
   const [editingTable, setEditingTable] = useState<DiningTable | "new" | null>(null);
@@ -201,6 +205,13 @@ export function TablesView() {
           </button>
           <button
             type="button"
+            className="k-btn k-btn-secondary k-btn-sm"
+            onClick={() => setEditingAlerts(true)}
+          >
+            Avisos de tiempo
+          </button>
+          <button
+            type="button"
             className="k-btn k-btn-primary k-btn-sm"
             onClick={() => setEditingTable("new")}
           >
@@ -237,32 +248,13 @@ export function TablesView() {
                 .filter((table) => editMode || matchesFilter(table, filter))
                 .map((table) => (
                   <li key={table.id}>
-                    <button
-                      type="button"
-                      className={`k-table-tile${table.ocupada ? " is-busy" : ""}${table.activa ? "" : " is-off"}`}
+                    <TableTile
+                      table={table}
+                      alerts={plan.avisos}
+                      now={now}
+                      editMode={editMode}
                       onClick={() => (editMode ? setEditingTable(table) : setSelectedId(table.id))}
-                      aria-label={`${table.nombre}, ${table.ocupada ? "ocupada" : "libre"}`}
-                    >
-                      <strong>{table.nombre}</strong>
-                      <span className="k-small">
-                        {table.capacidad ? `${table.capacidad} pers.` : ""}
-                        {!table.activa ? " · desactivada" : ""}
-                      </span>
-                      {table.pedido ? (
-                        <span className="k-table-status">
-                          {STATUS_LABEL[table.pedido.estado] ?? table.pedido.estado}
-                          {table.en_marcha > 1 ? ` · ${table.en_marcha} pedidos` : ""}
-                        </span>
-                      ) : null}
-                      {table.ocupada ? (
-                        <span className="k-table-order">
-                          {table.ocupada_desde ? occupiedFor(table.ocupada_desde, now) : "Ocupada"}
-                          {table.cuenta > 0 ? ` · ${euros(table.cuenta)}` : ""}
-                        </span>
-                      ) : (
-                        <span className="k-table-order">Libre</span>
-                      )}
-                    </button>
+                    />
                   </li>
                 ))}
             </ul>
@@ -301,6 +293,17 @@ export function TablesView() {
         />
       ) : null}
 
+      {editingAlerts ? (
+        <AlertsDialog
+          alerts={plan.avisos}
+          onClose={() => setEditingAlerts(false)}
+          onSaved={() => {
+            setEditingAlerts(false);
+            toast("Avisos guardados");
+            void load();
+          }}
+        />
+      ) : null}
       {editingZone && branch !== null ? (
         <ZoneDialog
           zone={editingZone === "new" ? null : editingZone}
@@ -335,6 +338,148 @@ export function TablesView() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Mesa en el plano: estado, tiempos y aviso si se pasa de los minutos configurados. */
+function TableTile({
+  table,
+  alerts,
+  now,
+  editMode,
+  onClick,
+}: {
+  readonly table: DiningTable;
+  readonly alerts: TableAlertsConfig;
+  readonly now: Date;
+  readonly editMode: boolean;
+  readonly onClick: () => void;
+}) {
+  const times = tableTimes(table, alerts, now);
+  const alert = !editMode && (times.waitAlert || times.stayAlert);
+  return (
+    <button
+      type="button"
+      className={`k-table-tile${table.ocupada ? " is-busy" : ""}${table.activa ? "" : " is-off"}${alert ? " is-alert" : ""}`}
+      onClick={onClick}
+      aria-label={`${table.nombre}, ${table.ocupada ? "ocupada" : "libre"}${alert ? ", con aviso" : ""}`}
+    >
+      <span className="k-table-tile-head">
+        <strong>{table.nombre}</strong>
+        {times.waitAlert ? <span className="k-chip k-chip-alert">Espera larga</span> : null}
+        {!times.waitAlert && times.stayAlert ? (
+          <span className="k-chip k-chip-alert">Mucho rato</span>
+        ) : null}
+      </span>
+      <span className="k-small">
+        {table.capacidad ? `${table.capacidad} pers.` : ""}
+        {!table.activa ? " · desactivada" : ""}
+      </span>
+      {times.oldest ? (
+        <span className="k-table-status">
+          {STATUS_LABEL[times.oldest.estado] ?? times.oldest.estado}
+          {times.inState !== null ? ` · ${shortDuration(times.inState)}` : ""}
+          {table.en_marcha > 1 ? ` · ${table.en_marcha} pedidos` : ""}
+        </span>
+      ) : null}
+      {table.ocupada ? (
+        <span className="k-table-order">
+          {times.stay !== null ? `Sentados ${shortDuration(times.stay)}` : "Ocupada"}
+          {table.cuenta > 0 ? ` · ${euros(table.cuenta)}` : ""}
+        </span>
+      ) : (
+        <span className="k-table-order">Libre</span>
+      )}
+    </button>
+  );
+}
+
+/** Horas de cada cambio de estado del pedido: «Nuevo 20:01 · Aceptado 20:03 · Preparando 20:05». */
+function OrderTimeline({ order }: { readonly order: TableOrder }) {
+  const { access } = useAccess();
+  const time = new Intl.DateTimeFormat("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: access.restaurante.zona_horaria,
+  });
+  const steps = [
+    { estado: "recibido", at: order.desde },
+    ...order.historial.filter((step) => step.estado !== "recibido"),
+  ];
+  return (
+    <span className="k-timeline k-small k-muted">
+      {steps.map((step, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: el historial no cambia de orden.
+        <span key={index}>
+          {STATUS_LABEL[step.estado] ?? step.estado} {time.format(new Date(step.at))}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function AlertsDialog(props: {
+  readonly alerts: TableAlertsConfig;
+  readonly onClose: () => void;
+  readonly onSaved: () => void;
+}) {
+  const { api } = usePanel();
+  const { slug } = useAccess();
+  const [wait, setWait] = useState(props.alerts.espera_minutos?.toString() ?? "");
+  const [stay, setStay] = useState(props.alerts.estancia_minutos?.toString() ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    const parse = (value: string) => (value.trim() ? Number(value) : null);
+    const body = { espera_minutos: parse(wait), estancia_minutos: parse(stay) };
+    const valid = (value: number | null, max: number) =>
+      value === null || (Number.isInteger(value) && value >= 1 && value <= max);
+    if (!valid(body.espera_minutos, 600) || !valid(body.estancia_minutos, 1440)) {
+      return setError("Escribe minutos enteros (o deja vacío para no avisar).");
+    }
+    const result = await api.tableChange(slug, "PUT", "/avisos", body);
+    if (!result.ok) return setError("No se pudo guardar.");
+    props.onSaved();
+  }
+
+  return (
+    <Modal title="Avisos de tiempo" onClose={props.onClose}>
+      <form onSubmit={save} noValidate className="k-editor">
+        <p className="k-muted k-small">
+          La mesa se marca en el plano cuando se pasa de estos minutos. Vacío: sin aviso.
+        </p>
+        {error ? <p className="k-alert">{error}</p> : null}
+        <div className="k-form-grid">
+          <label className="k-field">
+            <span>Espera sin servir (min)</span>
+            <input
+              value={wait}
+              inputMode="numeric"
+              onChange={(e) => setWait(e.target.value)}
+              placeholder="20"
+            />
+          </label>
+          <label className="k-field">
+            <span>Estancia en la mesa (min)</span>
+            <input
+              value={stay}
+              inputMode="numeric"
+              onChange={(e) => setStay(e.target.value)}
+              placeholder="90"
+            />
+          </label>
+        </div>
+        <div className="k-dialog-actions">
+          <button type="button" className="k-btn k-btn-secondary" onClick={props.onClose}>
+            Cancelar
+          </button>
+          <button type="submit" className="k-btn k-btn-go">
+            Guardar
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -435,10 +580,21 @@ function TableDetail(props: {
                       <strong>{order.codigo ?? `#${order.id}`}</strong>
                       <span className="k-chip">{STATUS_LABEL[order.estado] ?? order.estado}</span>
                       <span className="k-small k-muted">
-                        {occupiedFor(order.desde, props.now)} · {paymentLabel(order.metodo_pago)}
+                        {closed || order.estado === "entregado"
+                          ? occupiedFor(order.desde, props.now)
+                          : `${STATUS_LABEL[order.estado] ?? order.estado} hace ${shortDuration(
+                              Math.max(
+                                0,
+                                Math.floor(
+                                  (props.now.getTime() - Date.parse(order.estado_desde)) / 60_000,
+                                ),
+                              ),
+                            )}`}{" "}
+                        · {paymentLabel(order.metodo_pago)}
                         {order.estado_pago === "pendiente" ? " · cobro pendiente" : ""}
                       </span>
                       <span className="k-small">{summarizeLines(orderLines(order.items))}</span>
+                      <OrderTimeline order={order} />
                     </span>
                     <span className="k-table-order-side">
                       <strong className="k-amount">{euros(order.total)}</strong>

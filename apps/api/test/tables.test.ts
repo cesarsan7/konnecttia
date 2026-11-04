@@ -243,6 +243,70 @@ describe.skipIf(!TEST_DATABASE_URL)("mesas", () => {
     ).toBe(403);
   });
 
+  it("tiempos por estado y avisos configurables", async () => {
+    // Sin configuración no hay avisos.
+    const before = await call("ownerC", "GET", "/panel/prueba-c/mesas");
+    expect(before.body.avisos).toEqual({ espera_minutos: null, estancia_minutos: null });
+
+    const created = await order("ownerC", "prueba-c", {
+      tipo_despacho: "mesa",
+      canal: "mostrador",
+      mesa_id: mesa1,
+      metodo_pago: "efectivo",
+      items: [{ menu_item_id: 3201, menu_variant_id: 3301, quantity: 1 }],
+    });
+    for (const estado of ["confirmado", "en_preparacion"]) {
+      await call("ownerC", "PATCH", `/panel/prueba-c/orders/${created.body.id}/status`, { estado });
+    }
+    const plan = await call("ownerC", "GET", "/panel/prueba-c/mesas");
+    const tableOrder = plan.body.mesas[0].pedidos.find(
+      (item: { id: number }) => item.id === created.body.id,
+    );
+    expect(tableOrder.historial.map((step: { estado: string }) => step.estado)).toEqual([
+      "confirmado",
+      "en_preparacion",
+    ]);
+    expect(tableOrder.estado_desde).toBe(tableOrder.historial[1].at);
+
+    const saved = await call("ownerC", "PUT", "/panel/prueba-c/mesas/avisos", {
+      espera_minutos: 20,
+      estancia_minutos: 90,
+    });
+    expect(saved.status).toBe(200);
+    expect((await call("ownerC", "GET", "/panel/prueba-c/mesas")).body.avisos).toEqual({
+      espera_minutos: 20,
+      estancia_minutos: 90,
+    });
+    // Quitar un aviso, valores no válidos y permisos.
+    await call("ownerC", "PUT", "/panel/prueba-c/mesas/avisos", {
+      espera_minutos: null,
+      estancia_minutos: 90,
+    });
+    expect((await call("ownerC", "GET", "/panel/prueba-c/mesas")).body.avisos.espera_minutos).toBe(
+      null,
+    );
+    expect(
+      (
+        await call("ownerC", "PUT", "/panel/prueba-c/mesas/avisos", {
+          espera_minutos: 0,
+          estancia_minutos: null,
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await call("viewerA", "PUT", "/panel/prueba-a/mesas/avisos", {
+          espera_minutos: 5,
+          estancia_minutos: null,
+        })
+      ).status,
+    ).toBe(403);
+    await call("ownerC", "PATCH", `/panel/prueba-c/orders/${created.body.id}/status`, {
+      estado: "cancelado",
+    });
+    await call("ownerC", "PATCH", `/panel/prueba-c/mesas/${mesa1}/estado`, { ocupada: false });
+  });
+
   it("borra mesas y zonas propias", async () => {
     expect((await call("ownerC", "DELETE", `/panel/prueba-c/mesas/${mesa1}`)).status).toBe(200);
     expect((await call("ownerC", "DELETE", `/panel/prueba-c/mesas/zonas/${terraza}`)).status).toBe(

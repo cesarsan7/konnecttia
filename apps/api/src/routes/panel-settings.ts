@@ -166,7 +166,7 @@ function busyOptions(value: string | undefined): number[] {
 }
 
 /** Guarda (o borra, con null) una clave de restaurante_config. */
-async function setConfig(
+export async function setConfig(
   tx: Tx,
   restauranteId: number,
   key: string,
