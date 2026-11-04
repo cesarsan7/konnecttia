@@ -2277,3 +2277,273 @@
 .k-toggle input:checked ~ .k-toggle-text {
   color: var(--ink);
 }
+
+/* Ajustes -------------------------------------------------------------------- */
+.k-settings-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.k-settings {
+  display: grid;
+  gap: 12px;
+}
+
+.k-settings-head {
+  display: grid;
+  gap: 4px;
+}
+
+.k-settings-head .k-title,
+.k-settings-head p {
+  margin: 0;
+}
+
+.k-settings .k-field {
+  margin: 0;
+}
+
+.k-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px 16px;
+}
+
+.k-settings .k-field {
+  align-content: start;
+}
+
+.k-settings .k-chips-pick {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.k-save-bar .k-btn-go {
+  flex: none;
+  min-width: 200px;
+}
+
+.k-form-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.k-field input:disabled,
+.k-field textarea:disabled,
+.k-input:disabled {
+  background: var(--bg-alt);
+  color: var(--muted);
+}
+
+.k-hint-text {
+  font-weight: 400;
+}
+
+.k-block {
+  display: block;
+  font-weight: 400;
+}
+
+.k-pay-option {
+  align-items: flex-start;
+}
+
+.k-pay-option input {
+  margin-top: 3px;
+}
+
+.k-subsection {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.k-subsection .k-subtitle,
+.k-subsection p {
+  margin: 0;
+}
+
+.k-toggle-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+
+.k-fieldset-flat {
+  border-top: 0;
+  padding-top: 0;
+  margin: 0;
+}
+
+.k-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.k-save-bar .k-alert {
+  margin: 0;
+  flex: 1 1 260px;
+}
+
+.k-week {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.k-weekday {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.k-weekday:first-child {
+  border-top: 0;
+}
+
+.k-weekday-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-weekday.is-closed .k-weekday-name strong {
+  color: var(--muted);
+}
+
+.k-shifts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.k-shift {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.k-shift input {
+  font: 400 16px / 1.2 var(--f-body);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  min-height: 40px;
+  font-variant-numeric: tabular-nums;
+}
+
+.k-shift input:focus {
+  border-color: var(--teal);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 25%, transparent);
+}
+
+.k-icon-btn-sm {
+  width: 32px;
+  height: 32px;
+}
+
+.k-copy-day,
+.k-link-inline {
+  margin: 0;
+  justify-self: start;
+}
+
+.k-week-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 4px 24px;
+}
+
+.k-week-summary li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.k-settings > .k-btn {
+  justify-self: start;
+}
+
+.k-holidays {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+
+.k-holidays li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.k-holidays li:first-child {
+  border-top: 0;
+}
+
+.k-holiday-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-holiday-tags .k-link {
+  margin: 0;
+}
+
+.k-holiday-form {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.k-holiday-form:has(select) {
+  grid-template-columns: 170px minmax(0, 1fr) 180px auto auto;
+}
+
+.k-full {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .k-form-grid,
+  .k-form-grid-3,
+  .k-holiday-form,
+  .k-holiday-form:has(select) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .k-weekday {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .k-save-bar .k-btn {
+    width: 100%;
+  }
+}

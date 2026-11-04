@@ -17,6 +17,7 @@ import { OUTBOX_EVENT } from "../repositories/orders";
 import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 import { registerMenuRoutes } from "./panel-menu";
+import { registerSettingsRoutes } from "./panel-settings";
 
 const PAGE_SIZE = 100;
 
@@ -63,6 +64,7 @@ export function panelRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   app.use("/:slug/*", resolveRestaurant(deps), requireMember(deps));
   registerMenuRoutes(app, deps);
+  registerSettingsRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");

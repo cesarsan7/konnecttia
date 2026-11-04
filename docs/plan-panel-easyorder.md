@@ -5,22 +5,23 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 
 ## Hecho
 
-| Pieza                                                                                | Dónde                                                             |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Carta pública, checkout, seguimiento                                                 | `apps/easyorder/src/app/[slug]`                                   |
-| Acceso (Supabase Auth), selector de restaurante                                      | `/panel`, `GET /me/restaurantes`                                  |
-| Tablero de pedidos en directo, cobro, cancelar, tarjetas plegables                   | `/panel/[slug]`                                                   |
-| Modo ocupado configurable (`modo_ocupado_opciones`, `modo_ocupado_duracion_minutos`) | 0009                                                              |
-| Estadísticas                                                                         | `/panel/[slug]/estadisticas`, `GET /panel/:slug/reports/overview` |
-| Cotización para n8n (Despacho v2)                                                    | `POST /public/:slug/cotizacion`                                   |
-| **Carta (pieza 1)**: PR #23 `feat/panel-carta`, pendiente de revisión y merge        | `/panel/[slug]/carta`, `/panel/:slug/carta/*`, migración 0011     |
+| Pieza                                                                                | Dónde                                                              |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Carta pública, checkout, seguimiento                                                 | `apps/easyorder/src/app/[slug]`                                    |
+| Acceso (Supabase Auth), selector de restaurante                                      | `/panel`, `GET /me/restaurantes`                                   |
+| Tablero de pedidos en directo, cobro, cancelar, tarjetas plegables                   | `/panel/[slug]`                                                    |
+| Modo ocupado configurable (`modo_ocupado_opciones`, `modo_ocupado_duracion_minutos`) | 0009                                                               |
+| Estadísticas                                                                         | `/panel/[slug]/estadisticas`, `GET /panel/:slug/reports/overview`  |
+| Cotización para n8n (Despacho v2)                                                    | `POST /public/:slug/cotizacion`                                    |
+| **Carta (pieza 1)**: PR #23 `feat/panel-carta`, pendiente de revisión y merge        | `/panel/[slug]/carta`, `/panel/:slug/carta/*`, migración 0011      |
+| **Ajustes, parte 1 (pieza 3)**: PR #25 `feat/panel-ajustes`, pendiente de merge      | `/panel/[slug]/ajustes`, `/panel/:slug/ajustes/*`, sin migraciones |
 
 ### Notas de la pieza 1 (Carta)
 
 - Migración `0011_carta_panel.sql`: añade `sort_order` en `menu_item`, `menu_variant` y `extra`, y
   `alergenos text[]` en `menu_item` y `extra`. NULL significa «no informados» y `{}` significa
-  ninguno. Hay que aplicarla en staging con `--check` y después sin él.
-- Fotos: solo se suben si la API de staging tiene `SUPABASE_SERVICE_ROLE_KEY` (bucket
+  ninguno. Aplicada en staging.
+- Fotos: activas en staging (`SUPABASE_SERVICE_ROLE_KEY`) (bucket
   `MENU_IMAGES_BUCKET`, por defecto `menu-images`). Sin la clave, el panel permite pegar una URL https.
 - La carta es común a todos los locales: solo la cambia quien tiene alcance sobre todos. Un usuario
   limitado a unos locales solo marca la disponibilidad en los suyos.
@@ -29,6 +30,15 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
   panel de Konnecttia.
 - Alérgenos de las variantes: el dominio ya los admite, pero el MVP no los usa.
 - n8n todavía no lee `sucursal_item_no_disponible` ni `alergenos`.
+
+### Notas de Ajustes (parte 1)
+
+- Métodos de pago elegibles: efectivo, tarjeta, transferencia y Bizum («online» no, hasta la
+  pasarela). Transferencia exige IBAN válido y titular; Bizum, teléfono.
+- El horario actualiza las filas de `horarios` conservando cómo escribe el día n8n.
+- «Según horario» borra `is_open_override`; abierto/cerrado escriben `true`/`false`.
+- Crear o borrar locales queda para el panel interno de Konnecttia.
+- Mesas no forma parte del MVP (módulo `tables`, plan Premium): va después de las piezas MVP.
 
 ## Reglas para cada pieza nueva
 

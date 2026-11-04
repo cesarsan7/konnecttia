@@ -1,5 +1,5 @@
 import type { Fulfillment, Quote } from "@konnecttia/domain";
-import { ORDER_STATUS, PAYMENT_STATUS } from "@konnecttia/domain";
+import { DEFERRED_PAYMENT_METHODS, ORDER_STATUS, PAYMENT_STATUS } from "@konnecttia/domain";
 import { centsToEuros, eurosToCents, type Sql, UNIQUE_VIOLATION } from "../lib/db";
 
 export const ORDER_CHANNEL_WEB = "web";
@@ -7,9 +7,6 @@ export const OUTBOX_EVENT = {
   OrderReceived: "pedido.recibido",
   OrderStatusChanged: "pedido.estado_cambiado",
 } as const;
-
-/** Métodos que dejan el cobro pendiente de confirmación manual (comprobante). */
-const DEFERRED_PAYMENT_METHODS = new Set(["transferencia", "bizum"]);
 
 export type NewOrder = {
   readonly restauranteId: number;
