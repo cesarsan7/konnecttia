@@ -72,6 +72,19 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
   const router = useRouter();
   const { api, session, supabase } = usePanel();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  // Con acceso a varios restaurantes se ofrece cambiar de uno a otro.
+  const [manyRestaurants, setManyRestaurants] = useState(false);
+
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    void api.myRestaurants().then((result) => {
+      if (active && result.ok) setManyRestaurants(result.data.restaurantes.length > 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [api, session]);
 
   useEffect(() => {
     if (session === null) router.replace("/panel");
@@ -192,6 +205,11 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
             <span className="k-muted k-small">
               {access.roles.map((rol) => rol.nombre).join(", ")}
             </span>
+            {manyRestaurants ? (
+              <Link href="/panel" className="k-link k-small k-switch">
+                Cambiar de restaurante
+              </Link>
+            ) : null}
           </div>
           <nav className="k-nav" aria-label="Secciones del panel">
             {nav.map((item) => {
@@ -289,6 +307,12 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
                 <Icon name="external" />
                 <span>Ver carta online</span>
               </a>
+              {manyRestaurants ? (
+                <Link href="/panel" className="k-nav-item">
+                  <Icon name="refresh" />
+                  <span>Cambiar de restaurante</span>
+                </Link>
+              ) : null}
               <button
                 type="button"
                 className="k-nav-item"

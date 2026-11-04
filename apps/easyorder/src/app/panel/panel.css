@@ -3071,3 +3071,8 @@
 .k-previous p {
   margin: 0;
 }
+
+.k-restaurant .k-switch {
+  justify-self: start;
+  margin-top: 6px;
+}
