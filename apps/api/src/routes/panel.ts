@@ -18,6 +18,7 @@ import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerMenuRoutes } from "./panel-menu";
+import { registerManualOrderRoutes } from "./panel-orders";
 import { registerSettingsRoutes } from "./panel-settings";
 import { registerTeamRoutes } from "./panel-team";
 
@@ -69,6 +70,7 @@ export function panelRoutes(deps: AppDeps) {
   registerSettingsRoutes(app, deps);
   registerDeliveryRoutes(app, deps);
   registerTeamRoutes(app, deps);
+  registerManualOrderRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");

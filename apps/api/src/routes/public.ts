@@ -5,9 +5,6 @@ import {
   ETA_SERVICE,
   FULFILLMENT,
   type GeoPoint,
-  type PricingContext,
-  priceOrder,
-  type RequestedLine,
   rankBranches,
 } from "@konnecttia/domain";
 import { Hono } from "hono";
@@ -17,17 +14,17 @@ import { API_ERROR, fail } from "../lib/http";
 import { createRateLimiter } from "../lib/rate-limit";
 import { resolveRestaurant } from "../middleware/tenant";
 import { loadBranches, openChecker, unavailableItems } from "../repositories/branches";
-import { loadCatalogForItems, loadPublicMenu } from "../repositories/catalog";
+import { loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
-import { createOrder, findOrderByTrackingToken } from "../repositories/orders";
+import { findOrderByTrackingToken, ORDER_CHANNEL } from "../repositories/orders";
+import { placeOrder } from "../repositories/place-order";
 import {
   deliveryEta,
   fulfillmentEnabled,
   loadConfig,
   openOverride,
   pickupEta,
-  surchargeRules,
 } from "../repositories/restaurants";
 
 const MAX_LINES = 50;
@@ -444,106 +441,9 @@ export function publicRoutes(deps: AppDeps) {
     }
     const body = parsed.data;
 
-    if (!fulfillmentEnabled(restaurant, body.tipo_despacho)) {
-      return fail(
-        c,
-        422,
-        body.tipo_despacho === FULFILLMENT.Delivery
-          ? API_ERROR.DeliveryNotAvailable
-          : API_ERROR.PickupNotAvailable,
-      );
-    }
-    if (!restaurant.paymentMethods.includes(body.metodo_pago)) {
-      return fail(c, 422, API_ERROR.PaymentMethodNotAccepted, {
-        accepted: restaurant.paymentMethods,
-      });
-    }
-
-    const [branches, config] = await Promise.all([
-      loadBranches(deps.sql, restaurant.id),
-      loadConfig(deps.sql, restaurant.id),
-    ]);
-    const isOpen = await openChecker(
-      deps.sql,
-      restaurant,
-      branches,
-      openOverride(config),
-      deps.now(),
-    );
-    const customerPoint: GeoPoint | null =
-      body.lat !== undefined && body.lng !== undefined ? { lat: body.lat, lng: body.lng } : null;
-
-    const resolved = await resolveFulfillment(deps.sql, restaurant.id, branches, config, isOpen, {
-      fulfillment: body.tipo_despacho,
-      ...(body.sucursal_id !== undefined ? { branchId: body.sucursal_id } : {}),
-      ...(body.zona_id !== undefined ? { zoneId: body.zona_id } : {}),
-      point: customerPoint,
-    });
-    if (!resolved.ok) {
-      return fail(c, 422, resolved.error, resolved.extra);
-    }
-    const { branch, delivery, etaBase, etaService, postalCode } = resolved;
-    const pricingContext: PricingContext = {
-      fulfillment: body.tipo_despacho,
-      surcharges: surchargeRules(config),
-      ...(delivery
-        ? {
-            delivery: {
-              feeCents: delivery.feeCents,
-              minOrderCents: delivery.minOrderCents,
-              freeFromCents: delivery.freeFromCents,
-            },
-          }
-        : {}),
-    };
-    const eta = (await loadEtaContext(deps.sql, restaurant, config, deps.now())).resolve(
-      etaBase,
-      etaService,
-      branch.id,
-    );
-
-    const lines: RequestedLine[] = body.items.map((item) => ({
-      itemId: item.menu_item_id,
-      variantId: item.menu_variant_id,
-      quantity: item.quantity,
-      modifiers: (item.extras ?? []).map((extra) => ({
-        optionId: extra.extra_id,
-        quantity: extra.quantity,
-      })),
-      ...(item.nota ? { note: item.nota } : {}),
-    }));
-    const catalog = await loadCatalogForItems(deps.sql, restaurant.id, [
-      ...new Set(lines.map((line) => line.itemId)),
-    ]);
-    const hidden = await unavailableItems(deps.sql, branch.id);
-    const notHere = [...new Set(lines.map((line) => line.itemId))].filter((id) => hidden.has(id));
-    if (notHere.length > 0) {
-      return fail(c, 422, API_ERROR.InvalidItems, {
-        errors: notHere.map((id) => ({ code: "ITEM_NOT_AVAILABLE_AT_BRANCH", detail: String(id) })),
-      });
-    }
-    const priced = priceOrder(catalog, lines, pricingContext);
-    if (!priced.ok) {
-      return fail(c, 422, API_ERROR.InvalidItems, { errors: priced.errors });
-    }
-
-    const order = await createOrder(deps.sql, {
-      restauranteId: restaurant.id,
-      sucursalId: branch.id,
-      idempotencyKey,
-      nombre: body.nombre,
-      telefono: body.telefono,
-      nombrePedido: body.nombre_pedido ?? null,
-      fulfillment: body.tipo_despacho,
-      direccion: body.tipo_despacho === FULFILLMENT.Delivery ? (body.direccion ?? null) : null,
-      postalCode,
-      customerPoint: body.tipo_despacho === FULFILLMENT.Delivery ? customerPoint : null,
-      distanciaKm: delivery?.distanceKm ?? null,
-      metodoPago: body.metodo_pago,
-      tiempoEstimado: eta,
-      notas: body.notas ?? null,
-      quote: priced.quote,
-    });
+    const placed = await placeOrder(deps, restaurant, body, idempotencyKey, ORDER_CHANNEL.Web);
+    if (!placed.ok) return fail(c, 422, placed.error, placed.extra);
+    const { order, branch, eta, priced } = placed;
 
     return c.json(
       {

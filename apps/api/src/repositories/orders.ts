@@ -2,7 +2,15 @@ import type { Fulfillment, Quote } from "@konnecttia/domain";
 import { DEFERRED_PAYMENT_METHODS, ORDER_STATUS, PAYMENT_STATUS } from "@konnecttia/domain";
 import { centsToEuros, eurosToCents, type Sql, UNIQUE_VIOLATION } from "../lib/db";
 
-export const ORDER_CHANNEL_WEB = "web";
+/** Canal del pedido (pedidos.canal). n8n escribe «whatsapp». */
+export const ORDER_CHANNEL = {
+  Web: "web",
+  WhatsApp: "whatsapp",
+  Phone: "telefono",
+  Counter: "mostrador",
+} as const;
+
+export type OrderChannel = (typeof ORDER_CHANNEL)[keyof typeof ORDER_CHANNEL];
 export const OUTBOX_EVENT = {
   OrderReceived: "pedido.recibido",
   OrderStatusChanged: "pedido.estado_cambiado",
@@ -13,6 +21,7 @@ export type NewOrder = {
   /** Local que prepara (recogida) o despacha (reparto) el pedido. */
   readonly sucursalId: number;
   readonly idempotencyKey: string;
+  readonly canal: OrderChannel;
   readonly nombre: string;
   readonly telefono: string;
   readonly nombrePedido: string | null;
@@ -145,7 +154,7 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           ${centsToEuros(quote.deliveryFeeCents)}, ${centsToEuros(quote.totalCents)},
           ${order.fulfillment}, ${order.direccion}, ${order.postalCode}, ${order.tiempoEstimado},
           ${order.metodoPago}, ${ORDER_STATUS.Received}, ${estadoPago},
-          ${notas.length > 0 ? tx.json(notas) : null}, ${ORDER_CHANNEL_WEB}, ${order.nombrePedido},
+          ${notas.length > 0 ? tx.json(notas) : null}, ${order.canal}, ${order.nombrePedido},
           ${order.idempotencyKey}, ${order.sucursalId}, ${order.customerPoint?.lat ?? null},
           ${order.customerPoint?.lng ?? null},
           ${order.distanciaKm === null ? null : Math.round(order.distanciaKm * 100) / 100}
@@ -161,7 +170,7 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           (restaurante_id, tipo, agregado_tipo, agregado_id, payload, clave_idempotencia)
         VALUES (
           ${order.restauranteId}, ${OUTBOX_EVENT.OrderReceived}, 'pedido', ${String(pedido.id)},
-          ${tx.json({ pedido_id: pedido.id, canal: ORDER_CHANNEL_WEB })},
+          ${tx.json({ pedido_id: pedido.id, canal: order.canal })},
           ${`${OUTBOX_EVENT.OrderReceived}:${pedido.id}`}
         )
       `;

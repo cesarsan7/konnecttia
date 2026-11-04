@@ -2,12 +2,15 @@
 
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { type Api, createApi } from "@/lib/api";
 import { createPanelApi, type PanelApi } from "@/lib/panel/api";
 import type { PanelConfig } from "@/lib/panel/types";
 
 type PanelContextValue = {
   readonly supabase: SupabaseClient | null;
   readonly api: PanelApi;
+  /** API pública (carta, locales, zonas): la usa el pedido manual. */
+  readonly publicApi: Api;
   /** undefined mientras se lee la sesión guardada; null si no hay sesión. */
   readonly session: Session | null | undefined;
   readonly configured: boolean;
@@ -69,9 +72,10 @@ export function PanelProvider({
     [config.apiUrl, supabase],
   );
 
+  const publicApi = useMemo(() => createApi(config.apiUrl), [config.apiUrl]);
   const value = useMemo(
-    () => ({ supabase, api, session, configured: supabase !== null }),
-    [supabase, api, session],
+    () => ({ supabase, api, publicApi, session, configured: supabase !== null }),
+    [supabase, api, publicApi, session],
   );
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;
 }
