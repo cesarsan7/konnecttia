@@ -59,6 +59,10 @@ export const CONFIG_KEY = {
   SurchargeRules: "surcharge_rules",
   /** Pedidos anteriores que se muestran al buscar un teléfono (pedido manual, «Repetir»). */
   LookupOrdersLimit: "lookup_pedidos_limit",
+  /** Minutos sin servir a partir de los que una mesa se marca en el plano. */
+  TableWaitAlert: "mesa_aviso_espera_minutos",
+  /** Minutos de ocupación a partir de los que una mesa se marca en el plano. */
+  TableStayAlert: "mesa_aviso_estancia_minutos",
 } as const;
 
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {

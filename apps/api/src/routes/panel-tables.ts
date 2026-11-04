@@ -8,6 +8,8 @@ import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { loadBranches } from "../repositories/branches";
+import { CONFIG_KEY, loadConfig } from "../repositories/restaurants";
+import { setConfig } from "./panel-settings";
 
 /**
  * Mesas (módulo «tables», plan Premium): tables.view para ver el plano y tables.manage para
@@ -43,7 +45,30 @@ type TableOrder = {
   total: number;
   items: unknown;
   desde: string;
+  /** Cambios de estado (pedido_estado_log), del más antiguo al más reciente. */
+  historial: { estado: string; at: string }[] | null;
 };
+
+/** Minutos de aviso guardados en restaurante_config; null = sin aviso. */
+export function alertMinutes(value: string | undefined): number | null {
+  const minutes = Number.parseInt(value ?? "", 10);
+  return Number.isInteger(minutes) && minutes > 0 ? minutes : null;
+}
+
+/** Desde cuándo está el pedido en su estado actual (último cambio a ese estado, o su creación). */
+export function stateSince(order: Pick<TableOrder, "estado" | "desde" | "historial">): string {
+  const changes = order.historial ?? [];
+  for (let index = changes.length - 1; index >= 0; index -= 1) {
+    const change = changes[index];
+    if (change && change.estado === order.estado) return change.at;
+  }
+  return order.desde;
+}
+
+const alertsSchema = z.object({
+  espera_minutos: z.number().int().min(1).max(600).nullable(),
+  estancia_minutos: z.number().int().min(1).max(1440).nullable(),
+});
 
 /** Pedidos en marcha de una mesa (los que impiden liberarla). */
 export async function activeTableOrders(
@@ -149,7 +174,12 @@ export function registerTableRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       canAccessBranch(c.get("access"), branch.id),
     );
     const ids = branches.map((branch) => branch.id);
-    if (ids.length === 0) return c.json({ locales: [], zonas: [], mesas: [] });
+    const config = await loadConfig(sql, restauranteId);
+    const avisos = {
+      espera_minutos: alertMinutes(config.get(CONFIG_KEY.TableWaitAlert)),
+      estancia_minutos: alertMinutes(config.get(CONFIG_KEY.TableStayAlert)),
+    };
+    if (ids.length === 0) return c.json({ locales: [], zonas: [], mesas: [], avisos });
     const [zones, tables] = await Promise.all([
       sql<{ id: number; nombre: string; orden: number; activa: boolean; sucursal_id: number }[]>`
         SELECT id, nombre, orden, activa, sucursal_id FROM public.zona_mesa
@@ -178,7 +208,14 @@ export function registerTableRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                          'id', p.id, 'codigo', p.pedido_codigo, 'estado', p.estado,
                          'estado_pago', p.estado_pago, 'metodo_pago', p.metodo_pago,
                          'tipo_despacho', p.tipo_despacho, 'total', p.total, 'items', p.items,
-                         'desde', to_char(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+                         'desde', to_char(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                         'historial', (
+                           SELECT json_agg(json_build_object(
+                                    'estado', l.estado_nuevo,
+                                    'at', to_char(l.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+                                  ORDER BY l.created_at)
+                           FROM   public.pedido_estado_log l
+                           WHERE  l.pedido_id = p.id))
                        ORDER BY p.created_at)
                 FROM   public.pedidos p
                 WHERE  p.mesa_id = m.id AND p.restaurante_id = ${restauranteId}
@@ -192,10 +229,16 @@ export function registerTableRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       `,
     ]);
     return c.json({
+      avisos,
       locales: branches.map((branch) => ({ id: branch.id, nombre: branch.name })),
       zonas: zones,
       mesas: tables.map(({ pedidos, ...table }) => {
-        const orders = (pedidos ?? []).map((order) => ({ ...order, total: Number(order.total) }));
+        const orders = (pedidos ?? []).map((order) => ({
+          ...order,
+          total: Number(order.total),
+          historial: order.historial ?? [],
+          estado_desde: stateSince(order),
+        }));
         const active = orders.filter(
           (order) => !(CLOSED_STATES as readonly string[]).includes(order.estado),
         );
@@ -219,6 +262,32 @@ export function registerTableRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         };
       }),
     });
+  });
+
+  /** Avisos de tiempo del plano (null = sin aviso). */
+  app.put("/:slug/mesas/avisos", requirePermission(deps, PERMISSION.TablesManage), async (c) => {
+    const parsed = alertsSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return fail(c, 400, API_ERROR.InvalidBody);
+    const restauranteId = c.get("restaurant").id;
+    const body = parsed.data;
+    await sql.begin(async (tx) => {
+      await setConfig(
+        tx,
+        restauranteId,
+        CONFIG_KEY.TableWaitAlert,
+        body.espera_minutos === null ? null : String(body.espera_minutos),
+        "Aviso de espera en mesas (minutos)",
+      );
+      await setConfig(
+        tx,
+        restauranteId,
+        CONFIG_KEY.TableStayAlert,
+        body.estancia_minutos === null ? null : String(body.estancia_minutos),
+        "Aviso de estancia en mesas (minutos)",
+      );
+    });
+    await record(c, "tables.avisos", "restaurante", restauranteId, body);
+    return c.json(body);
   });
 
   // ---------------------------------------------------------------------------------- zonas
