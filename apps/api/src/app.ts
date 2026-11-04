@@ -22,7 +22,7 @@ export function createApp(deps: AppDeps) {
     cors({
       origin: (origin) => (deps.allowedOrigins.includes(origin) ? origin : null),
       allowHeaders: ["Content-Type", "Authorization", "Idempotency-Key"],
-      allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     }),
   );
 
