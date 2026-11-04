@@ -1,7 +1,7 @@
 # Plan del panel de EasyOrder (lo que falta para el MVP)
 
 Documento de traspaso: cualquier sesión de trabajo (persona o agente) puede retomar desde aquí.
-Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
+Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 4 de noviembre de 2026.
 
 ## Hecho
 
@@ -21,6 +21,9 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 | **Clientes (pieza 5)**: PR #29                                                       | `/panel/[slug]/clientes`, `/panel/:slug/clientes/*` (lista, ficha, exportar CSV)                                             |
 | **Tiempo real (pieza 6)**: PR #30                                                    | `GET /panel/:slug/orders/stream` (SSE)                                                                                       |
 | **Mesas** (post-MVP, módulo `tables`): PR #31                                        | `/panel/[slug]/mesas`, `/panel/:slug/mesas/*`, pedidos `tipo_despacho = mesa`                                                |
+| **Gestión de mesas** y opción «Mesa» en el pedido manual: PR #33, migración 0013     | ventana de mesa (pedidos, cuenta, ocupar, liberar), `PATCH /panel/:slug/mesas/:id/estado`                                    |
+| **Repetir pedido** por teléfono en el pedido manual: PR #34                          | `GET /panel/:slug/orders/anteriores`, `lib/panel/reorder.ts`, `lookup_pedidos_limit`                                         |
+| **Invitación por email** (Resend): PR #35                                            | `lib/mailer.ts`, `RESEND_API_KEY`, `RESEND_FROM`, `PANEL_PUBLIC_URL`                                                         |
 
 ### Notas de la pieza 1 (Carta)
 
@@ -68,7 +71,14 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
   tablero cada 2 s y avisa por SSE. Si el directo cae, el tablero vuelve al sondeo de 10 s.
 - Mesas: reutiliza `zona_mesa` y `mesa` (con `sucursal_id`). `FULFILLMENT.DineIn = "mesa"` en el
   dominio: pasa de listo a entregado, sin envío ni suplementos de envases. Solo desde el panel; la
-  web pública no lo ofrece. La mesa se libera al entregar o cancelar su pedido, o a mano.
+  web pública no lo ofrece. Desde 0013 la mesa se ocupa a mano o con su primer pedido
+  (`mesa.ocupada_desde`) y sigue ocupada hasta que el equipo la libera, aunque sus pedidos ya
+  estén servidos; no se libera con pedidos en marcha (409 `orders_in_progress`). Los pedidos
+  desde `ocupada_desde` son la cuenta de la mesa.
+- Repetir pedido: solo en el panel (`orders.create`). El teléfono se compara por dígitos
+  (`+34…`, `34…`, `612…`). En la web pública no se ofrece sin verificar antes el teléfono.
+- Invitación por email: Resend con fetch, sin SDK. El enlace usa el `Origin` permitido o
+  `PANEL_PUBLIC_URL`; si Resend falla, la invitación se crea igual.
 - Barra inferior del móvil: 4 secciones y «Más».
 
 ## Reglas para cada pieza nueva
@@ -95,7 +105,7 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 | 4   | ~~Equipo y roles~~                          | Hecho: invitación por enlace (opcionalmente para un email), rol y locales, cambiar y quitar acceso. Roles propios: panel interno | —                                               | `team.*`                   | MVP      |
 | 5   | ~~Clientes~~                                | Hecho en el PR #29                                                                                                               | —                                               | `customers.*`              | MVP      |
 | 6   | ~~Tiempo real~~                             | Hecho en el PR #30 (huella del tablero, también detecta cambios de n8n)                                                          | —                                               | `orders.view`              | MVP      |
-| 7   | **Avisos por email**                        | Worker que lee `outbox_evento` y envía al cliente y al local                                                                     | `outbox_evento`                                 | —                          | Fase 3   |
+| 7   | **Avisos por email**                        | Worker que lee `outbox_evento` y envía al cliente y al local (el mailer de Resend ya existe, PR #35)                             | `outbox_evento`                                 | —                          | Fase 3   |
 | 8   | **Panel interno Konnecttia** (`apps/admin`) | Alta de restaurante, plan, módulos y complementos, roles por restaurante                                                         | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
 | 9   | **Derivar a humano en el panel**            | Ver conversaciones derivadas por el agente y responder                                                                           | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |
 | 10  | **Cobro online**                            | ADR y pasarela                                                                                                                   | —                                               | —                          | Post-MVP |
