@@ -22,6 +22,7 @@ import { registerMenuRoutes } from "./panel-menu";
 import { registerManualOrderRoutes } from "./panel-orders";
 import { registerSettingsRoutes } from "./panel-settings";
 import { registerStreamRoutes } from "./panel-stream";
+import { registerTableRoutes } from "./panel-tables";
 import { registerTeamRoutes } from "./panel-team";
 
 const PAGE_SIZE = 100;
@@ -75,6 +76,7 @@ export function panelRoutes(deps: AppDeps) {
   registerManualOrderRoutes(app, deps);
   registerCustomerRoutes(app, deps);
   registerStreamRoutes(app, deps);
+  registerTableRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");
@@ -100,9 +102,10 @@ export function panelRoutes(deps: AppDeps) {
              p.total, p.metodo_pago, p.tiempo_estimado, p.notas,
              p.created_at AT TIME ZONE 'UTC' AS created_at,
              p.updated_at AT TIME ZONE 'UTC' AS updated_at,
-             p.sucursal_id, s.nombre AS local_nombre
+             p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
+      LEFT   JOIN public.mesa me    ON me.id = p.mesa_id
       WHERE  p.restaurante_id = ${restaurant.id}
         AND  (${estado ?? null}::text IS NULL OR p.estado = ${estado ?? null})
         AND  p.estado <> ${ORDER_STATUS.InCart}

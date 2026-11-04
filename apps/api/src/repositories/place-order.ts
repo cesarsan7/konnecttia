@@ -1,5 +1,6 @@
 import {
   FULFILLMENT,
+  type Fulfillment,
   type GeoPoint,
   type PricingContext,
   type PricingResult,
@@ -22,7 +23,14 @@ import {
   surchargeRules,
 } from "./restaurants";
 
-type OrderBody = import("zod").infer<typeof orderBodySchema>;
+type WebOrderBody = import("zod").infer<typeof orderBodySchema>;
+
+/** Pedido a crear: el de la web, o uno en mesa desde el panel (teléfono opcional). */
+export type OrderInput = Omit<WebOrderBody, "tipo_despacho" | "telefono"> & {
+  readonly tipo_despacho: Fulfillment;
+  readonly telefono: string;
+  readonly mesa_id?: number;
+};
 
 export type PlaceOrderResult =
   | {
@@ -43,7 +51,7 @@ export type PlaceOrderResult =
 export async function placeOrder(
   deps: AppDeps,
   restaurant: Restaurant,
-  body: OrderBody,
+  body: OrderInput,
   idempotencyKey: string,
   channel: OrderChannel,
   branchAllowed: (branchId: number) => boolean = () => true,
@@ -158,6 +166,7 @@ export async function placeOrder(
     tiempoEstimado: eta,
     notas: body.notas ?? null,
     quote: priced.quote,
+    mesaId: body.mesa_id ?? null,
   });
   return { ok: true, order, branch, eta, priced };
 }

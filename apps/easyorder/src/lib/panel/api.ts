@@ -3,6 +3,7 @@ import type { ApiErrorBody } from "../types";
 import type { CustomerDetail, CustomerList } from "./customers";
 import type { AdminMenu } from "./menu";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
+import type { TablePlan } from "./tables";
 import type { InvitePreview, Team } from "./team";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
 
@@ -119,6 +120,14 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         return null;
       }
     },
+    tables: (slug: string) => request<TablePlan>(panel(slug, "/mesas")),
+    /** Mesas: `path` relativo a /mesas (por ejemplo «/zonas» o «/12/estado»). */
+    tableChange: (
+      slug: string,
+      method: "POST" | "PUT" | "PATCH" | "DELETE",
+      path: string,
+      body?: unknown,
+    ) => send(slug, `/mesas${path}`, method, body),
     uploadPhoto: (slug: string, itemId: number, file: File) => {
       const form = new FormData();
       form.append("foto", file);

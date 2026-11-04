@@ -4,6 +4,8 @@ import { type Cents, cents } from "./money";
 export const FULFILLMENT = {
   Pickup: "retiro",
   Delivery: "delivery",
+  /** Consumo en el local (servicio de mesa). Solo desde el panel; la web pública no lo ofrece. */
+  DineIn: "mesa",
 } as const;
 
 export type Fulfillment = (typeof FULFILLMENT)[keyof typeof FULFILLMENT];

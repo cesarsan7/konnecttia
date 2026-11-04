@@ -75,7 +75,8 @@ export function checkTransition(input: {
   if (from === S.Ready && to === S.OnTheWay && fulfillment !== FULFILLMENT.Delivery) {
     return { ok: false, error: TRANSITION_ERROR.OnTheWayRequiresDelivery };
   }
-  if (from === S.Ready && to === S.Delivered && fulfillment !== FULFILLMENT.Pickup) {
+  // El reparto pasa por «en camino»; recogida y mesa van directas a entregado.
+  if (from === S.Ready && to === S.Delivered && fulfillment === FULFILLMENT.Delivery) {
     return { ok: false, error: TRANSITION_ERROR.PickupGoesStraightToDelivered };
   }
   if (to === S.Delivered && paymentStatus === PAYMENT_STATUS.Pending) {

@@ -19,6 +19,7 @@ export type BranchCandidate<B extends Branch = Branch> = {
 
 export function branchServes(branch: Branch, fulfillment: Fulfillment): boolean {
   if (!branch.active) return false;
+  if (fulfillment === FULFILLMENT.DineIn) return true;
   return fulfillment === FULFILLMENT.Delivery ? branch.acceptsDelivery : branch.acceptsPickup;
 }
 

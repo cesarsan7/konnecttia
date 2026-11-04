@@ -37,7 +37,7 @@ export type PanelOrder = {
   readonly pedido_codigo: string | null;
   readonly estado: string;
   readonly estado_pago: string;
-  readonly tipo_despacho: "retiro" | "delivery" | null;
+  readonly tipo_despacho: "retiro" | "delivery" | "mesa" | null;
   readonly canal: string;
   readonly nombre_pedido: string | null;
   readonly telefono: string;
@@ -53,6 +53,8 @@ export type PanelOrder = {
   readonly updated_at: string | null;
   readonly sucursal_id: number | null;
   readonly local_nombre: string | null;
+  readonly mesa_id?: number | null;
+  readonly mesa_nombre?: string | null;
 };
 
 export type BusyMode = {

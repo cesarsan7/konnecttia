@@ -61,3 +61,11 @@ describe("checkTransition", () => {
     });
   });
 });
+
+describe("pedidos en mesa", () => {
+  it("van de listo a entregado (servido) y nunca «en camino»", () => {
+    const base = { fulfillment: "mesa" as const, paymentStatus: "no_aplica" };
+    expect(checkTransition({ ...base, from: "listo", to: "entregado" })).toEqual({ ok: true });
+    expect(checkTransition({ ...base, from: "listo", to: "en_camino" }).ok).toBe(false);
+  });
+});

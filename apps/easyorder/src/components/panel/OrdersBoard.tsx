@@ -542,6 +542,7 @@ function OrderCard({
   const action = primaryAction(order, permissions);
   const paymentPending = order.estado_pago === "pendiente";
   const delivery = order.tipo_despacho === "delivery";
+  const dineIn = order.tipo_despacho === "mesa";
   const closed = lane === "cerrados";
   const time = new Date(order.created_at).toLocaleTimeString("es-ES", {
     hour: "2-digit",
@@ -582,7 +583,7 @@ function OrderCard({
 
       <div className="k-order-who">
         <strong>{order.nombre_pedido ?? "Cliente"}</strong>
-        {expanded ? (
+        {expanded && order.telefono ? (
           <a className="k-small" href={`tel:${order.telefono}`}>
             <Icon name="phone" size={14} /> {order.telefono}
           </a>
@@ -590,9 +591,9 @@ function OrderCard({
       </div>
 
       <p className="k-order-mode">
-        <Icon name={delivery ? "bike" : "bag"} size={16} />
+        <Icon name={delivery ? "bike" : dineIn ? "table" : "bag"} size={16} />
         <span>
-          {delivery ? "Reparto" : "Recogida"}
+          {delivery ? "Reparto" : dineIn ? (order.mesa_nombre ?? "Mesa") : "Recogida"}
           {showBranch && order.local_nombre ? ` · ${order.local_nombre}` : ""}
           {order.tiempo_estimado ? ` · ${order.tiempo_estimado}` : ""}
         </span>
