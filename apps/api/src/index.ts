@@ -4,6 +4,7 @@ import { createApp } from "./app";
 import type { ImageStorage } from "./context";
 import { createSql } from "./lib/db";
 import { loadEnv } from "./lib/env";
+import { createResendMailer } from "./lib/mailer";
 
 const env = loadEnv();
 const sql = createSql(env.DATABASE_URL);
@@ -33,6 +34,8 @@ function imageStorage(): ImageStorage | null {
 
 const app = createApp({
   imageStorage: imageStorage(),
+  mailer: env.RESEND_API_KEY ? createResendMailer(env.RESEND_API_KEY, env.RESEND_FROM) : null,
+  panelUrl: env.PANEL_PUBLIC_URL ?? null,
   sql,
   now: () => new Date(),
   clientIpHeader: env.CLIENT_IP_HEADER,

@@ -33,7 +33,11 @@ export function TeamView() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<TeamMember | null>(null);
-  const [created, setCreated] = useState<{ link: string; role: string } | null>(null);
+  const [created, setCreated] = useState<{
+    link: string;
+    role: string;
+    emailedTo: string | null;
+  } | null>(null);
   const canView = can(PERMISSION.TeamView);
   const canManage = can(PERMISSION.TeamManage);
 
@@ -235,19 +239,27 @@ export function TeamView() {
         <InviteDialog
           team={team}
           onClose={() => setInviting(false)}
-          onCreated={(link, role) => {
+          onCreated={(link, role, emailedTo) => {
             setInviting(false);
-            setCreated({ link, role });
+            setCreated({ link, role, emailedTo });
             void load();
           }}
         />
       ) : null}
       {created ? (
         <Modal title="Invitación lista" onClose={() => setCreated(null)}>
-          <p>
-            Envía este enlace a la persona (por WhatsApp o email). Al abrirlo, entra o crea su
-            cuenta y queda dentro del equipo como <strong>{created.role.toLowerCase()}</strong>.
-          </p>
+          {created.emailedTo ? (
+            <p>
+              Hemos enviado la invitación a <strong>{created.emailedTo}</strong>. Si no le llega,
+              comparte este enlace por WhatsApp. Al abrirlo, entra o crea su cuenta y queda dentro
+              del equipo como <strong>{created.role.toLowerCase()}</strong>.
+            </p>
+          ) : (
+            <p>
+              Envía este enlace a la persona (por WhatsApp o email). Al abrirlo, entra o crea su
+              cuenta y queda dentro del equipo como <strong>{created.role.toLowerCase()}</strong>.
+            </p>
+          )}
           <p className="k-invite-link">
             <code>{created.link}</code>
           </p>
@@ -379,7 +391,7 @@ function BranchPicker({
 function InviteDialog(props: {
   readonly team: Team;
   readonly onClose: () => void;
-  readonly onCreated: (link: string, role: string) => void;
+  readonly onCreated: (link: string, role: string, emailedTo: string | null) => void;
 }) {
   const { api } = usePanel();
   const { slug } = useAccess();
@@ -397,16 +409,25 @@ function InviteDialog(props: {
       return setError("Ese email no parece válido.");
     }
     setBusy(true);
-    const result = await api.teamChange<{ token: string }>(slug, "POST", "/invitaciones", {
-      email: email.trim() || null,
-      rol_id: roleId,
-      sucursal_ids: branches,
-    });
+    const result = await api.teamChange<{ token: string; email_enviado?: boolean }>(
+      slug,
+      "POST",
+      "/invitaciones",
+      {
+        email: email.trim() || null,
+        rol_id: roleId,
+        sucursal_ids: branches,
+      },
+    );
     setBusy(false);
     if (!result.ok)
       return setError(teamErrorMessage((result.body as { reason?: string } | null)?.reason));
     const role = props.team.roles.find((item) => item.id === roleId)?.nombre ?? "miembro";
-    props.onCreated(inviteLink(window.location.origin, result.data.token), role);
+    props.onCreated(
+      inviteLink(window.location.origin, result.data.token),
+      role,
+      result.data.email_enviado ? email.trim().toLowerCase() : null,
+    );
   }
 
   return (
