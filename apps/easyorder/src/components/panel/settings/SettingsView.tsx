@@ -21,6 +21,7 @@ import {
   type Settings,
   settingsErrorMessage,
 } from "@/lib/panel/settings";
+import { BusyModeHelp } from "../BusyModeControl";
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
@@ -725,6 +726,7 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
         title="Modo ocupado"
         lead="Botón del tablero de pedidos que suma minutos al tiempo estimado durante un rato."
       >
+        <BusyModeHelp duration={Number(busyDuration) || null} />
         <div className="k-form-grid">
           <TextField
             label="Opciones (minutos)"
