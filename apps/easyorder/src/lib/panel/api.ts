@@ -2,6 +2,7 @@ import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { AdminMenu } from "./menu";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
+import type { InvitePreview, Team } from "./team";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
 
 /** Cliente de la API del panel. Cada llamada lleva el token de la sesión de Supabase. */
@@ -66,6 +67,20 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     zoneChange: (slug: string, method: "POST" | "PUT" | "DELETE", path: string, body?: unknown) =>
       send(slug, `/reparto/zonas${path}`, method, body),
     peaks: (slug: string) => request<{ franjas: PeakTime[] }>(panel(slug, "/ajustes/franjas")),
+    team: (slug: string) => request<Team>(panel(slug, "/equipo")),
+    /** Equipo: `path` relativo a /equipo (por ejemplo «/invitaciones»). */
+    teamChange: <T = { id: number }>(
+      slug: string,
+      method: "POST" | "PATCH" | "DELETE",
+      path: string,
+      body?: unknown,
+    ) => send<T>(slug, `/equipo${path}`, method, body),
+    invite: (token: string) =>
+      request<InvitePreview>(`/me/invitaciones/${encodeURIComponent(token)}`),
+    acceptInvite: (token: string) =>
+      request<{ slug: string | null }>(`/me/invitaciones/${encodeURIComponent(token)}/aceptar`, {
+        method: "POST",
+      }),
     uploadPhoto: (slug: string, itemId: number, file: File) => {
       const form = new FormData();
       form.append("foto", file);

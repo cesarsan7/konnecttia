@@ -18,6 +18,8 @@ export const USERS = {
   ownerB: { userId: "00000000-0000-0000-0000-0000000000b1", email: "owner-b@test.local" },
   ownerC: { userId: "00000000-0000-0000-0000-0000000000c1", email: "owner-c@test.local" },
   cashierPlaya: { userId: "00000000-0000-0000-0000-0000000000c2", email: "cajero-c@test.local" },
+  newcomer: { userId: "00000000-0000-0000-0000-0000000000d1", email: "nuevo@test.local" },
+  otherPerson: { userId: "00000000-0000-0000-0000-0000000000d2", email: "otra@test.local" },
   managerPlaya: {
     userId: "00000000-0000-0000-0000-0000000000c3",
     email: "encargado-c@test.local",

@@ -125,3 +125,20 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
 END $$;
+
+-- Una invitación no puede llevar un rol ni un local de otro restaurante.
+DO $$
+BEGIN
+  BEGIN
+    INSERT INTO public.restaurant_invites (restaurante_id, created_by, rol_id)
+    SELECT 9001, gen_random_uuid(), r.id FROM public.rol r WHERE r.restaurante_id = 9002 LIMIT 1;
+    IF FOUND THEN RAISE EXCEPTION 'FALLO: invitación con rol de otro restaurante'; END IF;
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO public.restaurant_invites (restaurante_id, created_by, sucursal_ids)
+    SELECT 9001, gen_random_uuid(), ARRAY[s.id] FROM public.sucursal s WHERE s.restaurante_id = 9002 LIMIT 1;
+    RAISE EXCEPTION 'FALLO: invitación con local de otro restaurante';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;

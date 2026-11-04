@@ -22,6 +22,8 @@ export const PERMISSION = {
   SettingsUpdate: "settings.update",
   DeliveryView: "delivery.view",
   DeliveryManage: "delivery.manage",
+  TeamView: "team.view",
+  TeamManage: "team.manage",
 } as const;
 
 type AccessValue = {
@@ -44,6 +46,11 @@ type NavItem = {
   readonly icon: IconName;
   readonly permission?: string;
   readonly soon?: boolean;
+  /**
+   * Módulo de pago: si el restaurante no lo tiene, se muestra con la etiqueta «Premium». Si lo
+   * tiene pero el rol no da el permiso, no se muestra.
+   */
+  readonly upsellModule?: string;
 };
 
 type LoadState =
@@ -123,15 +130,17 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
   const permissions = new Set(access.permisos);
   const can = (permission: string) => permissions.has(permission);
   const base = `/panel/${slug}`;
-  const nav: NavItem[] = [
+  const allNav: NavItem[] = [
     { href: base, label: "Pedidos", icon: "orders", permission: PERMISSION.OrdersView },
     {
       href: `${base}/estadisticas`,
       label: "Estadísticas",
       icon: "chart",
       permission: PERMISSION.AnalyticsView,
+      upsellModule: "analytics",
     },
     { href: `${base}/carta`, label: "Carta", icon: "menu", permission: PERMISSION.MenuView },
+    { href: `${base}/equipo`, label: "Equipo", icon: "team", permission: PERMISSION.TeamView },
     {
       href: `${base}/ajustes`,
       label: "Ajustes",
@@ -139,6 +148,12 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
       permission: PERMISSION.SettingsView,
     },
   ];
+  const nav = allNav.filter(
+    (item) =>
+      item.permission === undefined ||
+      can(item.permission) ||
+      (item.upsellModule !== undefined && !access.modulos.includes(item.upsellModule)),
+  );
 
   return (
     <AccessContext.Provider value={{ slug, access, can }}>
