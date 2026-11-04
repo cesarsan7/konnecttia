@@ -1,5 +1,5 @@
-import { can, canAccessBranch, PERMISSION } from "@konnecttia/access";
-import { FULFILLMENT } from "@konnecttia/domain";
+import { ALL_BRANCHES, can, canAccessBranch, PERMISSION } from "@konnecttia/access";
+import { FULFILLMENT, ORDER_STATUS } from "@konnecttia/domain";
 import type { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -8,6 +8,7 @@ import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { ORDER_CHANNEL } from "../repositories/orders";
 import { type OrderInput, placeOrder } from "../repositories/place-order";
+import { CONFIG_KEY, loadConfig } from "../repositories/restaurants";
 import { occupyTable } from "./panel-tables";
 import { orderBodySchema } from "./public";
 
@@ -18,6 +19,23 @@ const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 const manualChannel = z.enum([ORDER_CHANNEL.Phone, ORDER_CHANNEL.Counter]);
 
 const positiveInt = z.number().int().positive();
+
+/** Sin `lookup_pedidos_limit` se muestran los mismos que el ejemplo documentado en config_clave. */
+const DEFAULT_LOOKUP_LIMIT = 5;
+const MAX_LOOKUP_LIMIT = 20;
+const NOT_A_SALE = [ORDER_STATUS.InCart, ORDER_STATUS.Cancelled, ORDER_STATUS.Expired];
+
+/** Solo dígitos, sin el 00 internacional: «+34 612 34 56 78» → «34612345678». */
+export function phoneDigits(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "").replace(/^00/, "");
+  return digits.length >= 7 && digits.length <= 20 ? digits : null;
+}
+
+export function lookupLimit(config: ReadonlyMap<string, string>): number {
+  const value = Number.parseInt(config.get(CONFIG_KEY.LookupOrdersLimit) ?? "", 10);
+  if (!Number.isInteger(value) || value < 1) return DEFAULT_LOOKUP_LIMIT;
+  return Math.min(value, MAX_LOOKUP_LIMIT);
+}
 
 /** Pedido en mesa: sin dirección ni zona; nombre y teléfono opcionales. */
 const dineInSchema = z.object({
@@ -53,6 +71,65 @@ const dineInSchema = z.object({
  * carta. El navegador solo envía ids y cantidades. El local que resulte debe ser del usuario.
  */
 export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
+  /**
+   * Últimos pedidos de un teléfono para «Repetir pedido» en el pedido manual. El teléfono se
+   * compara solo por dígitos (la web guarda +34…, n8n puede guardarlo sin prefijo o sin «+»).
+   * Cada usuario solo ve los pedidos de sus locales.
+   */
+  app.get(
+    "/:slug/orders/anteriores",
+    requirePermission(deps, PERMISSION.OrdersCreate),
+    async (c) => {
+      const digits = phoneDigits(c.req.query("telefono") ?? "");
+      if (!digits) return fail(c, 400, API_ERROR.InvalidBody, { field: "telefono" });
+      const restaurantId = c.get("restaurant").id;
+      const scope = c.get("access").branchScope;
+      const limit = lookupLimit(await loadConfig(deps.sql, restaurantId));
+      // Un número español sin prefijo (9 cifras) también coincide con el mismo número con 34.
+      const short = digits.startsWith("34") && digits.length === 11 ? digits.slice(2) : digits;
+      const samePhone = deps.sql`regexp_replace(p.telefono, '[^0-9]', '', 'g') IN (${digits}, ${short}, ${`34${short}`})`;
+      const [orders, customers] = await Promise.all([
+        deps.sql<
+          {
+            id: number;
+            codigo: string | null;
+            created_at: string;
+            tipo_despacho: string | null;
+            direccion: string | null;
+            local_nombre: string | null;
+            total: string;
+            items: unknown;
+          }[]
+        >`
+          SELECT p.id, p.pedido_codigo AS codigo, p.created_at AT TIME ZONE 'UTC' AS created_at,
+                 p.tipo_despacho, p.direccion, s.nombre AS local_nombre, p.total, p.items
+          FROM   public.pedidos p
+          LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
+          WHERE  p.restaurante_id = ${restaurantId} AND p.telefono <> ''
+            AND  ${samePhone}
+            AND  p.estado NOT IN ${deps.sql(NOT_A_SALE)}
+            ${scope === ALL_BRANCHES ? deps.sql`` : deps.sql`AND p.sucursal_id IN ${deps.sql([...scope])}`}
+          ORDER  BY p.created_at DESC
+          LIMIT  ${limit}
+        `,
+        deps.sql<{ nombre: string | null; direccion_frecuente: string | null }[]>`
+          SELECT u.nombre, u.direccion_frecuente FROM public.usuarios u
+          WHERE  u.restaurante_id = ${restaurantId}
+            AND  regexp_replace(u.telefono, '[^0-9]', '', 'g') IN (${digits}, ${short}, ${`34${short}`})
+          ORDER  BY u.updated_at DESC NULLS LAST
+          LIMIT  1
+        `,
+      ]);
+      // Un usuario limitado a unos locales no ve datos de clientes sin pedidos en ellos.
+      const customer =
+        scope !== ALL_BRANCHES && orders.length === 0 ? null : (customers[0] ?? null);
+      return c.json({
+        cliente: customer,
+        pedidos: orders.map((order) => ({ ...order, total: Number(order.total) })),
+      });
+    },
+  );
+
   app.post("/:slug/orders", requirePermission(deps, PERMISSION.OrdersCreate), async (c) => {
     const restaurant = c.get("restaurant");
     const user = c.get("user");

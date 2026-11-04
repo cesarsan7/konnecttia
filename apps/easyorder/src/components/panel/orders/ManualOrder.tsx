@@ -13,6 +13,8 @@ import {
 } from "@/lib/cart";
 import { describeApiError, normalizePhone, paymentLabel } from "@/lib/checkout";
 import { euros, eurosFromCents } from "@/lib/format";
+import { orderLines, summarizeLines } from "@/lib/panel/orders";
+import { type PreviousOrder, type PreviousOrders, rebuildLines } from "@/lib/panel/reorder";
 import { selectableTables, type TablePlan } from "@/lib/panel/tables";
 import type { Branch, DeliveryZone, Menu, MenuItem } from "@/lib/types";
 import { Modal } from "../menu/Modal";
@@ -68,6 +70,8 @@ export function ManualOrder({
   const [notas, setNotas] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previous, setPrevious] = useState<PreviousOrders | null>(null);
+  const [repeated, setRepeated] = useState<string | null>(null);
   const idempotency = useRef(crypto.randomUUID());
 
   useEffect(() => {
@@ -104,6 +108,55 @@ export function ManualOrder({
       }
     });
   }, [publicApi, slug, branchId, limited]);
+
+  // Al escribir un teléfono válido, se buscan sus últimos pedidos para poder repetirlos.
+  const lookupPhone = normalizePhone(telefono);
+  useEffect(() => {
+    setPrevious(null);
+    if (!lookupPhone) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void api.previousOrders(slug, lookupPhone).then((result) => {
+        if (cancelled || !result.ok) return;
+        setPrevious(result.data);
+        const known = result.data.cliente?.nombre;
+        if (known) setNombre((current) => current || known);
+      });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [api, slug, lookupPhone]);
+
+  const dateFormat = useMemo(
+    () =>
+      new Intl.DateTimeFormat("es-ES", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: access.restaurante.zona_horaria,
+      }),
+    [access.restaurante.zona_horaria],
+  );
+
+  function repeat(order: PreviousOrder) {
+    if (!menu) return;
+    const { lines: rebuilt, missing } = rebuildLines(menu, order.items);
+    setLines((current) => rebuilt.reduce((all, line) => addLine(all, line), current));
+    // Si fue a domicilio, se propone la misma dirección (la zona hay que elegirla).
+    if (!table && order.tipo_despacho === "delivery" && menu.restaurante.reparto) {
+      setFulfillment("delivery");
+      if (order.direccion) setDireccion((current) => current || (order.direccion ?? ""));
+    }
+    const code = order.codigo ?? `#${order.id}`;
+    setRepeated(
+      rebuilt.length === 0
+        ? `Nada de ${code} está ahora en la carta de este local.`
+        : `Añadido lo de ${code}.${missing.length > 0 ? ` No disponible ahora: ${missing.join(", ")}.` : ""}`,
+    );
+  }
 
   const filtered = useMemo(() => {
     if (!menu) return [];
@@ -351,17 +404,6 @@ export function ManualOrder({
             <div className="k-form-grid">
               <label className="k-field">
                 <span>
-                  Nombre{dineIn ? <span className="k-muted k-optional"> (opcional)</span> : null}
-                </span>
-                <input
-                  value={nombre}
-                  maxLength={120}
-                  autoComplete="off"
-                  onChange={(e) => setNombre(e.target.value)}
-                />
-              </label>
-              <label className="k-field">
-                <span>
                   Teléfono{dineIn ? <span className="k-muted k-optional"> (opcional)</span> : null}
                 </span>
                 <input
@@ -372,7 +414,58 @@ export function ManualOrder({
                   placeholder="612 345 678"
                 />
               </label>
+              <label className="k-field">
+                <span>
+                  Nombre{dineIn ? <span className="k-muted k-optional"> (opcional)</span> : null}
+                </span>
+                <input
+                  value={nombre}
+                  maxLength={120}
+                  autoComplete="off"
+                  onChange={(e) => setNombre(e.target.value)}
+                />
+              </label>
             </div>
+            {previous && previous.pedidos.length > 0 ? (
+              <section className="k-previous" aria-label="Pedidos anteriores">
+                <h4 className="k-field-label">
+                  Pedidos anteriores
+                  {previous.cliente?.nombre ? ` de ${previous.cliente.nombre}` : ""}
+                </h4>
+                <ul>
+                  {previous.pedidos.map((order) => (
+                    <li key={order.id}>
+                      <span className="k-previous-main">
+                        <span className="k-small k-muted">
+                          {dateFormat.format(new Date(order.created_at))}
+                          {order.tipo_despacho === "delivery"
+                            ? " · reparto"
+                            : order.tipo_despacho === "mesa"
+                              ? " · mesa"
+                              : " · recogida"}
+                          {" · "}
+                          {euros(order.total)}
+                        </span>
+                        <span className="k-small">{summarizeLines(orderLines(order.items))}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="k-btn k-btn-secondary k-btn-sm"
+                        disabled={!menu}
+                        onClick={() => repeat(order)}
+                      >
+                        Repetir
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {repeated ? (
+                  <p className="k-small k-muted" role="status">
+                    {repeated}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
             {!table && fulfillmentOptions.length > 1 ? (
               <div className="k-segment k-segment-sm">
                 {fulfillmentOptions.map((option) => (

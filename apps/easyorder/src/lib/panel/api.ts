@@ -2,6 +2,7 @@ import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { CustomerDetail, CustomerList } from "./customers";
 import type { AdminMenu } from "./menu";
+import type { PreviousOrders } from "./reorder";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { TablePlan } from "./tables";
 import type { InvitePreview, Team } from "./team";
@@ -98,6 +99,11 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         headers: { "Idempotency-Key": idempotencyKey },
         body: JSON.stringify(body),
       }),
+    /** Últimos pedidos de un teléfono (pedido manual, «Repetir pedido»). */
+    previousOrders: (slug: string, telefono: string) =>
+      request<PreviousOrders>(
+        panel(slug, `/orders/anteriores?${new URLSearchParams({ telefono })}`),
+      ),
     customers: (slug: string, query: { q: string; orden: string; pagina: number }) =>
       request<CustomerList>(
         panel(
