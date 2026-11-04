@@ -5,14 +5,30 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 
 ## Hecho
 
-| Pieza | Dónde |
-| --- | --- |
-| Carta pública, checkout, seguimiento | `apps/easyorder/src/app/[slug]` |
-| Acceso (Supabase Auth), selector de restaurante | `/panel`, `GET /me/restaurantes` |
-| Tablero de pedidos en directo, cobro, cancelar, tarjetas plegables | `/panel/[slug]` |
-| Modo ocupado configurable (`modo_ocupado_opciones`, `modo_ocupado_duracion_minutos`) | 0009 |
-| Estadísticas | `/panel/[slug]/estadisticas`, `GET /panel/:slug/reports/overview` |
-| Cotización para n8n (Despacho v2) | `POST /public/:slug/cotizacion` |
+| Pieza                                                                                | Dónde                                                             |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Carta pública, checkout, seguimiento                                                 | `apps/easyorder/src/app/[slug]`                                   |
+| Acceso (Supabase Auth), selector de restaurante                                      | `/panel`, `GET /me/restaurantes`                                  |
+| Tablero de pedidos en directo, cobro, cancelar, tarjetas plegables                   | `/panel/[slug]`                                                   |
+| Modo ocupado configurable (`modo_ocupado_opciones`, `modo_ocupado_duracion_minutos`) | 0009                                                              |
+| Estadísticas                                                                         | `/panel/[slug]/estadisticas`, `GET /panel/:slug/reports/overview` |
+| Cotización para n8n (Despacho v2)                                                    | `POST /public/:slug/cotizacion`                                   |
+| **Carta (pieza 1)**: PR #23 `feat/panel-carta`, pendiente de revisión y merge        | `/panel/[slug]/carta`, `/panel/:slug/carta/*`, migración 0011     |
+
+### Notas de la pieza 1 (Carta)
+
+- Migración `0011_carta_panel.sql`: añade `sort_order` en `menu_item`, `menu_variant` y `extra`, y
+  `alergenos text[]` en `menu_item` y `extra`. NULL significa «no informados» y `{}` significa
+  ninguno. Hay que aplicarla en staging con `--check` y después sin él.
+- Fotos: solo se suben si la API de staging tiene `SUPABASE_SERVICE_ROLE_KEY` (bucket
+  `MENU_IMAGES_BUCKET`, por defecto `menu-images`). Sin la clave, el panel permite pegar una URL https.
+- La carta es común a todos los locales: solo la cambia quien tiene alcance sobre todos. Un usuario
+  limitado a unos locales solo marca la disponibilidad en los suyos.
+- Marcar un producto como agotado exige `menu.update`. Hoy el rol «personal» no lo tiene. Si el
+  personal debe poder marcar agotados, falta un permiso propio (p. ej. `menu.availability`) desde el
+  panel de Konnecttia.
+- Alérgenos de las variantes: el dominio ya los admite, pero el MVP no los usa.
+- n8n todavía no lee `sucursal_item_no_disponible` ni `alergenos`.
 
 ## Reglas para cada pieza nueva
 
@@ -30,21 +46,22 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 3 de noviembre de 2026.
 
 ## Pendiente, en orden
 
-| # | Pieza | Qué incluye | Tablas | Permisos | Fase |
-| --- | --- | --- | --- | --- | --- |
-| 1 | **Carta** | Categorías, productos, variantes, extras y su orden; activar/ocultar; disponibilidad por local; alérgenos (los 14 de la UE, «no informados» por defecto); foto | `menu_category`, `menu_item`, `menu_variant`, `extra`, `menu_category_extra`, `sucursal_item_no_disponible` | `menu.*` | MVP |
-| 2 | **Pedido manual** | Crear un pedido desde el panel (teléfono o mostrador) con el mismo cálculo del servidor que la web | `pedidos` (vía `createOrder`) | `orders.create` | MVP |
-| 3 | **Configuración** | Datos del local, horarios por local, festivos, zonas y tarifas, tiempos (base, hora punta), métodos de pago y datos bancarios, opciones del modo ocupado | `restaurante`, `horarios`, `sucursal_horario`, `festivo`, `delivery_zone`, `franja_pico`, `restaurante_config` | `settings.*`, `delivery.manage` | MVP |
-| 4 | **Equipo y roles** | Invitar por email, asignar rol (propietario, encargado, personal, consulta) y locales; quitar acceso | `restaurant_invites`, `local_memberships`, `membresia_rol`, `membresia_sucursal` | `team.*` | MVP |
-| 5 | **Clientes** | Lista, ficha con historial de pedidos y dirección frecuente; exportar | `usuarios`, `pedidos` | `customers.*` | MVP |
-| 6 | **Tiempo real** | Sustituir el sondeo de 10 s por SSE desde `outbox_evento` | `outbox_evento` | `orders.view` | MVP |
-| 7 | **Avisos por email** | Worker que lee `outbox_evento` y envía al cliente y al local | `outbox_evento` | — | Fase 3 |
-| 8 | **Panel interno Konnecttia** (`apps/admin`) | Alta de restaurante, plan, módulos y complementos, roles por restaurante | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia | Fase 3 |
-| 9 | **Derivar a humano en el panel** | Ver conversaciones derivadas por el agente y responder | Chatwoot / Kapso | `conversations.*` | Post-MVP |
-| 10 | **Cobro online** | ADR y pasarela | — | — | Post-MVP |
+| #   | Pieza                                       | Qué incluye                                                                                                                                              | Tablas                                                                                                         | Permisos                        | Fase     |
+| --- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------- | -------- |
+| 1   | ~~Carta~~                                   | Hecha en el PR #23 (pendiente de merge y de aplicar la 0011 en staging)                                                                                  | —                                                                                                              | `menu.*`                        | MVP      |
+| 2   | **Pedido manual**                           | Crear un pedido desde el panel (teléfono o mostrador) con el mismo cálculo del servidor que la web                                                       | `pedidos` (vía `createOrder`)                                                                                  | `orders.create`                 | MVP      |
+| 3   | **Configuración**                           | Datos del local, horarios por local, festivos, zonas y tarifas, tiempos (base, hora punta), métodos de pago y datos bancarios, opciones del modo ocupado | `restaurante`, `horarios`, `sucursal_horario`, `festivo`, `delivery_zone`, `franja_pico`, `restaurante_config` | `settings.*`, `delivery.manage` | MVP      |
+| 4   | **Equipo y roles**                          | Invitar por email, asignar rol (propietario, encargado, personal, consulta) y locales; quitar acceso                                                     | `restaurant_invites`, `local_memberships`, `membresia_rol`, `membresia_sucursal`                               | `team.*`                        | MVP      |
+| 5   | **Clientes**                                | Lista, ficha con historial de pedidos y dirección frecuente; exportar                                                                                    | `usuarios`, `pedidos`                                                                                          | `customers.*`                   | MVP      |
+| 6   | **Tiempo real**                             | Sustituir el sondeo de 10 s por SSE desde `outbox_evento`                                                                                                | `outbox_evento`                                                                                                | `orders.view`                   | MVP      |
+| 7   | **Avisos por email**                        | Worker que lee `outbox_evento` y envía al cliente y al local                                                                                             | `outbox_evento`                                                                                                | —                               | Fase 3   |
+| 8   | **Panel interno Konnecttia** (`apps/admin`) | Alta de restaurante, plan, módulos y complementos, roles por restaurante                                                                                 | `restaurante_plan`, `restaurante_modulo`, `rol`                                                                | solo equipo Konnecttia          | Fase 3   |
+| 9   | **Derivar a humano en el panel**            | Ver conversaciones derivadas por el agente y responder                                                                                                   | Chatwoot / Kapso                                                                                               | `conversations.*`               | Post-MVP |
+| 10  | **Cobro online**                            | ADR y pasarela                                                                                                                                           | —                                                                                                              | —                               | Post-MVP |
 
 ## n8n (staging) pendiente
 
 - Director: sacar el restaurante de la bandeja de Chatwoot por la que entra el mensaje, en lugar
   del atributo `p_restaurante_id` con el valor 11 por defecto.
 - Revisar el resto de subflujos con datos de La Isla escritos a mano.
+- Leer `sucursal_item_no_disponible` (agotados por local) y `alergenos` en la consulta de carta.
