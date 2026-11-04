@@ -3303,3 +3303,33 @@
 .k-busy-panel .k-help {
   margin: 4px 0 10px;
 }
+
+/* Mesas: tiempos y avisos. */
+.k-table-tile-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.k-table-tile.is-alert {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+.k-chip-alert {
+  background: var(--danger);
+  color: #fff;
+}
+
+.k-timeline {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.k-timeline span + span::before {
+  content: "→ ";
+}

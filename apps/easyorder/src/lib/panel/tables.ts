@@ -21,6 +21,15 @@ export type TableOrder = {
   readonly total: number;
   readonly items: unknown;
   readonly desde: string;
+  /** Desde cuándo está en su estado actual (pedido_estado_log). */
+  readonly estado_desde: string;
+  readonly historial: readonly { readonly estado: string; readonly at: string }[];
+};
+
+/** Avisos del plano (restaurante_config); null = sin aviso. */
+export type TableAlertsConfig = {
+  readonly espera_minutos: number | null;
+  readonly estancia_minutos: number | null;
 };
 
 export type DiningTable = {
@@ -69,6 +78,7 @@ export function selectableTables(plan: TablePlan | null, branchId: number | null
 }
 
 export type TablePlan = {
+  readonly avisos: TableAlertsConfig;
   readonly locales: readonly { readonly id: number; readonly nombre: string }[];
   readonly zonas: readonly TableZone[];
   readonly mesas: readonly DiningTable[];
@@ -99,4 +109,43 @@ export function occupiedFor(iso: string, now: Date = new Date()): string {
 
 export function nextTableNumber(plan: TablePlan): number {
   return plan.mesas.reduce((max, table) => Math.max(max, table.numero), 0) + 1;
+}
+
+const CLOSED = new Set(["entregado", "cancelado", "caducado"]);
+
+const minutesBetween = (from: string, now: Date) =>
+  Math.max(0, Math.floor((now.getTime() - Date.parse(from)) / 60_000));
+
+/**
+ * Estado de tiempos de una mesa: el pedido en marcha que más espera (y cuánto lleva en su estado),
+ * los minutos de estancia y si se pasa de los avisos configurados.
+ */
+export function tableTimes(
+  table: Pick<DiningTable, "pedidos" | "ocupada" | "ocupada_desde">,
+  alerts: TableAlertsConfig,
+  now: Date,
+) {
+  const active = table.pedidos.filter((order) => !CLOSED.has(order.estado));
+  const oldest = active[0] ?? null;
+  const waiting = oldest ? minutesBetween(oldest.desde, now) : null;
+  const stay =
+    table.ocupada && table.ocupada_desde ? minutesBetween(table.ocupada_desde, now) : null;
+  return {
+    /** Pedido en marcha más antiguo (el que más espera). */
+    oldest,
+    /** Minutos en el estado actual del pedido más antiguo. */
+    inState: oldest ? minutesBetween(oldest.estado_desde, now) : null,
+    waiting,
+    stay,
+    waitAlert:
+      alerts.espera_minutos !== null && waiting !== null && waiting >= alerts.espera_minutos,
+    stayAlert: alerts.estancia_minutos !== null && stay !== null && stay >= alerts.estancia_minutos,
+  };
+}
+
+/** «12 min», «1 h 5 min». */
+export function shortDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const rest = minutes % 60;
+  return rest === 0 ? `${Math.floor(minutes / 60)} h` : `${Math.floor(minutes / 60)} h ${rest} min`;
 }
