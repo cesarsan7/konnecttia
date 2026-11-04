@@ -5,5 +5,6 @@ export * from "./eta";
 export * from "./menu";
 export * from "./money";
 export * from "./order-status";
+export * from "./payment-methods";
 export * from "./pricing";
 export * from "./schedule";

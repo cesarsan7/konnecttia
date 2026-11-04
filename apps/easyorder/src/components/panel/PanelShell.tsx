@@ -18,6 +18,8 @@ export const PERMISSION = {
   MenuCreate: "menu.create",
   MenuUpdate: "menu.update",
   MenuDelete: "menu.delete",
+  SettingsView: "settings.view",
+  SettingsUpdate: "settings.update",
 } as const;
 
 type AccessValue = {
@@ -128,7 +130,12 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
       permission: PERMISSION.AnalyticsView,
     },
     { href: `${base}/carta`, label: "Carta", icon: "menu", permission: PERMISSION.MenuView },
-    { href: `${base}/ajustes`, label: "Ajustes", icon: "settings", soon: true },
+    {
+      href: `${base}/ajustes`,
+      label: "Ajustes",
+      icon: "settings",
+      permission: PERMISSION.SettingsView,
+    },
   ];
 
   return (

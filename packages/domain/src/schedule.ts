@@ -139,3 +139,37 @@ export function isOpenAt(
   }
   return false;
 }
+
+/** ¿Son el mismo día de la semana? Ignora mayúsculas y tildes («miercoles» = «Miércoles»). */
+export function sameWeekday(a: string, b: string): boolean {
+  return normalizeDay(a) === normalizeDay(b);
+}
+
+export const SCHEDULE_ERROR = {
+  IncompleteShift: "incomplete_shift",
+  SecondWithoutFirst: "second_without_first",
+  OpenWithoutShift: "open_without_shift",
+  EmptyShift: "empty_shift",
+} as const;
+
+export type ScheduleError = (typeof SCHEDULE_ERROR)[keyof typeof SCHEDULE_ERROR];
+
+/**
+ * Valida un día del horario: cada turno con apertura y cierre, el segundo solo si hay primero y
+ * un día abierto con al menos un turno. Un cierre anterior a la apertura cruza la medianoche.
+ */
+export function checkDaySchedule(day: DaySchedule): ScheduleError | null {
+  const shifts: [string | null, string | null][] = [
+    [day.apertura_1, day.cierre_1],
+    [day.apertura_2, day.cierre_2],
+  ];
+  for (const [open, close] of shifts) {
+    if ((open === null) !== (close === null)) return SCHEDULE_ERROR.IncompleteShift;
+    if (open !== null && close !== null && toMinutes(open) === toMinutes(close)) {
+      return SCHEDULE_ERROR.EmptyShift;
+    }
+  }
+  if (day.apertura_1 === null && day.apertura_2 !== null) return SCHEDULE_ERROR.SecondWithoutFirst;
+  if (day.disponible && day.apertura_1 === null) return SCHEDULE_ERROR.OpenWithoutShift;
+  return null;
+}

@@ -1,6 +1,7 @@
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { AdminMenu } from "./menu";
+import type { Settings } from "./settings";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
 
 /** Cliente de la API del panel. Cada llamada lleva el token de la sesión de Supabase. */
@@ -51,6 +52,14 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       path: string,
       body?: unknown,
     ) => send<T>(slug, `/carta${path}`, method, body),
+    settings: (slug: string) => request<Settings>(panel(slug, "/ajustes")),
+    /** Cambios de ajustes: `path` relativo a /ajustes (por ejemplo «/restaurante»). */
+    settingsChange: <T = { ok?: boolean; id?: number }>(
+      slug: string,
+      method: "POST" | "PATCH" | "PUT" | "DELETE",
+      path: string,
+      body?: unknown,
+    ) => send<T>(slug, `/ajustes${path}`, method, body),
     uploadPhoto: (slug: string, itemId: number, file: File) => {
       const form = new FormData();
       form.append("foto", file);
