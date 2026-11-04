@@ -20,6 +20,7 @@ import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerManualOrderRoutes } from "./panel-orders";
+import { registerRoleRoutes } from "./panel-roles";
 import { registerSettingsRoutes } from "./panel-settings";
 import { registerStreamRoutes } from "./panel-stream";
 import { registerTableRoutes } from "./panel-tables";
@@ -73,6 +74,7 @@ export function panelRoutes(deps: AppDeps) {
   registerSettingsRoutes(app, deps);
   registerDeliveryRoutes(app, deps);
   registerTeamRoutes(app, deps);
+  registerRoleRoutes(app, deps);
   registerManualOrderRoutes(app, deps);
   registerCustomerRoutes(app, deps);
   registerStreamRoutes(app, deps);

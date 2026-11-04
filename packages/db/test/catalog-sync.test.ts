@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   MODULES,
@@ -9,17 +9,27 @@ import {
 import { describe, expect, it } from "vitest";
 
 // El catálogo de acceso vive en TypeScript (packages/access) y se siembra en SQL
-// (0001_access_modules_rbac.sql). Esta prueba evita que se desincronicen.
-const sql = readFileSync(
-  join(import.meta.dirname, "../migrations/0001_access_modules_rbac.sql"),
-  "utf8",
-);
+// (0001_access_modules_rbac.sql y las migraciones que lo amplían, p. ej. 0015). Esta prueba evita
+// que se desincronicen: junta todos los bloques de cada tipo, en orden de migración.
+const dir = join(import.meta.dirname, "../migrations");
+const sql = readdirSync(dir)
+  .filter((file) => file.endsWith(".sql"))
+  .sort()
+  .map((file) => readFileSync(join(dir, file), "utf8"))
+  .join("\n");
 
 function block(startMarker: string): string {
-  const start = sql.indexOf(startMarker);
-  expect(start, `No se encontró ${startMarker}`).toBeGreaterThanOrEqual(0);
-  const end = sql.indexOf(";", start);
-  return sql.slice(start, end);
+  const parts: string[] = [];
+  let from = 0;
+  for (;;) {
+    const start = sql.indexOf(startMarker, from);
+    if (start < 0) break;
+    const end = sql.indexOf(";", start);
+    parts.push(sql.slice(start, end));
+    from = end;
+  }
+  expect(parts.length, `No se encontró ${startMarker}`).toBeGreaterThan(0);
+  return parts.join("\n");
 }
 
 function tuples(text: string): string[][] {
@@ -68,6 +78,8 @@ describe("catálogo SQL ↔ TypeScript", () => {
         fromSql[role] = [...(fromSql[role] ?? []), permission];
       }
     }
-    expect(fromSql).toEqual(ROLE_TEMPLATE_PERMISSIONS);
+    const sorted = (record: Readonly<Record<string, readonly string[]>>) =>
+      Object.fromEntries(Object.entries(record).map(([role, list]) => [role, [...list].sort()]));
+    expect(sorted(fromSql)).toEqual(sorted(ROLE_TEMPLATE_PERMISSIONS));
   });
 });

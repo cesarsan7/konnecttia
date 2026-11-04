@@ -5,7 +5,7 @@ import type { AdminMenu } from "./menu";
 import type { PreviousOrders } from "./reorder";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { TablePlan } from "./tables";
-import type { InvitePreview, Team } from "./team";
+import type { InvitePreview, RolesCatalog, Team } from "./team";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
 
 /** Cliente de la API del panel. Cada llamada lleva el token de la sesión de Supabase. */
@@ -77,10 +77,11 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     /** Equipo: `path` relativo a /equipo (por ejemplo «/invitaciones»). */
     teamChange: <T = { id: number }>(
       slug: string,
-      method: "POST" | "PATCH" | "DELETE",
+      method: "POST" | "PUT" | "PATCH" | "DELETE",
       path: string,
       body?: unknown,
     ) => send<T>(slug, `/equipo${path}`, method, body),
+    roles: (slug: string) => request<RolesCatalog>(panel(slug, "/equipo/roles")),
     invite: (token: string) =>
       request<InvitePreview>(`/me/invitaciones/${encodeURIComponent(token)}`),
     acceptInvite: (token: string) =>
