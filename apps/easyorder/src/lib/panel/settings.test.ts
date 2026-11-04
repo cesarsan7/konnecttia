@@ -52,3 +52,23 @@ describe("ajustes", () => {
     expect(settingsErrorMessage("desconocido")).toMatch(/No se pudo guardar/);
   });
 });
+
+describe("reparto", () => {
+  it("resume cobertura y tarifa", async () => {
+    const { coverageLabel, feeLabel } = await import("./settings");
+    expect(coverageLabel({ tipo: "radio", lat: 1, lng: 1, radio_km: 2.5 })).toBe(
+      "2,5 km alrededor",
+    );
+    expect(coverageLabel({ tipo: "codigo_postal", codigo_postal: "35500" })).toBe(
+      "Código postal 35500",
+    );
+    expect(feeLabel({ tipo: "fija", base_centimos: 250 }, null)).toBe("Envío 2,50 €");
+    expect(feeLabel({ tipo: "fija", base_centimos: 0 }, null)).toBe("Envío gratis");
+    expect(
+      feeLabel(
+        { tipo: "por_km", base_centimos: 150, por_km_centimos: 50, maxima_centimos: 400 },
+        3000,
+      ),
+    ).toBe("1,50 € + 0,50 €/km (máx. 4 €) · gratis desde 30 €");
+  });
+});

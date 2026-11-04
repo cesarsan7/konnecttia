@@ -4,6 +4,7 @@ import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useState
 import type { ApiResult } from "@/lib/api";
 import { paymentLabel } from "@/lib/checkout";
 import { describePanelError } from "@/lib/panel/api";
+import { parsePrice, priceInput } from "@/lib/panel/menu";
 import {
   type BankDetails,
   type BranchSettings,
@@ -23,11 +24,14 @@ import {
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { DeliverySection } from "./DeliverySection";
+import { PeakTimes } from "./PeakTimes";
 
 const TAB = {
   General: "general",
   Orders: "pedidos",
   Schedule: "horario",
+  Delivery: "reparto",
   Branches: "locales",
 } as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
@@ -137,14 +141,19 @@ export function SettingsView() {
   const data = state.data;
   const full = data.edicion_completa;
   const editRestaurant = canEdit && full;
+  const canDelivery = can(PERMISSION.DeliveryView);
   const tabs: { id: Tab; label: string }[] = full
     ? [
         { id: TAB.General, label: "General" },
         { id: TAB.Orders, label: "Pedidos y pago" },
         { id: TAB.Schedule, label: "Horario" },
+        ...(canDelivery ? [{ id: TAB.Delivery, label: "Reparto" }] : []),
         { id: TAB.Branches, label: data.locales.length > 1 ? "Locales" : "Local" },
       ]
-    : [{ id: TAB.Branches, label: "Mis locales" }];
+    : [
+        { id: TAB.Branches, label: "Mis locales" },
+        ...(canDelivery ? [{ id: TAB.Delivery, label: "Reparto" }] : []),
+      ];
   const current = tabs.some((item) => item.id === tab) ? tab : TAB.Branches;
   const patch = (body: Partial<Record<keyof RestaurantSettings, unknown>>) => () =>
     api.settingsChange(slug, "PATCH", "/restaurante", body);
@@ -196,7 +205,11 @@ export function SettingsView() {
             }
           />
           <HolidaysSection data={data} editable={canEdit} save={save} />
+          <PeakTimes branches={data.locales} fullScope={full} editable={canEdit} notify={toast} />
         </>
+      ) : null}
+      {current === TAB.Delivery ? (
+        <DeliverySection editable={can(PERMISSION.DeliveryManage)} notify={toast} />
       ) : null}
       {current === TAB.Branches ? (
         <>
@@ -209,7 +222,17 @@ export function SettingsView() {
               save={save}
             />
           ))}
-          {!full ? <HolidaysSection data={data} editable={canEdit} save={save} /> : null}
+          {!full ? (
+            <>
+              <HolidaysSection data={data} editable={canEdit} save={save} />
+              <PeakTimes
+                branches={data.locales}
+                fullScope={false}
+                editable={canEdit}
+                notify={toast}
+              />
+            </>
+          ) : null}
         </>
       ) : null}
 
@@ -491,6 +514,15 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
   const [busyDuration, setBusyDuration] = useState(
     r.modo_ocupado_duracion_minutos?.toString() ?? "",
   );
+  const [surcharges, setSurcharges] = useState<SurchargeDraft[]>(
+    r.suplementos.map((rule, index) => ({
+      key: `s${index}`,
+      concepto: rule.concepto,
+      por_debajo: priceInput(rule.por_debajo_centimos),
+      importe: priceInput(rule.importe_centimos),
+      aplica_a: rule.aplica_a,
+    })),
+  );
   const needsBank = metodos.includes("transferencia");
   const needsBizum = metodos.includes("bizum");
 
@@ -505,6 +537,20 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
     const duration = parseMinutes(busyDuration, 720);
     if (duration === undefined || (options.length > 0 && (duration === null || duration < 5))) {
       return "Indica cuánto dura el modo ocupado (5 a 720 minutos).";
+    }
+    const suplementos = [];
+    for (const draft of surcharges) {
+      const below = parsePrice(draft.por_debajo);
+      const amount = parsePrice(draft.importe);
+      if (!draft.concepto.trim() || !below || !amount) {
+        return "Cada suplemento necesita concepto, importe mínimo del pedido y suplemento (mayores que 0).";
+      }
+      suplementos.push({
+        concepto: draft.concepto.trim(),
+        por_debajo_centimos: below,
+        importe_centimos: amount,
+        aplica_a: draft.aplica_a,
+      });
     }
     const details = {
       titular: nullIfEmpty(titular),
@@ -525,6 +571,7 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
         reparto_minutos_max: times[2],
         modo_ocupado_opciones: options,
         modo_ocupado_duracion_minutos: options.length > 0 ? duration : null,
+        suplementos,
       }),
       "Ajustes de pedidos guardados",
     );
@@ -549,7 +596,7 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
         </div>
         {reparto ? (
           <p className="k-small k-muted">
-            Las zonas y tarifas de reparto se configurarán en su propia sección.
+            Las zonas, tarifas y pedido mínimo están en la pestaña «Reparto».
           </p>
         ) : null}
       </Section>
@@ -699,10 +746,115 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
           />
         </div>
       </Section>
+
+      <Section
+        title="Suplementos"
+        lead="Cargo que se suma a los pedidos pequeños, por ejemplo envases: +1 € si el pedido no llega a 25 €."
+      >
+        {surcharges.length === 0 ? <p className="k-muted k-small">Sin suplementos.</p> : null}
+        <ul className="k-variant-list">
+          {surcharges.map((draft) => {
+            const update = (change: Partial<SurchargeDraft>) =>
+              setSurcharges((list) =>
+                list.map((item) => (item.key === draft.key ? { ...item, ...change } : item)),
+              );
+            return (
+              <li key={draft.key} className="k-surcharge">
+                <label className="k-field">
+                  <span className="k-small">Concepto</span>
+                  <input
+                    value={draft.concepto}
+                    maxLength={40}
+                    disabled={!editable}
+                    placeholder="Envases"
+                    onChange={(event) => update({ concepto: event.target.value })}
+                  />
+                </label>
+                <label className="k-field k-price-input">
+                  <span className="k-small">Si el pedido no llega a</span>
+                  <input
+                    value={draft.por_debajo}
+                    inputMode="decimal"
+                    disabled={!editable}
+                    placeholder="25,00"
+                    onChange={(event) => update({ por_debajo: event.target.value })}
+                  />
+                  <span aria-hidden="true">€</span>
+                </label>
+                <label className="k-field k-price-input">
+                  <span className="k-small">Suplemento</span>
+                  <input
+                    value={draft.importe}
+                    inputMode="decimal"
+                    disabled={!editable}
+                    placeholder="1,00"
+                    onChange={(event) => update({ importe: event.target.value })}
+                  />
+                  <span aria-hidden="true">€</span>
+                </label>
+                <label className="k-field">
+                  <span className="k-small">Se aplica a</span>
+                  <select
+                    className="k-input"
+                    value={draft.aplica_a}
+                    disabled={!editable}
+                    onChange={(event) =>
+                      update({ aplica_a: event.target.value as SurchargeDraft["aplica_a"] })
+                    }
+                  >
+                    <option value="ambos">Recogida y reparto</option>
+                    <option value="recogida">Solo recogida</option>
+                    <option value="reparto">Solo reparto</option>
+                  </select>
+                </label>
+                {editable ? (
+                  <button
+                    type="button"
+                    className="k-link k-small k-link-danger"
+                    onClick={() =>
+                      setSurcharges((list) => list.filter((item) => item.key !== draft.key))
+                    }
+                  >
+                    Quitar
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+        {editable && surcharges.length < 5 ? (
+          <button
+            type="button"
+            className="k-btn k-btn-secondary k-btn-sm"
+            onClick={() =>
+              setSurcharges((list) => [
+                ...list,
+                {
+                  key: `n${Date.now()}`,
+                  concepto: "",
+                  por_debajo: "",
+                  importe: "",
+                  aplica_a: "ambos",
+                },
+              ])
+            }
+          >
+            Añadir suplemento
+          </button>
+        ) : null}
+      </Section>
       <SaveBar busy={form.busy} editable={editable} error={form.error} />
     </form>
   );
 }
+
+type SurchargeDraft = {
+  readonly key: string;
+  readonly concepto: string;
+  readonly por_debajo: string;
+  readonly importe: string;
+  readonly aplica_a: "ambos" | "recogida" | "reparto";
+};
 
 // -------------------------------------------------------------------------------- horario
 

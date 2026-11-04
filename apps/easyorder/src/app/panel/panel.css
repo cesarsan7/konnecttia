@@ -2547,3 +2547,72 @@
     width: 100%;
   }
 }
+
+/* Reparto, horas punta y suplementos */
+.k-settings-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.k-settings-head-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.k-zones .k-item {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 12px 0;
+}
+
+.k-field-narrow {
+  max-width: 200px;
+}
+
+.k-peak-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-items: end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.k-peak-form .k-field {
+  margin: 0;
+}
+
+.k-peak-form input[type="time"],
+.k-holiday-form input[type="date"] {
+  min-height: 46px;
+}
+
+.k-holidays li.is-off > span:first-child {
+  color: var(--muted);
+}
+
+.k-surcharge {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.2fr) auto;
+  align-items: end;
+  gap: 8px 12px;
+}
+
+.k-surcharge .k-link {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 720px) {
+  .k-surcharge {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .k-surcharge .k-field:first-child,
+  .k-surcharge .k-field:has(select) {
+    grid-column: 1 / -1;
+  }
+}

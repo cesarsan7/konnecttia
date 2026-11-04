@@ -20,6 +20,8 @@ export const PERMISSION = {
   MenuDelete: "menu.delete",
   SettingsView: "settings.view",
   SettingsUpdate: "settings.update",
+  DeliveryView: "delivery.view",
+  DeliveryManage: "delivery.manage",
 } as const;
 
 type AccessValue = {

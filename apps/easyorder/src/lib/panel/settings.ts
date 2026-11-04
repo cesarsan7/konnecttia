@@ -36,6 +36,7 @@ export type RestaurantSettings = {
   readonly reparto_minutos_max: number | null;
   readonly modo_ocupado_opciones: readonly number[];
   readonly modo_ocupado_duracion_minutos: number | null;
+  readonly suplementos: readonly Surcharge[];
 };
 
 export type BranchSettings = {
@@ -149,4 +150,106 @@ export function holidayDate(date: string): string {
     year: "numeric",
     timeZone: "UTC",
   }).format(instant);
+}
+
+// ---------------------------------------------------------------------- reparto y tiempos
+
+export type Surcharge = {
+  readonly concepto: string;
+  readonly por_debajo_centimos: number;
+  readonly importe_centimos: number;
+  readonly aplica_a: "ambos" | "recogida" | "reparto";
+};
+
+export type ZoneCoverage =
+  | {
+      readonly tipo: "radio";
+      readonly lat: number;
+      readonly lng: number;
+      readonly radio_km: number;
+    }
+  | { readonly tipo: "codigo_postal"; readonly codigo_postal: string }
+  | { readonly tipo: "toda_la_ciudad" };
+
+export type ZoneFee =
+  | { readonly tipo: "fija"; readonly base_centimos: number }
+  | {
+      readonly tipo: "por_km";
+      readonly base_centimos: number;
+      readonly por_km_centimos: number;
+      readonly maxima_centimos: number | null;
+    };
+
+export type DeliveryZone = {
+  readonly id: number;
+  readonly nombre: string;
+  readonly sucursal_id: number;
+  readonly descripcion: string | null;
+  readonly activa: boolean;
+  readonly cobertura: ZoneCoverage;
+  readonly tarifa: ZoneFee;
+  readonly pedido_minimo_centimos: number;
+  readonly envio_gratis_desde_centimos: number | null;
+  readonly minutos_min: number | null;
+  readonly minutos_max: number | null;
+};
+
+export type ZoneBranch = {
+  readonly id: number;
+  readonly nombre: string;
+  readonly lat: number | null;
+  readonly lng: number | null;
+  readonly reparto: boolean;
+};
+
+export type PeakTime = {
+  readonly id: number;
+  readonly dia: string | null;
+  readonly desde: string;
+  readonly hasta: string;
+  readonly servicio: "recogida" | "reparto" | "ambos";
+  readonly minutos_extra: number;
+  readonly sucursal_id: number | null;
+  readonly activo: boolean;
+};
+
+const euros = (cents: number) =>
+  `${(cents / 100).toFixed(2).replace(".", ",").replace(",00", "")} €`;
+
+export function coverageLabel(coverage: ZoneCoverage): string {
+  if (coverage.tipo === "toda_la_ciudad") return "Toda la ciudad";
+  if (coverage.tipo === "codigo_postal") return `Código postal ${coverage.codigo_postal}`;
+  return `${String(coverage.radio_km).replace(".", ",")} km alrededor`;
+}
+
+export function feeLabel(fee: ZoneFee, freeFrom: number | null): string {
+  const base =
+    fee.tipo === "fija"
+      ? fee.base_centimos === 0
+        ? "Envío gratis"
+        : `Envío ${euros(fee.base_centimos)}`
+      : `${euros(fee.base_centimos)} + ${euros(fee.por_km_centimos)}/km${
+          fee.maxima_centimos !== null ? ` (máx. ${euros(fee.maxima_centimos)})` : ""
+        }`;
+  return freeFrom !== null ? `${base} · gratis desde ${euros(freeFrom)}` : base;
+}
+
+export const SERVICE_LABEL: Readonly<Record<string, string>> = {
+  ambos: "Recogida y reparto",
+  recogida: "Recogida",
+  reparto: "Reparto",
+};
+
+const ZONE_ERROR: Readonly<Record<string, string>> = {
+  duplicate_postal_code: "Ese código postal ya está en otra zona.",
+  min_over_max: "El tiempo mínimo no puede ser mayor que el máximo.",
+  max_below_base: "El tope por km no puede ser menor que la tarifa base.",
+  empty_range: "La franja necesita horas de inicio y fin distintas.",
+};
+
+export function zoneErrorMessage(reason: string | undefined): string {
+  return (
+    (reason && (ZONE_ERROR[reason] ?? settingsErrorMessage(reason))) ||
+    settingsErrorMessage(undefined)
+  );
 }
