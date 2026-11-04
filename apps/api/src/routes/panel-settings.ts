@@ -4,6 +4,7 @@ import {
   checkDaySchedule,
   checkPaymentSetup,
   type DaySchedule,
+  FULFILLMENT,
   isValidIban,
   PAYMENT_METHODS,
   sameWeekday,
@@ -18,7 +19,7 @@ import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { loadBranches } from "../repositories/branches";
-import { CONFIG_KEY, loadConfig } from "../repositories/restaurants";
+import { CONFIG_KEY, loadConfig, surchargeRules } from "../repositories/restaurants";
 
 /**
  * Ajustes del restaurante desde el panel: datos, servicios y pago, tiempos, apertura manual,
@@ -88,6 +89,17 @@ const restaurantSchema = z
     reparto_minutos_max: minutes,
     modo_ocupado_opciones: z.array(z.number().int().min(1).max(240)).max(6),
     modo_ocupado_duracion_minutos: z.number().int().min(5).max(720).nullable(),
+    /** Suplementos por pedido pequeño (envases…): se guardan en surcharge_rules. */
+    suplementos: z
+      .array(
+        z.object({
+          concepto: z.string().trim().min(1).max(40),
+          por_debajo_centimos: z.number().int().min(1).max(100_000),
+          importe_centimos: z.number().int().min(1).max(10_000),
+          aplica_a: z.enum(["ambos", "recogida", "reparto"]).default("ambos"),
+        }),
+      )
+      .max(5),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0);
@@ -354,6 +366,17 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         reparto_minutos_max: positiveInt(config.get(CONFIG_KEY.DeliveryEtaMax)),
         modo_ocupado_opciones: busyOptions(config.get(CONFIG_KEY.BusyModeOptions)),
         modo_ocupado_duracion_minutos: positiveInt(config.get(CONFIG_KEY.BusyModeDuration)),
+        suplementos: surchargeRules(config).map((rule) => ({
+          concepto: rule.label,
+          por_debajo_centimos: rule.thresholdCents,
+          importe_centimos: rule.amountCents,
+          aplica_a:
+            rule.appliesTo?.length === 1
+              ? rule.appliesTo[0] === FULFILLMENT.Pickup
+                ? "recogida"
+                : "reparto"
+              : "ambos",
+        })),
       },
       horario: fullWeek(schedule),
       locales: branches.map((branch) => {
@@ -510,6 +533,29 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
             CONFIG_KEY.BusyModeDuration,
             body.modo_ocupado_duracion_minutos?.toString() ?? null,
             "Duración del modo ocupado (minutos)",
+          ],
+          [
+            "suplementos",
+            CONFIG_KEY.SurchargeRules,
+            body.suplementos && body.suplementos.length > 0
+              ? JSON.stringify(
+                  body.suplementos.map((rule) => ({
+                    label: rule.concepto,
+                    below: rule.por_debajo_centimos / 100,
+                    amount: rule.importe_centimos / 100,
+                    ...(rule.aplica_a === "ambos"
+                      ? {}
+                      : {
+                          appliesTo: [
+                            rule.aplica_a === "recogida"
+                              ? FULFILLMENT.Pickup
+                              : FULFILLMENT.Delivery,
+                          ],
+                        }),
+                  })),
+                )
+              : null,
+            "Suplementos por pedido pequeño (panel)",
           ],
         ];
         for (const [field, key, value, description] of config) {

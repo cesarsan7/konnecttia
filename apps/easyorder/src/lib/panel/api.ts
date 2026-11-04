@@ -1,7 +1,7 @@
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { AdminMenu } from "./menu";
-import type { Settings } from "./settings";
+import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
 
 /** Cliente de la API del panel. Cada llamada lleva el token de la sesión de Supabase. */
@@ -60,6 +60,12 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       path: string,
       body?: unknown,
     ) => send<T>(slug, `/ajustes${path}`, method, body),
+    deliveryZones: (slug: string) =>
+      request<{ zonas: DeliveryZone[]; locales: ZoneBranch[] }>(panel(slug, "/reparto/zonas")),
+    /** Zonas de reparto: `path` relativo a /reparto/zonas. */
+    zoneChange: (slug: string, method: "POST" | "PUT" | "DELETE", path: string, body?: unknown) =>
+      send(slug, `/reparto/zonas${path}`, method, body),
+    peaks: (slug: string) => request<{ franjas: PeakTime[] }>(panel(slug, "/ajustes/franjas")),
     uploadPhoto: (slug: string, itemId: number, file: File) => {
       const form = new FormData();
       form.append("foto", file);
