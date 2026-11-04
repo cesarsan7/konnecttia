@@ -1,6 +1,7 @@
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { CustomerDetail, CustomerList } from "./customers";
+import type { Delivery, Driver } from "./drivers";
 import type { OrderHistory } from "./history";
 import type { AdminMenu } from "./menu";
 import type { PreviousOrders } from "./reorder";
@@ -153,6 +154,15 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     /** Historial de pedidos (vista tabla); `query` lo arma historyQuery. */
     history: (slug: string, query: string) =>
       request<OrderHistory>(panel(slug, `/orders/historial?${query}`)),
+    drivers: (slug: string) => request<{ repartidores: Driver[] }>(panel(slug, "/repartidores")),
+    assignDriver: (slug: string, orderId: number, membershipId: number | null) =>
+      request(panel(slug, `/orders/${orderId}/repartidor`), {
+        method: "PUT",
+        body: JSON.stringify({ membership_id: membershipId }),
+      }),
+    myDeliveries: (slug: string) => request<{ repartos: Delivery[] }>(panel(slug, "/mis-repartos")),
+    deliveryStep: (slug: string, orderId: number, step: "salida" | "entregado") =>
+      request(panel(slug, `/mis-repartos/${orderId}/${step}`), { method: "POST" }),
     changeStatus: (slug: string, orderId: number, estado: string) =>
       request<{ id: number; estado: string }>(panel(slug, `/orders/${orderId}/status`), {
         method: "PATCH",

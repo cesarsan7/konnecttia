@@ -115,6 +115,9 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 4 de noviembre de 2026.
 Ideas de alto nivel convertidas en piezas. Orden de trabajo: A → B → C → D → E → F. E y F
 necesitan las plantillas de D (roles).
 
+Estado (4/11): A y B en el PR #37, C en #38 (0014), D en #39 (0015), E en #40 (0016, encima de
+#38) y F en #41 (0017, encima de #39 y #37). Orden de fusión: #37 → #38 → #39 → #40 → #41.
+
 ### A · Pedidos: vista tabla, filtros y orden (MVP)
 - Problema: con muchos pedidos, el tablero (kanban) obliga a hacer mucho scroll; La Isla tenía una
   tabla con filtros y orden.
@@ -184,6 +187,11 @@ necesitan las plantillas de D (roles).
 - Trazabilidad: `pedido_reparto` (pedido, repartidor, asignado_por, asignado_at, salida_at,
   entregado_at) + `pedido_estado_log` con el actor. Filtro por repartidor en la tabla de pedidos.
 - Tablas nuevas: `pedido_reparto`.
+- Hecho así: «Mis repartos» aparece en el menú de quien reparte y no lleva el tablero (sin
+  `orders.change_status`); si entra en Pedidos sin `orders.view`, va a «Mis repartos». El cambio
+  de estado del tablero y del repartidor usa la misma función (`repositories/order-status.ts`).
+  Con cobro pendiente (transferencia, Bizum) el repartidor no puede entregar.
+- Pendiente: filtro por repartidor y por mesero en la tabla de pedidos y en estadísticas.
 
 ## n8n (staging) pendiente
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { euros } from "@/lib/format";
+import { type Driver, driversFor } from "@/lib/panel/drivers";
 import {
   canCancel,
   formatElapsed,
@@ -30,6 +31,9 @@ export type CardProps = {
   readonly onCancel: () => void;
   readonly expanded: boolean;
   readonly onToggle: () => void;
+  /** Repartidores para asignar (solo con delivery.assign); sin ellos no hay selector. */
+  readonly drivers?: readonly Driver[] | null;
+  readonly onAssign?: (membershipId: number | null) => void;
 };
 
 /** Tarjeta de un pedido (tablero y detalle desde la tabla). */
@@ -45,6 +49,8 @@ export function OrderCard({
   onCancel,
   expanded,
   onToggle,
+  drivers = null,
+  onAssign,
 }: CardProps) {
   const lane = laneOf(order);
   const minutes = minutesSince(order.created_at, now);
@@ -110,6 +116,9 @@ export function OrderCard({
           {delivery ? "Reparto" : dineIn ? (order.mesa_nombre ?? "Mesa") : "Recogida"}
           {showBranch && order.local_nombre ? ` · ${order.local_nombre}` : ""}
           {order.tiempo_estimado ? ` · ${order.tiempo_estimado}` : ""}
+          {delivery && order.repartidor_email
+            ? ` · ${order.salida_at ? "sale con" : "reparte"} ${order.repartidor_email}`
+            : ""}
         </span>
       </p>
       {expanded ? (
@@ -123,6 +132,28 @@ export function OrderCard({
             >
               <Icon name="pin" size={14} /> {order.direccion}
             </a>
+          ) : null}
+
+          {delivery && !closed && drivers && onAssign ? (
+            <label className="k-field k-field-inline k-order-driver">
+              <span className="k-small">Reparte</span>
+              <select
+                className="k-input"
+                value={order.repartidor_id ?? ""}
+                disabled={busy}
+                onChange={(event) =>
+                  onAssign(event.target.value ? Number(event.target.value) : null)
+                }
+              >
+                <option value="">Sin asignar</option>
+                {driversFor(drivers, order.sucursal_id).map((driver) => (
+                  <option key={driver.membership_id} value={driver.membership_id}>
+                    {driver.email ?? `Miembro ${driver.membership_id}`}
+                    {driver.en_curso > 0 ? ` · ${driver.en_curso} en curso` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
 
           <ul className="k-lines">
