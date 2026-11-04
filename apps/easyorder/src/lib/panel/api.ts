@@ -81,6 +81,18 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       request<{ slug: string | null }>(`/me/invitaciones/${encodeURIComponent(token)}/aceptar`, {
         method: "POST",
       }),
+    manualOrder: (slug: string, body: unknown, idempotencyKey: string) =>
+      request<{
+        id: number;
+        pedido_codigo: string | null;
+        total: number;
+        local: { id: number; nombre: string };
+        tiempo_estimado: string | null;
+      }>(panel(slug, "/orders"), {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(body),
+      }),
     uploadPhoto: (slug: string, itemId: number, file: File) => {
       const form = new FormData();
       form.append("foto", file);

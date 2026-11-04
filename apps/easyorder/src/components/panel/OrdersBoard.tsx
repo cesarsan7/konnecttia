@@ -24,6 +24,7 @@ import {
 import type { PanelBranch, PanelOrder } from "@/lib/panel/types";
 import { BusyModeControl } from "./BusyModeControl";
 import { Icon } from "./Icon";
+import { ManualOrder } from "./orders/ManualOrder";
 import { usePanel } from "./PanelProvider";
 import { PERMISSION, useAccess } from "./PanelShell";
 import { useChime } from "./useChime";
@@ -58,7 +59,9 @@ export function OrdersBoard() {
   const permissions = {
     changeStatus: can(PERMISSION.OrdersChangeStatus),
     confirmPayment: can(PERMISSION.OrdersUpdate),
+    create: can(PERMISSION.OrdersCreate),
   };
+  const [creating, setCreating] = useState(false);
 
   const toast = useCallback((text: string, tone: Toast["tone"] = "ok") => {
     const id = Date.now() + Math.random();
@@ -221,6 +224,15 @@ export function OrdersBoard() {
             <Icon name={chime.enabled ? "bell" : "bellOff"} size={18} />
             {chime.enabled ? "Sonido activado" : "Activar sonido"}
           </button>
+          {permissions.create ? (
+            <button
+              type="button"
+              className="k-btn k-btn-primary k-btn-sm"
+              onClick={() => setCreating(true)}
+            >
+              Nuevo pedido
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -414,6 +426,18 @@ export function OrdersBoard() {
           </div>
         </form>
       </dialog>
+
+      {creating ? (
+        <ManualOrder
+          defaultBranchId={branchId}
+          onClose={() => setCreating(false)}
+          onCreated={(message) => {
+            setCreating(false);
+            toast(message);
+            void load();
+          }}
+        />
+      ) : null}
 
       <div className="k-toasts" aria-live="polite">
         {toasts.map((item) => (

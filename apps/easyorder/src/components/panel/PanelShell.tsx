@@ -12,6 +12,7 @@ import { usePanel } from "./PanelProvider";
 export const PERMISSION = {
   OrdersView: "orders.view",
   OrdersChangeStatus: "orders.change_status",
+  OrdersCreate: "orders.create",
   OrdersUpdate: "orders.update",
   AnalyticsView: "analytics.view",
   MenuView: "menu.view",
