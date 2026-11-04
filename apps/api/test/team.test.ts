@@ -58,6 +58,66 @@ describe.skipIf(!TEST_DATABASE_URL)("equipo del restaurante", () => {
   });
 
   describe("invitaciones", () => {
+    it("envía la invitación por email si hay Resend, con el enlace del panel que invita", async () => {
+      const sent: { to: string; subject: string; html: string; text: string }[] = [];
+      const origin = "https://panel.example.test";
+      const app = ctx.appWith({
+        allowedOrigins: [origin],
+        mailer: { send: async (message) => void sent.push(message) },
+      });
+      const invite = (email: string | null, headers: Record<string, string> = {}) =>
+        roleId("staff").then((rol) =>
+          app.request("/panel/prueba-c/equipo/invitaciones", {
+            method: "POST",
+            headers: { ...auth("ownerC"), "Content-Type": "application/json", ...headers },
+            body: JSON.stringify({ email, rol_id: rol, sucursal_ids: [] }),
+          }),
+        );
+      const response = await invite("correo@test.local", { Origin: origin });
+      const body = (await response.json()) as { token: string; email_enviado: boolean };
+      expect(response.status).toBe(201);
+      expect(body.email_enviado).toBe(true);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.to).toBe("correo@test.local");
+      expect(sent[0]?.text).toContain(`${origin}/panel/unirse/${body.token}`);
+      expect(sent[0]?.html).toContain("Te han invitado a");
+
+      // Sin email, o sin Origin permitido ni PANEL_PUBLIC_URL, no se envía nada.
+      expect(
+        ((await (await invite(null, { Origin: origin })).json()) as { email_enviado: boolean })
+          .email_enviado,
+      ).toBe(false);
+      expect(
+        (
+          (await (await invite("otro@test.local", { Origin: "https://evil.test" })).json()) as {
+            email_enviado: boolean;
+          }
+        ).email_enviado,
+      ).toBe(false);
+      expect(sent).toHaveLength(1);
+
+      // Si Resend falla, la invitación sigue creada.
+      const failing = ctx.appWith({
+        panelUrl: origin,
+        mailer: {
+          send: async () => {
+            throw new Error("Resend respondió 500");
+          },
+        },
+      });
+      const failed = await failing.request("/panel/prueba-c/equipo/invitaciones", {
+        method: "POST",
+        headers: { ...auth("ownerC"), "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "fallo@test.local", rol_id: await roleId("staff") }),
+      });
+      expect(failed.status).toBe(201);
+      expect(((await failed.json()) as { email_enviado: boolean }).email_enviado).toBe(false);
+      await ctx.sql`
+        UPDATE public.restaurant_invites SET revocada_at = now()
+        WHERE  email IN ('correo@test.local', 'otro@test.local', 'fallo@test.local') OR (email IS NULL AND restaurante_id = 103)
+      `;
+    });
+
     it("invita con un enlace y el invitado entra con su rol y locales", async () => {
       const created = await call("ownerC", "POST", "/panel/prueba-c/equipo/invitaciones", {
         email: "Nuevo@Test.local",

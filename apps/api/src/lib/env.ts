@@ -17,6 +17,12 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   /** Bucket público de Supabase Storage para las fotos de la carta. */
   MENU_IMAGES_BUCKET: z.string().min(1).default("menu-images"),
+  /** Opcional: clave de Resend para enviar las invitaciones al equipo por email. */
+  RESEND_API_KEY: z.string().min(10).optional(),
+  /** Remitente verificado en Resend, p. ej. «EasyOrder <hola@konnecttia.com>». */
+  RESEND_FROM: z.string().min(3).default("EasyOrder <onboarding@resend.dev>"),
+  /** URL pública del panel (enlaces de los emails si la petición no trae Origin). */
+  PANEL_PUBLIC_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
