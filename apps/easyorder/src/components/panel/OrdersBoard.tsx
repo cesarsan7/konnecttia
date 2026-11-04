@@ -4,6 +4,13 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { describePanelError } from "@/lib/panel/api";
 import {
+  comandaHtml,
+  type PrintSettings,
+  printHtml,
+  readPrintSettings,
+  savePrintSettings,
+} from "@/lib/panel/comanda";
+import {
   BOARD_SORT,
   type BoardSort,
   isBoardSort,
@@ -22,6 +29,7 @@ import { Icon } from "./Icon";
 import { ManualOrder } from "./orders/ManualOrder";
 import { OrderCard } from "./orders/OrderCard";
 import { OrdersTable } from "./orders/OrdersTable";
+import { PrintSettingsDialog } from "./orders/PrintSettingsDialog";
 import { usePanel } from "./PanelProvider";
 import { PERMISSION, useAccess } from "./PanelShell";
 import { useChime } from "./useChime";
@@ -65,6 +73,24 @@ export function OrdersBoard() {
     create: can(PERMISSION.OrdersCreate),
   };
   const [creating, setCreating] = useState(false);
+  const [printSettings, setPrintSettings] = useState<PrintSettings>(readPrintSettings);
+  const [printDialog, setPrintDialog] = useState(false);
+  // El aviso de pedidos nuevos lee la preferencia actual sin recrear la carga del tablero.
+  const printRef = useRef(printSettings);
+  printRef.current = printSettings;
+
+  const print = useCallback(
+    (order: PanelOrder) =>
+      printHtml(
+        comandaHtml(order, {
+          restaurante: access.restaurante.nombre,
+          timeZone: access.restaurante.zona_horaria,
+          paper: printRef.current.paper,
+          copia: printRef.current.copia,
+        }),
+      ),
+    [access.restaurante.nombre, access.restaurante.zona_horaria],
+  );
 
   const toast = useCallback((text: string, tone: Toast["tone"] = "ok") => {
     const id = Date.now() + Math.random();
@@ -89,6 +115,10 @@ export function OrdersBoard() {
     const arrivals = newArrivals(seen.current, list);
     if (arrivals.length > 0) {
       playChime();
+      // Comanda automática de los pedidos nuevos (una por pedido, en orden de llegada).
+      if (printRef.current.alLlegar) {
+        for (const order of [...arrivals].reverse()) print(order);
+      }
       setFresh((current) => new Set([...current, ...arrivals.map((order) => order.id)]));
       setTimeout(
         () =>
@@ -103,7 +133,7 @@ export function OrdersBoard() {
     seen.current = new Set(list.map((order) => order.id));
     setOrders(list);
     setLastSync(new Date());
-  }, [api, slug, branchId, router, playChime]);
+  }, [api, slug, branchId, router, playChime, print]);
 
   // Al cambiar de local se vuelve a empezar: los pedidos ya visibles no suenan otra vez.
   useEffect(() => {
@@ -186,6 +216,14 @@ export function OrdersBoard() {
       return next;
     });
     if (result.ok) {
+      if (
+        action.kind === "status" &&
+        action.to === "confirmado" &&
+        printRef.current.alAceptar &&
+        !printRef.current.alLlegar
+      ) {
+        print(order);
+      }
       const code = order.pedido_codigo ?? `#${order.id}`;
       toast(
         action.kind === "payment"
@@ -281,6 +319,14 @@ export function OrdersBoard() {
           </fieldset>
           <button
             type="button"
+            className="k-btn k-btn-secondary k-btn-sm"
+            onClick={() => setPrintDialog(true)}
+          >
+            <Icon name="print" size={18} />
+            Comanda
+          </button>
+          <button
+            type="button"
             className={`k-btn k-btn-secondary k-btn-sm${chime.enabled ? "" : " is-attention"}`}
             onClick={chime.toggle}
             aria-pressed={chime.enabled}
@@ -373,6 +419,7 @@ export function OrdersBoard() {
           permissions={permissions}
           onAction={(order, action) => void run(order, action)}
           onCancel={askCancel}
+          onPrint={print}
         />
       ) : null}
 
@@ -471,6 +518,7 @@ export function OrdersBoard() {
                             permissions={permissions}
                             onAction={(action) => run(order, action)}
                             onCancel={() => askCancel(order)}
+                            onPrint={() => print(order)}
                             expanded={isExpanded(order)}
                             onToggle={() =>
                               setOverrides((current) => ({
@@ -522,6 +570,22 @@ export function OrdersBoard() {
           </div>
         </form>
       </dialog>
+
+      {printDialog ? (
+        <PrintSettingsDialog
+          settings={printSettings}
+          onChange={(next) => {
+            setPrintSettings(next);
+            savePrintSettings(next);
+          }}
+          onTest={() => {
+            const sample = orders?.[0];
+            if (sample) print(sample);
+          }}
+          canTest={(orders?.length ?? 0) > 0}
+          onClose={() => setPrintDialog(false)}
+        />
+      ) : null}
 
       {creating ? (
         <ManualOrder

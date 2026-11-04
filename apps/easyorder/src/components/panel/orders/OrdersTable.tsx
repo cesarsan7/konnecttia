@@ -74,6 +74,7 @@ export function OrdersTable({
   permissions,
   onAction,
   onCancel,
+  onPrint,
 }: {
   readonly branches: readonly PanelBranch[];
   /** Cambia cuando el tablero detecta cambios (tiempo real): la tabla se recarga. */
@@ -82,6 +83,7 @@ export function OrdersTable({
   readonly permissions: Permissions;
   readonly onAction: (order: PanelOrder, action: OrderAction) => void;
   readonly onCancel: (order: PanelOrder) => void;
+  readonly onPrint?: (order: PanelOrder) => void;
 }) {
   const { api } = usePanel();
   const { slug, access } = useAccess();
@@ -510,6 +512,7 @@ export function OrdersTable({
             permissions={permissions}
             onAction={(action) => onAction(open, action)}
             onCancel={() => onCancel(open)}
+            onPrint={onPrint ? () => onPrint(open) : undefined}
             expanded
             onToggle={() => undefined}
           />
