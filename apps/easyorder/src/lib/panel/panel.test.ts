@@ -54,6 +54,11 @@ describe("tablero de pedidos", () => {
       },
     );
     expect(primaryAction(order({ estado: "entregado" }), all)).toBeNull();
+    expect(primaryAction(order({ estado: "listo", tipo_despacho: "mesa" }), all)).toEqual({
+      kind: "status",
+      to: "entregado",
+      label: "Servido en mesa",
+    });
   });
 
   it("no deja entregar sin cobrar: la acción pasa a ser confirmar el cobro", () => {

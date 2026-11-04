@@ -1,14 +1,24 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { ORDER_STATUS_LABEL } from "@/lib/checkout";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
 import {
+  orderLines,
+  paymentLabel,
+  primaryAction,
+  STATUS_LABEL,
+  summarizeLines,
+} from "@/lib/panel/orders";
+import {
   type DiningTable,
   groupByZone,
+  matchesFilter,
   nextTableNumber,
   occupiedFor,
+  TABLE_FILTER,
+  type TableFilter,
+  type TableOrder,
   type TablePlan,
   type TableZone,
 } from "@/lib/panel/tables";
@@ -25,7 +35,7 @@ type Load =
 
 type Toast = { readonly id: number; readonly text: string; readonly tone: "ok" | "error" };
 
-const REFRESH_MS = 20_000;
+const REFRESH_MS = 15_000;
 
 const CONFLICT: Readonly<Record<string, string>> = {
   duplicate_number: "Ya hay una mesa con ese número.",
@@ -39,7 +49,8 @@ export function TablesView() {
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [branchId, setBranchId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [selected, setSelected] = useState<DiningTable | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [filter, setFilter] = useState<TableFilter>("todas");
   const [ordering, setOrdering] = useState<DiningTable | null>(null);
   const [editingTable, setEditingTable] = useState<DiningTable | "new" | null>(null);
   const [editingZone, setEditingZone] = useState<TableZone | "new" | null>(null);
@@ -122,13 +133,7 @@ export function TablesView() {
   const tablesHere = plan.mesas.filter((table) => table.sucursal_id === branch);
   const busy = tablesHere.filter((table) => table.ocupada).length;
 
-  async function setOccupied(table: DiningTable, ocupada: boolean) {
-    const result = await api.tableChange(slug, "PATCH", `/${table.id}/estado`, { ocupada });
-    if (result.ok) toast(ocupada ? `${table.nombre} ocupada` : `${table.nombre} libre`);
-    else toast("No se pudo cambiar la mesa.", "error");
-    setSelected(null);
-    void load();
-  }
+  const selected = plan.mesas.find((table) => table.id === selectedId) ?? null;
 
   return (
     <div className="k-page">
@@ -150,10 +155,25 @@ export function TablesView() {
         </fieldset>
       ) : null}
 
-      {tablesHere.length > 0 ? (
-        <p className="k-muted k-small k-tables-summary">
-          <strong>{tablesHere.length - busy}</strong> libres · <strong>{busy}</strong> ocupadas
-        </p>
+      {tablesHere.length > 0 && !editMode ? (
+        <div className="k-carta-bar">
+          <fieldset className="k-segment k-segment-sm">
+            <legend className="k-sr-only">Mostrar</legend>
+            {TABLE_FILTER.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={filter === option.id ? "is-on" : ""}
+                aria-pressed={filter === option.id}
+                onClick={() => setFilter(option.id)}
+              >
+                {option.label}
+                {option.id === "libres" ? ` · ${tablesHere.length - busy}` : ""}
+                {option.id === "ocupadas" ? ` · ${busy}` : ""}
+              </button>
+            ))}
+          </fieldset>
+        </div>
       ) : null}
 
       {tablesHere.length === 0 && !editMode ? (
@@ -213,72 +233,59 @@ export function TablesView() {
             <p className="k-muted k-small">Sin mesas en esta zona.</p>
           ) : (
             <ul className="k-tables">
-              {group.tables.map((table) => (
-                <li key={table.id}>
-                  <button
-                    type="button"
-                    className={`k-table-tile${table.ocupada ? " is-busy" : ""}${table.activa ? "" : " is-off"}`}
-                    onClick={() => (editMode ? setEditingTable(table) : setSelected(table))}
-                    aria-label={`${table.nombre}, ${table.ocupada ? "ocupada" : "libre"}`}
-                  >
-                    <strong>{table.nombre}</strong>
-                    <span className="k-small">
-                      {table.capacidad ? `${table.capacidad} pers.` : ""}
-                      {!table.activa ? " · desactivada" : ""}
-                    </span>
-                    {table.pedido ? (
-                      <span className="k-table-order">
-                        {euros(table.pedido.total)} · {occupiedFor(table.pedido.desde, now)}
+              {group.tables
+                .filter((table) => editMode || matchesFilter(table, filter))
+                .map((table) => (
+                  <li key={table.id}>
+                    <button
+                      type="button"
+                      className={`k-table-tile${table.ocupada ? " is-busy" : ""}${table.activa ? "" : " is-off"}`}
+                      onClick={() => (editMode ? setEditingTable(table) : setSelectedId(table.id))}
+                      aria-label={`${table.nombre}, ${table.ocupada ? "ocupada" : "libre"}`}
+                    >
+                      <strong>{table.nombre}</strong>
+                      <span className="k-small">
+                        {table.capacidad ? `${table.capacidad} pers.` : ""}
+                        {!table.activa ? " · desactivada" : ""}
                       </span>
-                    ) : (
-                      <span className="k-table-order">{table.ocupada ? "Ocupada" : "Libre"}</span>
-                    )}
-                  </button>
-                </li>
-              ))}
+                      {table.pedido ? (
+                        <span className="k-table-status">
+                          {STATUS_LABEL[table.pedido.estado] ?? table.pedido.estado}
+                          {table.en_marcha > 1 ? ` · ${table.en_marcha} pedidos` : ""}
+                        </span>
+                      ) : null}
+                      {table.ocupada ? (
+                        <span className="k-table-order">
+                          {table.ocupada_desde ? occupiedFor(table.ocupada_desde, now) : "Ocupada"}
+                          {table.cuenta > 0 ? ` · ${euros(table.cuenta)}` : ""}
+                        </span>
+                      ) : (
+                        <span className="k-table-order">Libre</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
             </ul>
           )}
         </section>
       ))}
 
       {selected ? (
-        <Modal title={selected.nombre} onClose={() => setSelected(null)}>
-          {selected.pedido ? (
-            <p>
-              Pedido <strong>{selected.pedido.codigo ?? `#${selected.pedido.id}`}</strong> ·{" "}
-              {ORDER_STATUS_LABEL[selected.pedido.estado] ?? selected.pedido.estado} ·{" "}
-              {euros(selected.pedido.total)}. Sigue su estado en el tablero de pedidos.
-            </p>
-          ) : (
-            <p className="k-muted">
-              {selected.ocupada ? "Marcada como ocupada, sin pedido." : "Mesa libre."}
-            </p>
-          )}
-          <div className="k-dialog-actions">
-            {/* Con un pedido en marcha, la mesa se libera al entregarlo o cancelarlo en el tablero. */}
-            {canManage && !selected.pedido ? (
-              <button
-                type="button"
-                className="k-btn k-btn-secondary"
-                onClick={() => void setOccupied(selected, !selected.ocupada_manual)}
-              >
-                {selected.ocupada_manual ? "Marcar libre" : "Marcar ocupada"}
-              </button>
-            ) : null}
-            {canOrder && selected.activa ? (
-              <button
-                type="button"
-                className="k-btn k-btn-primary"
-                onClick={() => {
-                  setOrdering(selected);
-                  setSelected(null);
-                }}
-              >
-                {selected.pedido ? "Otro pedido en la mesa" : "Tomar pedido"}
-              </button>
-            ) : null}
-          </div>
-        </Modal>
+        <TableDetail
+          table={selected}
+          now={now}
+          canManage={canManage}
+          canOrder={canOrder}
+          onClose={() => setSelectedId(null)}
+          onOrder={() => {
+            setOrdering(selected);
+            setSelectedId(null);
+          }}
+          onChanged={(message, tone) => {
+            if (message) toast(message, tone);
+            void load();
+          }}
+        />
       ) : null}
 
       {ordering ? (
@@ -328,6 +335,174 @@ export function TablesView() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Ventana de una mesa: estado, pedidos con su siguiente paso, cuenta, ocupar y liberar. */
+function TableDetail(props: {
+  readonly table: DiningTable;
+  readonly now: Date;
+  readonly canManage: boolean;
+  readonly canOrder: boolean;
+  readonly onClose: () => void;
+  readonly onOrder: () => void;
+  readonly onChanged: (message: string | null, tone?: Toast["tone"]) => void;
+}) {
+  const { api } = usePanel();
+  const { slug, can } = useAccess();
+  const { table } = props;
+  const [busyId, setBusyId] = useState<number | "mesa" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const permissions = {
+    changeStatus: can(PERMISSION.OrdersChangeStatus),
+    confirmPayment: can(PERMISSION.OrdersUpdate),
+  };
+
+  async function setOccupied(ocupada: boolean) {
+    setBusyId("mesa");
+    setError(null);
+    const result = await api.tableChange(slug, "PATCH", `/${table.id}/estado`, { ocupada });
+    setBusyId(null);
+    if (result.ok) {
+      props.onChanged(ocupada ? `${table.nombre} ocupada` : `${table.nombre} libre`);
+      if (!ocupada) props.onClose();
+      return;
+    }
+    const body = result.body as { reason?: string; pedidos?: string[] } | null;
+    setError(
+      body?.reason === "orders_in_progress"
+        ? `Quedan pedidos en marcha (${(body.pedidos ?? []).join(", ")}). Entrégalos o cancélalos antes de liberar la mesa.`
+        : describePanelError(result.status, result.body),
+    );
+  }
+
+  async function advance(order: TableOrder) {
+    const action = primaryAction(order, permissions);
+    if (!action) return;
+    setBusyId(order.id);
+    setError(null);
+    const result =
+      action.kind === "payment"
+        ? await api.confirmPayment(slug, order.id)
+        : await api.changeStatus(slug, order.id, action.to);
+    setBusyId(null);
+    if (!result.ok) {
+      setError(describePanelError(result.status, result.body));
+      props.onChanged(null);
+      return;
+    }
+    const code = order.codigo ?? `#${order.id}`;
+    props.onChanged(
+      action.kind === "payment"
+        ? `${code}: cobro confirmado`
+        : `${code}: ${(STATUS_LABEL[action.to] ?? action.to).toLocaleLowerCase("es")}`,
+    );
+  }
+
+  const status = table.ocupada
+    ? `Ocupada${table.ocupada_desde ? ` · ${occupiedFor(table.ocupada_desde, props.now)}` : ""}`
+    : "Libre";
+
+  return (
+    <Modal title={table.nombre} onClose={props.onClose} wide>
+      <div className="k-editor">
+        <p className="k-table-head">
+          <span className={`k-chip ${table.ocupada ? "is-busy" : "is-free"}`}>{status}</span>
+          {table.capacidad ? (
+            <span className="k-muted k-small">{table.capacidad} personas</span>
+          ) : null}
+        </p>
+        {error ? (
+          <p className="k-alert" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        {table.pedidos.length === 0 ? (
+          <p className="k-muted">
+            {table.ocupada ? "Mesa ocupada, aún sin pedidos." : "Mesa libre, sin pedidos."}
+          </p>
+        ) : (
+          <section aria-label="Pedidos de la mesa">
+            <h3 className="k-subtitle">Pedidos</h3>
+            <ul className="k-table-orders">
+              {table.pedidos.map((order) => {
+                const action = primaryAction(order, permissions);
+                const closed = order.estado === "cancelado" || order.estado === "caducado";
+                return (
+                  <li key={order.id} className={closed ? "is-closed" : ""}>
+                    <span className="k-table-order-main">
+                      <strong>{order.codigo ?? `#${order.id}`}</strong>
+                      <span className="k-chip">{STATUS_LABEL[order.estado] ?? order.estado}</span>
+                      <span className="k-small k-muted">
+                        {occupiedFor(order.desde, props.now)} · {paymentLabel(order.metodo_pago)}
+                        {order.estado_pago === "pendiente" ? " · cobro pendiente" : ""}
+                      </span>
+                      <span className="k-small">{summarizeLines(orderLines(order.items))}</span>
+                    </span>
+                    <span className="k-table-order-side">
+                      <strong className="k-amount">{euros(order.total)}</strong>
+                      {action ? (
+                        <button
+                          type="button"
+                          className="k-btn k-btn-secondary k-btn-sm"
+                          disabled={busyId !== null}
+                          onClick={() => void advance(order)}
+                        >
+                          {busyId === order.id ? "…" : action.label}
+                        </button>
+                      ) : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="k-manual-total">
+              <span>Cuenta de la mesa</span>
+              <strong>{euros(table.cuenta)}</strong>
+            </p>
+            {table.por_cobrar > 0 ? (
+              <p className="k-small k-warn">Pendiente de cobro: {euros(table.por_cobrar)}</p>
+            ) : null}
+          </section>
+        )}
+
+        <div className="k-dialog-actions k-dialog-actions-split">
+          <span className="k-dialog-actions">
+            {props.canManage && table.ocupada ? (
+              <button
+                type="button"
+                className="k-btn k-btn-secondary"
+                disabled={busyId !== null}
+                title={
+                  table.en_marcha > 0
+                    ? "Entrega o cancela los pedidos en marcha antes de liberar la mesa"
+                    : undefined
+                }
+                onClick={() => void setOccupied(false)}
+              >
+                Liberar mesa
+              </button>
+            ) : null}
+            {props.canManage && !table.ocupada ? (
+              <button
+                type="button"
+                className="k-btn k-btn-secondary"
+                disabled={busyId !== null}
+                onClick={() => void setOccupied(true)}
+              >
+                Ocupar mesa
+              </button>
+            ) : null}
+          </span>
+          {props.canOrder && table.activa ? (
+            <button type="button" className="k-btn k-btn-primary" onClick={props.onOrder}>
+              {table.pedidos.length > 0 ? "Añadir pedido" : "Tomar pedido"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </Modal>
   );
 }
 
