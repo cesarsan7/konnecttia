@@ -25,6 +25,8 @@ export const PERMISSION = {
   DeliveryManage: "delivery.manage",
   TeamView: "team.view",
   TeamManage: "team.manage",
+  CustomersView: "customers.view",
+  CustomersExport: "customers.export",
 } as const;
 
 type AccessValue = {
@@ -40,6 +42,9 @@ export function useAccess(): AccessValue {
   if (!value) throw new Error("useAccess fuera de PanelShell");
   return value;
 }
+
+/** Secciones fijas de la barra inferior en el móvil; el resto va en «Más». */
+const TABBAR_ITEMS = 4;
 
 type NavItem = {
   readonly href: string;
@@ -141,6 +146,12 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
       upsellModule: "analytics",
     },
     { href: `${base}/carta`, label: "Carta", icon: "menu", permission: PERMISSION.MenuView },
+    {
+      href: `${base}/clientes`,
+      label: "Clientes",
+      icon: "user",
+      permission: PERMISSION.CustomersView,
+    },
     { href: `${base}/equipo`, label: "Equipo", icon: "team", permission: PERMISSION.TeamView },
     {
       href: `${base}/ajustes`,
@@ -228,6 +239,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
         <nav className="k-tabbar" aria-label="Secciones del panel">
           {nav
             .filter((item) => !item.soon)
+            .slice(0, TABBAR_ITEMS)
             .map((item) => {
               const current = pathname === item.href;
               return (
@@ -242,17 +254,45 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
                 </Link>
               );
             })}
-          <button
-            type="button"
-            className="k-tab"
-            onClick={async () => {
-              await supabase?.auth.signOut();
-              router.replace("/panel");
-            }}
-          >
-            <Icon name="logout" />
-            <span>Salir</span>
-          </button>
+          <details className="k-tab-more">
+            <summary
+              className={`k-tab${nav.slice(TABBAR_ITEMS).some((item) => item.href === pathname) ? " is-current" : ""}`}
+            >
+              <Icon name="more" />
+              <span>Más</span>
+            </summary>
+            <div className="k-tab-sheet">
+              {nav.slice(TABBAR_ITEMS).map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`k-nav-item${pathname === item.href ? " is-current" : ""}`}
+                  aria-current={pathname === item.href ? "page" : undefined}
+                  onClick={(event) =>
+                    event.currentTarget.closest("details")?.removeAttribute("open")
+                  }
+                >
+                  <Icon name={item.icon} />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+              <a className="k-nav-item" href={`/${slug}`} target="_blank" rel="noreferrer">
+                <Icon name="external" />
+                <span>Ver carta online</span>
+              </a>
+              <button
+                type="button"
+                className="k-nav-item"
+                onClick={async () => {
+                  await supabase?.auth.signOut();
+                  router.replace("/panel");
+                }}
+              >
+                <Icon name="logout" />
+                <span>Cerrar sesión</span>
+              </button>
+            </div>
+          </details>
         </nav>
       </div>
     </AccessContext.Provider>
