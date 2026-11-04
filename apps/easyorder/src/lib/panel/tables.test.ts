@@ -6,7 +6,9 @@ import {
   nextTableNumber,
   occupiedFor,
   selectableTables,
+  shortDuration,
   type TablePlan,
+  tableTimes,
 } from "./tables";
 
 const table = (id: number, zona: number | null, sucursal = 1): DiningTable => ({
@@ -28,6 +30,7 @@ const table = (id: number, zona: number | null, sucursal = 1): DiningTable => ({
 });
 
 const plan: TablePlan = {
+  avisos: { espera_minutos: null, estancia_minutos: null },
   locales: [{ id: 1, nombre: "Centro" }],
   zonas: [
     { id: 10, nombre: "Sala", orden: 1, activa: true, sucursal_id: 1 },
@@ -71,5 +74,65 @@ describe("filtros y selección de mesas", () => {
     );
     expect(list.map((t) => t.id)).toEqual([2, 1]);
     expect(selectableTables(null, 1)).toEqual([]);
+  });
+});
+
+describe("tiempos de la mesa", () => {
+  const now = new Date("2026-11-04T21:00:00Z");
+  const tableOrder = (estado: string, desde: string, estadoDesde: string) => ({
+    id: 1,
+    codigo: "M-1",
+    estado,
+    estado_pago: "no_aplica",
+    metodo_pago: "efectivo",
+    tipo_despacho: "mesa" as const,
+    total: 10,
+    items: [],
+    desde,
+    estado_desde: estadoDesde,
+    historial: [],
+  });
+  const busy = {
+    ocupada: true,
+    ocupada_desde: "2026-11-04T19:20:00Z",
+    pedidos: [
+      tableOrder("entregado", "2026-11-04T19:25:00Z", "2026-11-04T19:50:00Z"),
+      tableOrder("en_preparacion", "2026-11-04T20:35:00Z", "2026-11-04T20:48:00Z"),
+    ],
+  };
+
+  it("mide la espera del pedido en marcha más antiguo y la estancia", () => {
+    const times = tableTimes(busy, { espera_minutos: null, estancia_minutos: null }, now);
+    expect(times).toMatchObject({
+      waiting: 25,
+      inState: 12,
+      stay: 100,
+      waitAlert: false,
+      stayAlert: false,
+    });
+    expect(times.oldest?.estado).toBe("en_preparacion");
+  });
+
+  it("avisa al pasar los umbrales configurados", () => {
+    expect(tableTimes(busy, { espera_minutos: 20, estancia_minutos: 120 }, now)).toMatchObject({
+      waitAlert: true,
+      stayAlert: false,
+    });
+    expect(tableTimes(busy, { espera_minutos: 30, estancia_minutos: 90 }, now)).toMatchObject({
+      waitAlert: false,
+      stayAlert: true,
+    });
+    const free = tableTimes(
+      { ocupada: false, ocupada_desde: null, pedidos: [] },
+      { espera_minutos: 1, estancia_minutos: 1 },
+      now,
+    );
+    expect(free).toMatchObject({ waiting: null, stay: null, waitAlert: false, stayAlert: false });
+  });
+
+  it("formatea duraciones cortas", () => {
+    expect(shortDuration(12)).toBe("12 min");
+    expect(shortDuration(60)).toBe("1 h");
+    expect(shortDuration(65)).toBe("1 h 5 min");
   });
 });
