@@ -2616,3 +2616,40 @@
     grid-column: 1 / -1;
   }
 }
+
+/* Equipo --------------------------------------------------------------------- */
+.k-member .k-item-name strong {
+  max-width: 100%;
+}
+
+.k-role-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.k-invite-link {
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg-alt);
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+.k-join form {
+  display: grid;
+  gap: 4px;
+}
+
+.k-join .k-title {
+  margin-top: 16px;
+}
+
+.k-join-tabs {
+  margin: 8px 0 16px;
+}
+
+.k-join .k-link {
+  justify-self: start;
+}

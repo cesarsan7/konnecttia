@@ -1,0 +1,260 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { auth, setupTestApp, TEST_DATABASE_URL, type TestContext, type USERS } from "./harness";
+
+let ctx: TestContext;
+type User = keyof typeof USERS;
+
+async function call(user: User, method: string, path: string, body?: unknown) {
+  const response = await ctx.app.request(path, {
+    method,
+    headers: {
+      ...auth(user),
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  // biome-ignore lint/suspicious/noExplicitAny: respuestas JSON de la API en las pruebas
+  return { status: response.status, body: (await response.json()) as Record<string, any> };
+}
+
+async function roleId(code: string): Promise<number> {
+  const [row] = await ctx.sql<{ id: number }[]>`
+    SELECT id FROM public.rol WHERE code = ${code} AND restaurante_id IS NULL
+  `;
+  return row?.id ?? 0;
+}
+
+describe.skipIf(!TEST_DATABASE_URL)("equipo del restaurante", () => {
+  beforeAll(async () => {
+    ctx = await setupTestApp();
+  }, 60_000);
+
+  afterAll(async () => {
+    await ctx?.close();
+  });
+
+  it("lista miembros, roles asignables y locales", async () => {
+    const result = await call("ownerA", "GET", "/panel/prueba-a/equipo");
+    expect(result.status).toBe(200);
+    expect(result.body.miembros).toEqual([
+      expect.objectContaining({ email: null, eres_tu: true, locales: "todos" }),
+      expect.objectContaining({
+        eres_tu: false,
+        roles: [expect.objectContaining({ code: "viewer" })],
+      }),
+    ]);
+    expect(result.body.roles.map((role: { code: string }) => role.code)).toEqual([
+      "owner",
+      "manager",
+      "staff",
+      "viewer",
+    ]);
+    expect(result.body.roles.every((role: { asignable: boolean }) => role.asignable)).toBe(true);
+  });
+
+  it("el rol de consulta no ve el equipo; otro restaurante tampoco", async () => {
+    expect((await call("viewerA", "GET", "/panel/prueba-a/equipo")).status).toBe(403);
+    expect((await call("ownerB", "GET", "/panel/prueba-a/equipo")).status).toBe(403);
+  });
+
+  describe("invitaciones", () => {
+    it("invita con un enlace y el invitado entra con su rol y locales", async () => {
+      const created = await call("ownerC", "POST", "/panel/prueba-c/equipo/invitaciones", {
+        email: "Nuevo@Test.local",
+        rol_id: await roleId("staff"),
+        sucursal_ids: [3002],
+      });
+      expect(created.status).toBe(201);
+      const token = created.body.token;
+
+      const listed = await call("ownerC", "GET", "/panel/prueba-c/equipo");
+      expect(listed.body.invitaciones).toEqual([
+        expect.objectContaining({ email: "nuevo@test.local", token, locales: [3002] }),
+      ]);
+
+      // Otra persona con el enlace no puede usarlo.
+      const other = await call("otherPerson", "GET", `/me/invitaciones/${token}`);
+      expect(other.body.estado).toBe("otro_email");
+      expect(
+        (await call("otherPerson", "POST", `/me/invitaciones/${token}/aceptar`)).body.reason,
+      ).toBe("otro_email");
+
+      const preview = await call("newcomer", "GET", `/me/invitaciones/${token}`);
+      expect(preview.body).toMatchObject({
+        estado: "valida",
+        restaurante: { slug: "prueba-c" },
+        rol: "Personal",
+        todos_los_locales: false,
+      });
+      const accepted = await call("newcomer", "POST", `/me/invitaciones/${token}/aceptar`);
+      expect(accepted).toMatchObject({ status: 200, body: { slug: "prueba-c" } });
+
+      const access = await call("newcomer", "GET", "/panel/prueba-c/acceso");
+      expect(access.body.locales).toEqual([3002]);
+      expect(access.body.permisos).toContain("orders.view");
+      expect(access.body.permisos).not.toContain("menu.update");
+
+      // Un enlace solo vale una vez.
+      expect(
+        (await call("newcomer", "POST", `/me/invitaciones/${token}/aceptar`)).body.reason,
+      ).toBe("usada");
+    });
+
+    it("las invitaciones caducan y se pueden anular", async () => {
+      const staff = await roleId("staff");
+      const created = await call("ownerA", "POST", "/panel/prueba-a/equipo/invitaciones", {
+        rol_id: staff,
+      });
+      await ctx.sql`
+        UPDATE public.restaurant_invites SET expires_at = '2026-01-01' WHERE id = ${created.body.id}
+      `;
+      expect(
+        (await call("otherPerson", "GET", `/me/invitaciones/${created.body.token}`)).body.estado,
+      ).toBe("caducada");
+
+      const second = await call("ownerA", "POST", "/panel/prueba-a/equipo/invitaciones", {
+        rol_id: staff,
+      });
+      expect(
+        (await call("ownerB", "DELETE", `/panel/prueba-b/equipo/invitaciones/${second.body.id}`))
+          .status,
+      ).toBe(404);
+      expect(
+        (await call("ownerA", "DELETE", `/panel/prueba-a/equipo/invitaciones/${second.body.id}`))
+          .status,
+      ).toBe(200);
+      expect(
+        (await call("otherPerson", "GET", `/me/invitaciones/${second.body.token}`)).body.estado,
+      ).toBe("anulada");
+    });
+
+    it("rechaza roles y locales ajenos, y emails que ya son del equipo", async () => {
+      const [foreignRole] = await ctx.sql<{ id: number }[]>`
+        INSERT INTO public.rol (restaurante_id, code, nombre) VALUES (102, 'cajero', 'Cajero')
+        RETURNING id
+      `;
+      const path = "/panel/prueba-a/equipo/invitaciones";
+      expect((await call("ownerA", "POST", path, { rol_id: foreignRole?.id })).body.reason).toBe(
+        "unknown_role",
+      );
+      expect(
+        (
+          await call("ownerA", "POST", path, {
+            rol_id: await roleId("staff"),
+            sucursal_ids: [3002],
+          })
+        ).body.reason,
+      ).toBe("unknown_branch");
+      await ctx.sql`UPDATE public.local_memberships SET email = 'owner-a@test.local' WHERE user_id = ${"00000000-0000-0000-0000-0000000000a1"}::uuid`;
+      expect(
+        (
+          await call("ownerA", "POST", path, {
+            rol_id: await roleId("staff"),
+            email: "owner-a@test.local",
+          })
+        ).body.reason,
+      ).toBe("already_member");
+    });
+
+    it("sin team.manage no se invita (el encargado no gestiona el equipo)", async () => {
+      const result = await call("managerPlaya", "POST", "/panel/prueba-c/equipo/invitaciones", {
+        rol_id: await roleId("staff"),
+        sucursal_ids: [3002],
+      });
+      expect(result).toMatchObject({ status: 403, body: { permission: "team.manage" } });
+    });
+  });
+
+  describe("miembros", () => {
+    async function memberId(user: User, slug: string) {
+      const list = await call("ownerC", "GET", `/panel/${slug}/equipo`);
+      return list.body.miembros.find(
+        (member: { email: string }) => member.email === USERS_EMAIL[user],
+      )?.id;
+    }
+    const USERS_EMAIL: Partial<Record<User, string>> = { newcomer: "nuevo@test.local" };
+
+    it("cambia rol y locales de un miembro y queda en la auditoría", async () => {
+      const id = await memberId("newcomer", "prueba-c");
+      const result = await call("ownerC", "PATCH", `/panel/prueba-c/equipo/miembros/${id}`, {
+        rol_id: await roleId("manager"),
+        sucursal_ids: [],
+      });
+      expect(result.status).toBe(200);
+      const access = await call("newcomer", "GET", "/panel/prueba-c/acceso");
+      expect(access.body.locales).toBe("todos");
+      expect(access.body.permisos).toContain("menu.update");
+      const [legacy] = await ctx.sql<
+        { rol: string }[]
+      >`SELECT rol FROM public.local_memberships WHERE id = ${id}`;
+      expect(legacy?.rol).toBe("manager");
+      const trail = await ctx.sql`
+        SELECT 1 FROM public.auditoria WHERE accion = 'team.update' AND recurso_id = ${String(id)}
+      `;
+      expect(trail.length).toBe(1);
+    });
+
+    it("nadie se cambia ni se quita a sí mismo", async () => {
+      const list = await call("ownerC", "GET", "/panel/prueba-c/equipo");
+      const self = list.body.miembros.find((member: { eres_tu: boolean }) => member.eres_tu);
+      expect(
+        (
+          await call("ownerC", "PATCH", `/panel/prueba-c/equipo/miembros/${self.id}`, {
+            rol_id: await roleId("staff"),
+          })
+        ).body.reason,
+      ).toBe("self_change");
+      expect(
+        (await call("ownerC", "DELETE", `/panel/prueba-c/equipo/miembros/${self.id}`)).body.reason,
+      ).toBe("self_change");
+    });
+
+    it("quita el acceso a un miembro y deja de entrar", async () => {
+      const id = await memberId("newcomer", "prueba-c");
+      expect((await call("ownerB", "DELETE", `/panel/prueba-b/equipo/miembros/${id}`)).status).toBe(
+        404,
+      );
+      expect((await call("ownerC", "DELETE", `/panel/prueba-c/equipo/miembros/${id}`)).status).toBe(
+        200,
+      );
+      expect((await call("newcomer", "GET", "/panel/prueba-c/acceso")).status).toBe(403);
+    });
+
+    it("el último propietario no se puede quitar ni degradar", async () => {
+      // Un rol propio de C con todos los permisos (lo crearía el panel de Konnecttia).
+      const [admin] = await ctx.sql<{ id: number }[]>`
+        INSERT INTO public.rol (restaurante_id, code, nombre) VALUES (103, 'socio', 'Socio') RETURNING id
+      `;
+      await ctx.sql`
+        INSERT INTO public.rol_permiso (rol_id, permiso_code)
+        SELECT ${admin?.id ?? 0}, rp.permiso_code FROM public.rol_permiso rp
+        JOIN public.rol r ON r.id = rp.rol_id WHERE r.code = 'owner' AND r.restaurante_id IS NULL
+      `;
+      const [membership] = await ctx.sql<{ id: number }[]>`
+        INSERT INTO public.local_memberships (user_id, restaurante_id, rol, email)
+        VALUES (${"00000000-0000-0000-0000-0000000000d2"}::uuid, 103, 'manager', 'otra@test.local')
+        RETURNING id
+      `;
+      await ctx.sql`
+        INSERT INTO public.membresia_rol (membership_id, rol_id) VALUES (${membership?.id ?? 0}, ${admin?.id ?? 0})
+      `;
+      const list = await call("ownerC", "GET", "/panel/prueba-c/equipo");
+      const owner = list.body.miembros.find((member: { eres_tu: boolean }) => member.eres_tu);
+      const demote = await call(
+        "otherPerson",
+        "PATCH",
+        `/panel/prueba-c/equipo/miembros/${owner.id}`,
+        {
+          rol_id: await roleId("manager"),
+        },
+      );
+      expect(demote).toMatchObject({ status: 409, body: { reason: "last_owner" } });
+      const remove = await call(
+        "otherPerson",
+        "DELETE",
+        `/panel/prueba-c/equipo/miembros/${owner.id}`,
+      );
+      expect(remove).toMatchObject({ status: 409, body: { reason: "last_owner" } });
+    });
+  });
+});

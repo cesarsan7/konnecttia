@@ -19,6 +19,7 @@ import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerSettingsRoutes } from "./panel-settings";
+import { registerTeamRoutes } from "./panel-team";
 
 const PAGE_SIZE = 100;
 
@@ -67,6 +68,7 @@ export function panelRoutes(deps: AppDeps) {
   registerMenuRoutes(app, deps);
   registerSettingsRoutes(app, deps);
   registerDeliveryRoutes(app, deps);
+  registerTeamRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");
