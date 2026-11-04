@@ -21,6 +21,7 @@ import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerManualOrderRoutes } from "./panel-orders";
 import { registerSettingsRoutes } from "./panel-settings";
+import { registerStreamRoutes } from "./panel-stream";
 import { registerTeamRoutes } from "./panel-team";
 
 const PAGE_SIZE = 100;
@@ -73,6 +74,7 @@ export function panelRoutes(deps: AppDeps) {
   registerTeamRoutes(app, deps);
   registerManualOrderRoutes(app, deps);
   registerCustomerRoutes(app, deps);
+  registerStreamRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");

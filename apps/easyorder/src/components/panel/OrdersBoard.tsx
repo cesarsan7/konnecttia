@@ -21,6 +21,7 @@ import {
   summarizeLines,
   WAITING_TOO_LONG_MINUTES,
 } from "@/lib/panel/orders";
+import { type StreamState, subscribeBoard } from "@/lib/panel/stream";
 import type { PanelBranch, PanelOrder } from "@/lib/panel/types";
 import { BusyModeControl } from "./BusyModeControl";
 import { Icon } from "./Icon";
@@ -30,7 +31,10 @@ import { PERMISSION, useAccess } from "./PanelShell";
 import { useChime } from "./useChime";
 
 /** Cada cuánto se consulta el tablero. */
-const REFRESH_MS = 10_000;
+/** Con el tiempo real activo, recarga de seguridad (por si se pierde un aviso). */
+const SAFETY_REFRESH_MS = 60_000;
+/** Sin tiempo real (conexión SSE caída), se vuelve al sondeo de antes. */
+const FALLBACK_REFRESH_MS = 10_000;
 
 type Toast = { readonly id: number; readonly text: string; readonly tone: "ok" | "error" };
 
@@ -47,6 +51,7 @@ export function OrdersBoard() {
   const [now, setNow] = useState(() => new Date());
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [offline, setOffline] = useState(false);
+  const [stream, setStream] = useState<StreamState>("conectando");
   const [pending, setPending] = useState<ReadonlySet<number>>(new Set());
   const [fresh, setFresh] = useState<ReadonlySet<number>>(new Set());
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -107,9 +112,34 @@ export function OrdersBoard() {
     seen.current = null;
     setOrders(null);
     void load();
-    const timer = setInterval(() => void load(), REFRESH_MS);
-    return () => clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(
+      () => void load(),
+      stream === "en_directo" ? SAFETY_REFRESH_MS : FALLBACK_REFRESH_MS,
+    );
+    return () => clearInterval(timer);
+  }, [load, stream]);
+
+  // Tiempo real: el servidor avisa cuando cambia algún pedido (web, panel o WhatsApp).
+  useEffect(() => {
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const stop = subscribeBoard({
+      url: api.boardStreamUrl(slug),
+      getToken: api.token,
+      onState: setStream,
+      onChange: () => {
+        // Varios avisos seguidos se agrupan en una sola recarga.
+        if (pending) clearTimeout(pending);
+        pending = setTimeout(() => void load(), 250);
+      },
+    });
+    return () => {
+      if (pending) clearTimeout(pending);
+      stop();
+    };
+  }, [api, slug, load]);
 
   useEffect(() => {
     void loadBranches();
@@ -207,12 +237,20 @@ export function OrdersBoard() {
           <h1 className="k-heading">Pedidos</h1>
         </div>
         <div className="k-head-tools">
-          <span className={`k-live${offline ? " is-off" : ""}`} role="status">
+          <span
+            className={`k-live${offline ? " is-off" : ""}${stream === "en_directo" ? "" : " is-polling"}`}
+            role="status"
+            title={
+              stream === "en_directo"
+                ? "Los pedidos llegan al momento"
+                : "Comprobando cada pocos segundos"
+            }
+          >
             <span className="k-live-dot" aria-hidden="true" />
             {offline
               ? "Sin conexión, reintentando…"
               : lastSync
-                ? `En directo · ${lastSync.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: access.restaurante.zona_horaria })}`
+                ? `${stream === "en_directo" ? "En directo" : "Actualizado"} · ${lastSync.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: access.restaurante.zona_horaria })}`
                 : "Conectando…"}
           </span>
           <button

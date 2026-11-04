@@ -46,6 +46,9 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     });
 
   return {
+    /** Token de la sesión (lo usa el tiempo real del tablero). */
+    token: getToken,
+    boardStreamUrl: (slug: string) => `${base}${panel(slug, "/orders/stream")}`,
     menu: (slug: string) => request<AdminMenu>(panel(slug, "/carta")),
     /** Cambios de la carta: `path` relativo a /carta (por ejemplo «/productos/12»). */
     menuChange: <T = { id: number }>(
