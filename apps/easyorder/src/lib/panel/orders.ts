@@ -73,7 +73,12 @@ export function primaryAction(
         paymentStatus: order.estado_pago,
       }).ok,
   );
-  if (step) return { kind: "status", to: step.to, label: step.label };
+  if (step) {
+    // En mesa no se entrega a un cliente que viene a buscarlo: se sirve en la mesa.
+    const label =
+      fulfillment === "mesa" && step.to === S.Delivered ? "Servido en mesa" : step.label;
+    return { kind: "status", to: step.to, label };
+  }
   // Listo para entregar pero sin cobrar: hay que confirmar el cobro primero.
   if (paymentPending && can.confirmPayment) return { kind: "payment", label: "Confirmar cobro" };
   return null;

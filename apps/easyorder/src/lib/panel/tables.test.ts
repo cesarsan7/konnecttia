@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   type DiningTable,
   groupByZone,
+  matchesFilter,
   nextTableNumber,
   occupiedFor,
+  selectableTables,
   type TablePlan,
 } from "./tables";
 
@@ -17,7 +19,12 @@ const table = (id: number, zona: number | null, sucursal = 1): DiningTable => ({
   sucursal_id: sucursal,
   ocupada_manual: false,
   ocupada: false,
+  ocupada_desde: null,
+  pedidos: [],
   pedido: null,
+  en_marcha: 0,
+  cuenta: 0,
+  por_cobrar: 0,
 });
 
 const plan: TablePlan = {
@@ -45,5 +52,24 @@ describe("mesas", () => {
     expect(occupiedFor("2026-11-04T11:48:00Z", now)).toBe("12 min");
     expect(occupiedFor("2026-11-04T10:55:00Z", now)).toBe("1 h 5 min");
     expect(nextTableNumber(plan)).toBe(4);
+  });
+});
+
+describe("filtros y selección de mesas", () => {
+  it("filtra libres y ocupadas", () => {
+    expect(matchesFilter({ ocupada: true }, "libres")).toBe(false);
+    expect(matchesFilter({ ocupada: true }, "ocupadas")).toBe(true);
+    expect(matchesFilter({ ocupada: false }, "todas")).toBe(true);
+  });
+
+  it("ofrece las mesas activas del local, primero las libres", () => {
+    const busy = { ...table(1, 10), ocupada: true };
+    const off = { ...table(4, null), activa: false };
+    const list = selectableTables(
+      { ...plan, mesas: [busy, table(2, null), off, table(3, 11, 2)] },
+      1,
+    );
+    expect(list.map((t) => t.id)).toEqual([2, 1]);
+    expect(selectableTables(null, 1)).toEqual([]);
   });
 });

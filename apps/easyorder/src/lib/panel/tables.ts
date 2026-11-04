@@ -1,11 +1,26 @@
 /** Respuestas de GET /panel/:slug/mesas (apps/api/src/routes/panel-tables.ts). */
 
+import type { PanelOrder } from "./types";
+
 export type TableZone = {
   readonly id: number;
   readonly nombre: string;
   readonly orden: number;
   readonly activa: boolean;
   readonly sucursal_id: number;
+};
+
+/** Pedido de la mesa (en marcha o de la ocupación actual). */
+export type TableOrder = {
+  readonly id: number;
+  readonly codigo: string | null;
+  readonly estado: string;
+  readonly estado_pago: string;
+  readonly metodo_pago: string | null;
+  readonly tipo_despacho: PanelOrder["tipo_despacho"];
+  readonly total: number;
+  readonly items: unknown;
+  readonly desde: string;
 };
 
 export type DiningTable = {
@@ -18,14 +33,40 @@ export type DiningTable = {
   readonly sucursal_id: number;
   readonly ocupada_manual: boolean;
   readonly ocupada: boolean;
-  readonly pedido: {
-    readonly id: number;
-    readonly codigo: string | null;
-    readonly estado: string;
-    readonly total: number;
-    readonly desde: string;
-  } | null;
+  /** Inicio de la ocupación actual (UTC). */
+  readonly ocupada_desde: string | null;
+  /** Pedidos de la ocupación actual, del más antiguo al más reciente. */
+  readonly pedidos: readonly TableOrder[];
+  /** Último pedido en marcha. */
+  readonly pedido: TableOrder | null;
+  /** Pedidos en marcha (con alguno, la mesa no se puede liberar). */
+  readonly en_marcha: number;
+  /** Total de la mesa en euros (sin cancelados). */
+  readonly cuenta: number;
+  /** Parte de la cuenta con cobro pendiente (transferencia, Bizum). */
+  readonly por_cobrar: number;
 };
+
+export const TABLE_FILTER = [
+  { id: "todas", label: "Todas" },
+  { id: "libres", label: "Libres" },
+  { id: "ocupadas", label: "Ocupadas" },
+] as const;
+export type TableFilter = (typeof TABLE_FILTER)[number]["id"];
+
+export function matchesFilter(table: Pick<DiningTable, "ocupada">, filter: TableFilter): boolean {
+  if (filter === "libres") return !table.ocupada;
+  if (filter === "ocupadas") return table.ocupada;
+  return true;
+}
+
+/** Mesas activas de un local para elegir en el pedido manual: primero las libres. */
+export function selectableTables(plan: TablePlan | null, branchId: number | null): DiningTable[] {
+  if (!plan || branchId === null) return [];
+  return plan.mesas
+    .filter((table) => table.activa && table.sucursal_id === branchId)
+    .sort((a, b) => Number(a.ocupada) - Number(b.ocupada) || a.numero - b.numero);
+}
 
 export type TablePlan = {
   readonly locales: readonly { readonly id: number; readonly nombre: string }[];

@@ -8,6 +8,7 @@ import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { ORDER_CHANNEL } from "../repositories/orders";
 import { type OrderInput, placeOrder } from "../repositories/place-order";
+import { occupyTable } from "./panel-tables";
 import { orderBodySchema } from "./public";
 
 const IDEMPOTENCY_HEADER = "Idempotency-Key";
@@ -63,6 +64,7 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     const raw = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
     const channel = manualChannel.safeParse(raw?.canal);
     let body: OrderInput;
+    let tableId: number | null = null;
     if (raw?.tipo_despacho === FULFILLMENT.DineIn) {
       // Mesa: requiere el módulo de mesas; el local es el de la mesa y el teléfono es opcional.
       if (!can(access, PERMISSION.TablesView)) {
@@ -77,6 +79,7 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       if (!table || table.sucursal_id === null || !canAccessBranch(access, table.sucursal_id)) {
         return fail(c, 404, API_ERROR.NotFound, { reason: "table_not_found" });
       }
+      tableId = table.id;
       body = {
         ...parsed.data,
         tipo_despacho: FULFILLMENT.DineIn,
@@ -116,6 +119,8 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     );
     if (!placed.ok) return fail(c, 422, placed.error, placed.extra);
     const { order, branch, eta, priced } = placed;
+    // La mesa queda ocupada (desde su primer pedido) hasta que el equipo la libere.
+    if (tableId !== null) await occupyTable(deps.sql, restaurant.id, tableId, order.id);
     if (order.created) {
       await audit(deps.sql, {
         restauranteId: restaurant.id,

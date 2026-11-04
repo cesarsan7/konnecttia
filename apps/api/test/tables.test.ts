@@ -107,7 +107,45 @@ describe.skipIf(!TEST_DATABASE_URL)("mesas", () => {
     const plan = await call("ownerC", "GET", "/panel/prueba-c/mesas");
     expect(plan.body.mesas[0]).toMatchObject({
       ocupada: true,
+      ocupada_manual: true,
+      ocupada_desde: expect.any(String),
       pedido: { id: created.body.id, total: 12 },
+      en_marcha: 1,
+      cuenta: 12,
+    });
+    expect(plan.body.mesas[0].pedidos).toEqual([
+      expect.objectContaining({
+        id: created.body.id,
+        estado: "recibido",
+        items: expect.any(Array),
+      }),
+    ]);
+
+    // Con un pedido en marcha no se puede liberar.
+    const blocked = await call("ownerC", "PATCH", `/panel/prueba-c/mesas/${mesa1}/estado`, {
+      ocupada: false,
+    });
+    expect(blocked.status).toBe(409);
+    expect(blocked.body).toMatchObject({ reason: "orders_in_progress" });
+    expect(blocked.body.pedidos).toHaveLength(1);
+
+    // Segundo pedido en la misma mesa: se suma a la cuenta y la ocupación no cambia de hora.
+    const second = await order("ownerC", "prueba-c", {
+      tipo_despacho: "mesa",
+      canal: "mostrador",
+      mesa_id: mesa1,
+      metodo_pago: "efectivo",
+      items: [{ menu_item_id: 3201, menu_variant_id: 3301, quantity: 1 }],
+    });
+    expect(second.status).toBe(201);
+    const both = await call("ownerC", "GET", "/panel/prueba-c/mesas");
+    expect(both.body.mesas[0]).toMatchObject({
+      en_marcha: 2,
+      cuenta: 18,
+      ocupada_desde: plan.body.mesas[0].ocupada_desde,
+    });
+    await call("ownerC", "PATCH", `/panel/prueba-c/orders/${second.body.id}/status`, {
+      estado: "cancelado",
     });
 
     const board = await call("ownerC", "GET", "/panel/prueba-c/orders?vista=tablero");
@@ -124,8 +162,34 @@ describe.skipIf(!TEST_DATABASE_URL)("mesas", () => {
         ).status,
       ).toBe(200);
     }
+    // Entregado: los clientes siguen sentados; la mesa sigue ocupada con su cuenta (sin el cancelado).
     const after = await call("ownerC", "GET", "/panel/prueba-c/mesas");
-    expect(after.body.mesas[0]).toMatchObject({ ocupada: false, pedido: null });
+    expect(after.body.mesas[0]).toMatchObject({
+      ocupada: true,
+      pedido: null,
+      en_marcha: 0,
+      cuenta: 12,
+    });
+    expect(after.body.mesas[0].pedidos).toHaveLength(2);
+
+    // Liberar: la mesa queda libre y la cuenta empieza de cero.
+    const released = await call("ownerC", "PATCH", `/panel/prueba-c/mesas/${mesa1}/estado`, {
+      ocupada: false,
+    });
+    expect(released.status).toBe(200);
+    const free = await call("ownerC", "GET", "/panel/prueba-c/mesas");
+    expect(free.body.mesas[0]).toMatchObject({
+      ocupada: false,
+      ocupada_desde: null,
+      pedidos: [],
+      cuenta: 0,
+    });
+    const [log] = await ctx.sql<{ accion: string }[]>`
+      SELECT accion FROM public.auditoria
+      WHERE  recurso_tipo = 'mesa' AND recurso_id = ${String(mesa1)}
+      ORDER  BY id DESC LIMIT 1
+    `;
+    expect(log?.accion).toBe("tables.mesa.liberar");
   });
 
   it("ocupar y liberar a mano", async () => {
@@ -133,8 +197,12 @@ describe.skipIf(!TEST_DATABASE_URL)("mesas", () => {
       (await call("ownerC", "PATCH", `/panel/prueba-c/mesas/${mesa1}/estado`, { ocupada: true }))
         .status,
     ).toBe(200);
-    expect((await call("ownerC", "GET", "/panel/prueba-c/mesas")).body.mesas[0].ocupada).toBe(true);
-    await call("ownerC", "PATCH", `/panel/prueba-c/mesas/${mesa1}/estado`, { ocupada: false });
+    const plan = await call("ownerC", "GET", "/panel/prueba-c/mesas");
+    expect(plan.body.mesas[0]).toMatchObject({ ocupada: true, ocupada_desde: expect.any(String) });
+    expect(
+      (await call("ownerC", "PATCH", `/panel/prueba-c/mesas/${mesa1}/estado`, { ocupada: false }))
+        .status,
+    ).toBe(200);
   });
 
   it("respeta locales, restaurante y permisos", async () => {

@@ -13,13 +13,15 @@ import {
 } from "@/lib/cart";
 import { describeApiError, normalizePhone, paymentLabel } from "@/lib/checkout";
 import { euros, eurosFromCents } from "@/lib/format";
+import { selectableTables, type TablePlan } from "@/lib/panel/tables";
 import type { Branch, DeliveryZone, Menu, MenuItem } from "@/lib/types";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
-import { useAccess } from "../PanelShell";
+import { PERMISSION, useAccess } from "../PanelShell";
 
 const CHANNEL = { Phone: "telefono", Counter: "mostrador" } as const;
 type Channel = (typeof CHANNEL)[keyof typeof CHANNEL];
+type Fulfillment = "retiro" | "delivery" | "mesa";
 
 /**
  * Pedido manual (teléfono o mostrador). El total que vale es el del servidor: aquí solo se
@@ -42,7 +44,8 @@ export function ManualOrder({
   readonly onCreated: (message: string) => void;
 }) {
   const { api, publicApi } = usePanel();
-  const { slug, access } = useAccess();
+  const { slug, access, can } = useAccess();
+  const canTables = can(PERMISSION.TablesView);
   const scope = access.locales;
   const limited = scope !== "todos";
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -56,7 +59,9 @@ export function ManualOrder({
   const [channel, setChannel] = useState<Channel>(table ? CHANNEL.Counter : CHANNEL.Phone);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
-  const [fulfillment, setFulfillment] = useState<"retiro" | "delivery">("retiro");
+  const [fulfillment, setFulfillment] = useState<Fulfillment>(table ? "mesa" : "retiro");
+  const [tablePlan, setTablePlan] = useState<TablePlan | null>(null);
+  const [tableId, setTableId] = useState<number | null>(table?.id ?? null);
   const [zoneId, setZoneId] = useState<number | null>(null);
   const [direccion, setDireccion] = useState("");
   const [payment, setPayment] = useState<string | null>(null);
@@ -78,6 +83,14 @@ export function ManualOrder({
       if (result.ok) setZones(result.data.zonas);
     });
   }, [publicApi, slug, scope]);
+
+  // Mesas del restaurante (solo con el módulo de mesas y si no viene ya fijada la mesa).
+  useEffect(() => {
+    if (!canTables || table) return;
+    void api.tables(slug).then((result) => {
+      if (result.ok) setTablePlan(result.data);
+    });
+  }, [api, slug, canTables, table]);
 
   useEffect(() => {
     if (branchId === null && limited) return;
@@ -108,6 +121,15 @@ export function ManualOrder({
   const branch = branches.find((candidate) => candidate.id === branchId) ?? null;
   const zone = zones.find((candidate) => candidate.id === zoneId) ?? null;
   const subtotal = subtotalCents(lines);
+  const tables = selectableTables(tablePlan, branchId);
+  const dineIn = fulfillment === "mesa";
+  const fulfillmentOptions = [
+    ...(menu?.restaurante.recogida !== false
+      ? [{ id: "retiro", label: "Recoge en el local" }]
+      : []),
+    ...(menu?.restaurante.reparto ? [{ id: "delivery", label: "Reparto" }] : []),
+    ...(tables.length > 0 ? [{ id: "mesa", label: "Mesa" }] : []),
+  ] as { id: Fulfillment; label: string }[];
   const deliveryZones = zones.filter(
     (candidate) => !limited || branches.some((own) => own.nombre === candidate.local),
   );
@@ -125,9 +147,10 @@ export function ManualOrder({
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (lines.length === 0) return setError("Añade al menos un producto.");
-    if (!table && !nombre.trim()) return setError("Indica el nombre del cliente.");
+    if (dineIn && !tableId) return setError("Elige la mesa.");
+    if (!dineIn && !nombre.trim()) return setError("Indica el nombre del cliente.");
     const phone = telefono.trim() ? normalizePhone(telefono) : null;
-    if ((!table || telefono.trim()) && !phone) {
+    if ((!dineIn || telefono.trim()) && !phone) {
       return setError("Teléfono no válido. Ejemplo: 612 345 678.");
     }
     if (!payment) return setError("Elige el método de pago.");
@@ -138,11 +161,11 @@ export function ManualOrder({
     setError(null);
     const result = await api.manualOrder(
       slug,
-      table
+      dineIn
         ? {
-            canal: CHANNEL.Counter,
+            canal: table ? CHANNEL.Counter : channel,
             tipo_despacho: "mesa",
-            mesa_id: table.id,
+            mesa_id: tableId,
             ...(nombre.trim() ? { nombre: nombre.trim() } : {}),
             ...(phone ? { telefono: phone } : {}),
             metodo_pago: payment,
@@ -192,13 +215,14 @@ export function ManualOrder({
                   placeholder="Buscar producto"
                 />
               </label>
-              {!table && branches.length > 1 && fulfillment === "retiro" ? (
+              {!table && branches.length > 1 && fulfillment !== "delivery" ? (
                 <label className="k-select">
                   <span className="k-sr-only">Local</span>
                   <select
                     value={branchId ?? ""}
                     onChange={(event) => {
                       setBranchId(Number(event.target.value));
+                      setTableId(null);
                       setLines([]);
                     }}
                   >
@@ -327,7 +351,7 @@ export function ManualOrder({
             <div className="k-form-grid">
               <label className="k-field">
                 <span>
-                  Nombre{table ? <span className="k-muted k-optional"> (opcional)</span> : null}
+                  Nombre{dineIn ? <span className="k-muted k-optional"> (opcional)</span> : null}
                 </span>
                 <input
                   value={nombre}
@@ -338,7 +362,7 @@ export function ManualOrder({
               </label>
               <label className="k-field">
                 <span>
-                  Teléfono{table ? <span className="k-muted k-optional"> (opcional)</span> : null}
+                  Teléfono{dineIn ? <span className="k-muted k-optional"> (opcional)</span> : null}
                 </span>
                 <input
                   value={telefono}
@@ -349,26 +373,43 @@ export function ManualOrder({
                 />
               </label>
             </div>
-            {!table && menu?.restaurante.reparto ? (
+            {!table && fulfillmentOptions.length > 1 ? (
               <div className="k-segment k-segment-sm">
-                <button
-                  type="button"
-                  className={fulfillment === "retiro" ? "is-on" : ""}
-                  aria-pressed={fulfillment === "retiro"}
-                  disabled={!menu.restaurante.recogida}
-                  onClick={() => setFulfillment("retiro")}
-                >
-                  Recoge en el local
-                </button>
-                <button
-                  type="button"
-                  className={fulfillment === "delivery" ? "is-on" : ""}
-                  aria-pressed={fulfillment === "delivery"}
-                  onClick={() => setFulfillment("delivery")}
-                >
-                  Reparto
-                </button>
+                {fulfillmentOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={fulfillment === option.id ? "is-on" : ""}
+                    aria-pressed={fulfillment === option.id}
+                    onClick={() => {
+                      setFulfillment(option.id);
+                      // Los pedidos en mesa se toman en el mostrador.
+                      if (option.id === "mesa") setChannel(CHANNEL.Counter);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+            ) : null}
+            {!table && dineIn ? (
+              <label className="k-field">
+                <span>Mesa</span>
+                <select
+                  className="k-input"
+                  value={tableId ?? ""}
+                  onChange={(e) => setTableId(e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Elige la mesa</option>
+                  {tables.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.nombre}
+                      {option.capacidad ? ` (${option.capacidad} pers.)` : ""}
+                      {option.ocupada ? " · ocupada" : " · libre"}
+                    </option>
+                  ))}
+                </select>
+              </label>
             ) : null}
             {!table && fulfillment === "retiro" && branch ? (
               <p className="k-small k-muted">Recoge en {branch.nombre}.</p>
