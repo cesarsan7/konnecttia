@@ -53,7 +53,55 @@ export const ROLE_SUMMARY: Readonly<Record<string, string>> = {
   manager: "Todo menos gestionar el equipo: pedidos, carta, ajustes y estadísticas.",
   staff: "Tablero de pedidos: aceptar, preparar y entregar. Ve la carta sin cambiarla.",
   viewer: "Solo consulta: ve pedidos y carta, no cambia nada.",
+  waiter: "Mesas: toma pedidos en mesa, los avanza y ocupa o libera mesas.",
+  driver: "Reparto: solo ve y entrega los pedidos que tiene asignados.",
 };
+
+/** Respuesta de GET /panel/:slug/equipo/roles (apps/api/src/routes/panel-roles.ts). */
+export type RoleDetail = {
+  readonly id: number;
+  readonly code: string;
+  readonly nombre: string;
+  readonly plantilla: boolean;
+  readonly permisos: readonly string[];
+  readonly miembros: number;
+  readonly invitaciones: number;
+  readonly editable: boolean;
+};
+
+export type PermissionGroup = {
+  readonly modulo: string;
+  readonly nombre: string;
+  readonly activo: boolean;
+  readonly permisos: readonly {
+    readonly code: string;
+    readonly nombre: string;
+    readonly puedes_dar: boolean;
+  }[];
+};
+
+export type RolesCatalog = {
+  readonly roles: readonly RoleDetail[];
+  readonly catalogo: readonly PermissionGroup[];
+};
+
+/** Mensaje del error al guardar o borrar un rol. */
+export function roleErrorMessage(reason: string | undefined): string {
+  switch (reason) {
+    case "duplicate_name":
+      return "Ya hay un rol con ese nombre.";
+    case "role_in_use":
+      return "Ese rol está asignado a alguien: cámbiale el rol antes de borrarlo.";
+    case "pending_invites":
+      return "Hay invitaciones pendientes con ese rol: anúlalas antes de borrarlo.";
+    case "role_above_yours":
+      return "No puedes dar permisos que tú no tienes.";
+    case "template_role":
+      return "Los roles de EasyOrder no se pueden cambiar. Crea uno propio.";
+    default:
+      return "No se pudo guardar el rol. Revisa los datos.";
+  }
+}
 
 export function roleSummary(role: Pick<TeamRole, "code" | "permisos">): string {
   return (

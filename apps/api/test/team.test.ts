@@ -48,6 +48,8 @@ describe.skipIf(!TEST_DATABASE_URL)("equipo del restaurante", () => {
       "manager",
       "staff",
       "viewer",
+      "waiter",
+      "driver",
     ]);
     expect(result.body.roles.every((role: { asignable: boolean }) => role.asignable)).toBe(true);
   });
@@ -315,6 +317,146 @@ describe.skipIf(!TEST_DATABASE_URL)("equipo del restaurante", () => {
         `/panel/prueba-c/equipo/miembros/${owner.id}`,
       );
       expect(remove).toMatchObject({ status: 409, body: { reason: "last_owner" } });
+    });
+  });
+
+  describe("roles propios", () => {
+    const roles = () => call("ownerA", "GET", "/panel/prueba-a/equipo/roles");
+
+    it("lista plantillas (no editables) y el catálogo por módulo", async () => {
+      const result = await roles();
+      expect(result.status).toBe(200);
+      const codes = result.body.roles.map((role: { code: string }) => role.code);
+      expect(codes).toEqual(expect.arrayContaining(["owner", "waiter", "driver"]));
+      expect(result.body.roles.every((role: { editable: boolean }) => !role.editable)).toBe(true);
+      const orders = result.body.catalogo.find(
+        (group: { modulo: string }) => group.modulo === "core.orders",
+      );
+      expect(orders.permisos[0]).toMatchObject({ code: "orders.view", nombre: "Ver pedidos" });
+      // Consulta ve los roles, pero no puede crearlos.
+      expect((await call("viewerA", "GET", "/panel/prueba-a/equipo/roles")).status).toBe(403);
+    });
+
+    it("crea, edita y borra un rol propio, con auditoría", async () => {
+      const created = await call("ownerA", "POST", "/panel/prueba-a/equipo/roles", {
+        nombre: "Cajero de noche",
+        permisos: ["orders.view", "orders.update", "orders.view"],
+      });
+      expect(created.status).toBe(201);
+      const id = created.body.id;
+      const listed = (await roles()).body.roles.find((role: { id: number }) => role.id === id);
+      expect(listed).toMatchObject({
+        code: "r_cajero_de_noche",
+        plantilla: false,
+        editable: true,
+        permisos: ["orders.update", "orders.view"],
+        miembros: 0,
+      });
+      // Nombre repetido (también con una plantilla) y permisos desconocidos.
+      expect(
+        (
+          await call("ownerA", "POST", "/panel/prueba-a/equipo/roles", {
+            nombre: "cajero de NOCHE",
+            permisos: ["orders.view"],
+          })
+        ).body.reason,
+      ).toBe("duplicate_name");
+      expect(
+        (
+          await call("ownerA", "POST", "/panel/prueba-a/equipo/roles", {
+            nombre: "Mesero",
+            permisos: ["orders.view"],
+          })
+        ).body.reason,
+      ).toBe("duplicate_name");
+      expect(
+        (
+          await call("ownerA", "POST", "/panel/prueba-a/equipo/roles", {
+            nombre: "Raro",
+            permisos: ["todo.todo"],
+          })
+        ).status,
+      ).toBe(400);
+
+      const updated = await call("ownerA", "PUT", `/panel/prueba-a/equipo/roles/${id}`, {
+        nombre: "Caja",
+        permisos: ["orders.view", "orders.change_status"],
+      });
+      expect(updated.status).toBe(200);
+      expect(
+        (await roles()).body.roles.find((role: { id: number }) => role.id === id),
+      ).toMatchObject({ nombre: "Caja", permisos: ["orders.change_status", "orders.view"] });
+
+      // El rol se puede asignar en una invitación; con invitación pendiente no se borra.
+      const invite = await call("ownerA", "POST", "/panel/prueba-a/equipo/invitaciones", {
+        rol_id: id,
+      });
+      expect(invite.status).toBe(201);
+      expect(
+        (await call("ownerA", "DELETE", `/panel/prueba-a/equipo/roles/${id}`)).body.reason,
+      ).toBe("pending_invites");
+      await call("ownerA", "DELETE", `/panel/prueba-a/equipo/invitaciones/${invite.body.id}`);
+      expect((await call("ownerA", "DELETE", `/panel/prueba-a/equipo/roles/${id}`)).status).toBe(
+        200,
+      );
+      const trail = await ctx.sql<{ accion: string }[]>`
+        SELECT accion FROM public.auditoria WHERE recurso_tipo = 'rol' AND recurso_id = ${String(id)}
+        ORDER  BY id
+      `;
+      expect(trail.map((row) => row.accion)).toEqual([
+        "team.role.create",
+        "team.role.update",
+        "team.role.delete",
+      ]);
+    });
+
+    it("no deja tocar plantillas, roles en uso ni dar permisos que no se tienen", async () => {
+      const waiter = (await roles()).body.roles.find(
+        (role: { code: string }) => role.code === "waiter",
+      );
+      expect(
+        (
+          await call("ownerA", "PUT", `/panel/prueba-a/equipo/roles/${waiter.id}`, {
+            nombre: "Camarero",
+            permisos: ["orders.view"],
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (await call("ownerA", "DELETE", `/panel/prueba-a/equipo/roles/${waiter.id}`)).status,
+      ).toBe(403);
+
+      // Rol en uso.
+      const used = await call("ownerC", "POST", "/panel/prueba-c/equipo/roles", {
+        nombre: "Turno tarde",
+        permisos: ["orders.view"],
+      });
+      const [member] = await ctx.sql<{ id: number }[]>`
+        SELECT id FROM public.local_memberships WHERE restaurante_id = 103 AND rol <> 'owner' LIMIT 1
+      `;
+      await ctx.sql`INSERT INTO public.membresia_rol (membership_id, rol_id) VALUES (${member?.id ?? 0}, ${used.body.id})`;
+      expect(
+        (await call("ownerC", "DELETE", `/panel/prueba-c/equipo/roles/${used.body.id}`)).body
+          .reason,
+      ).toBe("role_in_use");
+
+      // Un encargado (sin team.manage) no gestiona roles; el rol de otro restaurante no existe.
+      expect(
+        (
+          await call("managerPlaya", "POST", "/panel/prueba-c/equipo/roles", {
+            nombre: "X",
+            permisos: ["orders.view"],
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await call("ownerA", "PUT", `/panel/prueba-a/equipo/roles/${used.body.id}`, {
+            nombre: "Robado",
+            permisos: ["orders.view"],
+          })
+        ).status,
+      ).toBe(404);
     });
   });
 });
