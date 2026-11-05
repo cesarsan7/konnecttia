@@ -16,6 +16,7 @@ import { euros, eurosFromCents } from "@/lib/format";
 import { orderLines, summarizeLines } from "@/lib/panel/orders";
 import { type PreviousOrder, type PreviousOrders, rebuildLines } from "@/lib/panel/reorder";
 import { selectableTables, type TablePlan } from "@/lib/panel/tables";
+import { type WaiterChoice, type WaiterList, waiterBody, waitersFor } from "@/lib/panel/waiters";
 import type { Branch, DeliveryZone, Menu, MenuItem } from "@/lib/types";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
@@ -64,6 +65,8 @@ export function ManualOrder({
   const [fulfillment, setFulfillment] = useState<Fulfillment>(table ? "mesa" : "retiro");
   const [tablePlan, setTablePlan] = useState<TablePlan | null>(null);
   const [tableId, setTableId] = useState<number | null>(table?.id ?? null);
+  const [waiters, setWaiters] = useState<WaiterList | null>(null);
+  const [waiter, setWaiter] = useState<WaiterChoice>("auto");
   const [zoneId, setZoneId] = useState<number | null>(null);
   const [direccion, setDireccion] = useState("");
   const [payment, setPayment] = useState<string | null>(null);
@@ -87,6 +90,14 @@ export function ManualOrder({
       if (result.ok) setZones(result.data.zonas);
     });
   }, [publicApi, slug, scope]);
+
+  // Meseros del restaurante (para elegir quién atiende el pedido en mesa).
+  useEffect(() => {
+    if (!canTables) return;
+    void api.waiters(slug).then((result) => {
+      if (result.ok) setWaiters(result.data);
+    });
+  }, [api, slug, canTables]);
 
   // Mesas del restaurante (solo con el módulo de mesas y si no viene ya fijada la mesa).
   useEffect(() => {
@@ -219,6 +230,7 @@ export function ManualOrder({
             canal: table ? CHANNEL.Counter : channel,
             tipo_despacho: "mesa",
             mesa_id: tableId,
+            ...waiterBody(waiter),
             ...(nombre.trim() ? { nombre: nombre.trim() } : {}),
             ...(phone ? { telefono: phone } : {}),
             metodo_pago: payment,
@@ -246,7 +258,9 @@ export function ManualOrder({
       return setError(
         body?.reason === "branch_out_of_scope"
           ? "El pedido saldría de un local que no gestionas. Elige otro local o zona."
-          : describeApiError(result.status, result.body),
+          : body?.reason === "waiter_not_found"
+            ? "Ese mesero ya no está activo en este local. Elige otro."
+            : describeApiError(result.status, result.body),
       );
     }
     const code = result.data.pedido_codigo ?? `#${result.data.id}`;
@@ -499,6 +513,31 @@ export function ManualOrder({
                       {option.nombre}
                       {option.capacidad ? ` (${option.capacidad} pers.)` : ""}
                       {option.ocupada ? " · ocupada" : " · libre"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {dineIn && waitersFor(waiters, branchId).length > 0 ? (
+              <label className="k-field">
+                <span>
+                  Mesero <span className="k-muted k-optional">(opcional)</span>
+                </span>
+                <select
+                  className="k-input"
+                  value={String(waiter)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setWaiter(value === "auto" || value === "ninguno" ? value : Number(value));
+                  }}
+                >
+                  <option value="auto">
+                    {waiters?.yo ? "Automático (el de la mesa o tú)" : "Automático (el de la mesa)"}
+                  </option>
+                  <option value="ninguno">Sin mesero</option>
+                  {waitersFor(waiters, branchId).map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.nombre}
                     </option>
                   ))}
                 </select>
