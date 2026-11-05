@@ -1,5 +1,6 @@
 "use client";
 
+import "./tables-times.css";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";

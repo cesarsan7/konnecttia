@@ -1,0 +1,13 @@
+/* Estilos de la tarjeta de pedido (selector de repartidor). Se cargan con el componente (OrderCard.tsx); variables de panel.css. */
+
+.k-order-driver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.k-order-driver select {
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}

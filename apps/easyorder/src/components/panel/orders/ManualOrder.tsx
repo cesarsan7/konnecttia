@@ -1,5 +1,6 @@
 "use client";
 
+import "./manual-order.css";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ItemSheet } from "@/components/ItemSheet";
 import {

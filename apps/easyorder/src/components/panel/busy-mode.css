@@ -1,0 +1,24 @@
+/* Estilos de la ayuda del modo ocupado. Se cargan con el componente (BusyModeControl.tsx); variables de panel.css. */
+
+.k-help {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.k-help summary {
+  cursor: pointer;
+  color: var(--teal-text);
+  font-weight: 700;
+  width: fit-content;
+}
+
+.k-help ul {
+  margin: 8px 0 4px;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.k-busy-panel .k-help {
+  margin: 4px 0 10px;
+}

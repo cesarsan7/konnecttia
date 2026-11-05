@@ -1,5 +1,6 @@
 "use client";
 
+import "./deliveries.css";
 import { useCallback, useEffect, useState } from "react";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
