@@ -31,6 +31,8 @@ export type CardProps = {
   readonly onCancel: () => void;
   readonly expanded: boolean;
   readonly onToggle: () => void;
+  /** Imprimir la comanda (sin él no hay botón). */
+  readonly onPrint?: () => void;
   /** Repartidores para asignar (solo con delivery.assign); sin ellos no hay selector. */
   readonly drivers?: readonly Driver[] | null;
   readonly onAssign?: (membershipId: number | null) => void;
@@ -49,6 +51,7 @@ export function OrderCard({
   onCancel,
   expanded,
   onToggle,
+  onPrint,
   drivers = null,
   onAssign,
 }: CardProps) {
@@ -197,9 +200,9 @@ export function OrderCard({
         <strong className="k-amount">{euros(Number(order.total))}</strong>
       </div>
 
-      {!closed && (action || permissions.changeStatus) ? (
+      {(!closed && (action || permissions.changeStatus)) || onPrint ? (
         <footer className="k-order-actions">
-          {action ? (
+          {action && !closed ? (
             <button
               type="button"
               className="k-btn k-btn-go"
@@ -210,7 +213,7 @@ export function OrderCard({
               {busy ? "Guardando…" : action.label}
             </button>
           ) : null}
-          {paymentPending && action?.kind !== "payment" && permissions.confirmPayment ? (
+          {!closed && paymentPending && action?.kind !== "payment" && permissions.confirmPayment ? (
             <button
               type="button"
               className="k-btn k-btn-secondary"
@@ -220,7 +223,18 @@ export function OrderCard({
               Confirmar cobro
             </button>
           ) : null}
-          {permissions.changeStatus && canCancel(order) ? (
+          {onPrint ? (
+            <button
+              type="button"
+              className="k-btn k-btn-secondary k-btn-sm"
+              onClick={onPrint}
+              aria-label={`Imprimir comanda de ${order.pedido_codigo ?? order.id}`}
+            >
+              <Icon name="print" size={16} />
+              Imprimir
+            </button>
+          ) : null}
+          {!closed && permissions.changeStatus && canCancel(order) ? (
             <button
               type="button"
               className="k-link k-link-danger"
