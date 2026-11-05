@@ -16,6 +16,7 @@ import { Icon } from "../Icon";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { RolesSection } from "./RolesSection";
 
 type Load =
   | { readonly kind: "loading" }
@@ -234,6 +235,13 @@ export function TeamView() {
           )}
         </section>
       ) : null}
+
+      <RolesSection
+        onChanged={(message) => {
+          toast(message);
+          void load();
+        }}
+      />
 
       {inviting ? (
         <InviteDialog

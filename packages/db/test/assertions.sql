@@ -51,7 +51,7 @@ END $$;
 -- El catálogo de acceso está completo.
 DO $$
 BEGIN
-  IF (SELECT count(*) FROM public.rol WHERE es_plantilla) <> 4 THEN
+  IF (SELECT count(*) FROM public.rol WHERE es_plantilla) <> 6 THEN
     RAISE EXCEPTION 'FALLO: faltan plantillas de rol';
   END IF;
   IF EXISTS (SELECT 1 FROM public.permiso p LEFT JOIN public.modulo m ON m.code = p.modulo_code WHERE m.code IS NULL) THEN

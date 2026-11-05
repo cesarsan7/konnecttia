@@ -21,6 +21,7 @@ export type TableOrder = {
   readonly total: number;
   readonly items: unknown;
   readonly desde: string;
+  readonly mesero_nombre: string | null;
   /** Desde cuándo está en su estado actual (pedido_estado_log). */
   readonly estado_desde: string;
   readonly historial: readonly { readonly estado: string; readonly at: string }[];
@@ -42,6 +43,9 @@ export type DiningTable = {
   readonly sucursal_id: number;
   readonly ocupada_manual: boolean;
   readonly ocupada: boolean;
+  /** Mesero que atiende la ocupación actual. */
+  readonly mesero_id: number | null;
+  readonly mesero_nombre: string | null;
   /** Inicio de la ocupación actual (UTC). */
   readonly ocupada_desde: string | null;
   /** Pedidos de la ocupación actual, del más antiguo al más reciente. */

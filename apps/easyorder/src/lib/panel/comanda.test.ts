@@ -64,6 +64,9 @@ describe("comanda", () => {
     expect(html).toContain("Envío");
     expect(html).toContain("PENDIENTE DE COBRO");
     expect(html).toContain("size: 58mm auto");
+    expect(
+      comandaHtml(order({ repartidor_email: "moto@test.local" }), { ...base, copia: "cocina" }),
+    ).toContain("Reparte: moto@test.local");
   });
 
   it("mesa sin dirección y escapa el texto del cliente", () => {

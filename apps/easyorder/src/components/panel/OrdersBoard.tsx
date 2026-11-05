@@ -10,6 +10,7 @@ import {
   readPrintSettings,
   savePrintSettings,
 } from "@/lib/panel/comanda";
+import type { Driver } from "@/lib/panel/drivers";
 import {
   BOARD_SORT,
   type BoardSort,
@@ -91,6 +92,36 @@ export function OrdersBoard() {
       ),
     [access.restaurante.nombre, access.restaurante.zona_horaria],
   );
+  const [drivers, setDrivers] = useState<readonly Driver[] | null>(null);
+  const canAssign = can(PERMISSION.DeliveryAssign);
+  const driverOnly = !can(PERMISSION.OrdersView) && can(PERMISSION.OrdersDeliverAssigned);
+
+  // Quien solo reparte va a «Mis repartos».
+  useEffect(() => {
+    if (driverOnly) router.replace(`/panel/${slug}/repartos`);
+  }, [driverOnly, router, slug]);
+
+  useEffect(() => {
+    if (!canAssign) return;
+    void api.drivers(slug).then((result) => {
+      if (result.ok) setDrivers(result.data.repartidores);
+    });
+  }, [api, slug, canAssign]);
+
+  async function assign(order: PanelOrder, membershipId: number | null) {
+    setPending((current) => new Set(current).add(order.id));
+    const result = await api.assignDriver(slug, order.id, membershipId);
+    setPending((current) => {
+      const next = new Set(current);
+      next.delete(order.id);
+      return next;
+    });
+    const code = order.pedido_codigo ?? `#${order.id}`;
+    if (result.ok)
+      toast(membershipId === null ? `${code}: sin repartidor` : `${code}: repartidor asignado`);
+    else toast(describePanelError(result.status, result.body), "error");
+    await load();
+  }
 
   const toast = useCallback((text: string, tone: Toast["tone"] = "ok") => {
     const id = Date.now() + Math.random();
@@ -519,6 +550,8 @@ export function OrdersBoard() {
                             onAction={(action) => run(order, action)}
                             onCancel={() => askCancel(order)}
                             onPrint={() => print(order)}
+                            drivers={drivers}
+                            onAssign={(membershipId) => void assign(order, membershipId)}
                             expanded={isExpanded(order)}
                             onToggle={() =>
                               setOverrides((current) => ({

@@ -197,17 +197,20 @@ export function registerTableRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           sucursal_id: number;
           ocupada_manual: boolean;
           ocupada_desde: string | null;
+          mesero_id: number | null;
+          mesero_nombre: string | null;
           pedidos: TableOrder[] | null;
         }[]
       >`
         SELECT m.id, m.numero, m.nombre, m.capacidad, m.activa, m.zona_id, m.sucursal_id,
-               m.ocupada_manual,
+               m.ocupada_manual, m.mesero_id, ms.nombre AS mesero_nombre,
                to_char(m.ocupada_desde, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS ocupada_desde,
                -- Cuenta de la mesa: pedidos en marcha y los de la ocupación actual.
                (SELECT json_agg(json_build_object(
                          'id', p.id, 'codigo', p.pedido_codigo, 'estado', p.estado,
                          'estado_pago', p.estado_pago, 'metodo_pago', p.metodo_pago,
                          'tipo_despacho', p.tipo_despacho, 'total', p.total, 'items', p.items,
+                         'mesero_nombre', (SELECT w.nombre FROM public.meseros w WHERE w.id = p.mesero_id),
                          'desde', to_char(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                          'historial', (
                            SELECT json_agg(json_build_object(
@@ -224,6 +227,7 @@ export function registerTableRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                         OR (m.ocupada_desde IS NOT NULL AND p.created_at >= m.ocupada_desde))
                ) AS pedidos
         FROM   public.mesa m
+        LEFT   JOIN public.meseros ms ON ms.id = m.mesero_id
         WHERE  m.restaurante_id = ${restauranteId} AND m.sucursal_id IN ${sql(ids)}
         ORDER  BY m.numero
       `,
@@ -445,7 +449,7 @@ export function registerTableRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           });
         }
         await sql`
-          UPDATE public.mesa SET ocupada_manual = false, ocupada_desde = NULL
+          UPDATE public.mesa SET ocupada_manual = false, ocupada_desde = NULL, mesero_id = NULL
           WHERE  id = ${id} AND restaurante_id = ${restauranteId}
         `;
       }

@@ -10,6 +10,7 @@ import { ORDER_CHANNEL } from "../repositories/orders";
 import { type OrderInput, placeOrder } from "../repositories/place-order";
 import { CONFIG_KEY, loadConfig } from "../repositories/restaurants";
 import { occupyTable } from "./panel-tables";
+import { resolveWaiter } from "./panel-waiters";
 import { orderBodySchema } from "./public";
 
 const IDEMPOTENCY_HEADER = "Idempotency-Key";
@@ -40,6 +41,8 @@ export function lookupLimit(config: ReadonlyMap<string, string>): number {
 /** Pedido en mesa: sin dirección ni zona; nombre y teléfono opcionales. */
 const dineInSchema = z.object({
   mesa_id: positiveInt,
+  /** Mesero que atiende (null = ninguno). Sin indicar: el de la mesa o el propio usuario. */
+  mesero_id: positiveInt.nullable().optional(),
   nombre: z.string().trim().max(120).optional(),
   telefono: z
     .string()
@@ -142,6 +145,7 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     const channel = manualChannel.safeParse(raw?.canal);
     let body: OrderInput;
     let tableId: number | null = null;
+    let waiterId: number | null = null;
     if (raw?.tipo_despacho === FULFILLMENT.DineIn) {
       // Mesa: requiere el módulo de mesas; el local es el de la mesa y el teléfono es opcional.
       if (!can(access, PERMISSION.TablesView)) {
@@ -157,6 +161,15 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         return fail(c, 404, API_ERROR.NotFound, { reason: "table_not_found" });
       }
       tableId = table.id;
+      const waiter = await resolveWaiter(deps.sql, {
+        restauranteId: restaurant.id,
+        branchId: table.sucursal_id,
+        tableId: table.id,
+        requested: parsed.data.mesero_id,
+        userId: user.userId,
+      });
+      if (!waiter.ok) return fail(c, 404, API_ERROR.NotFound, { reason: "waiter_not_found" });
+      waiterId = waiter.id;
       body = {
         ...parsed.data,
         tipo_despacho: FULFILLMENT.DineIn,
@@ -197,7 +210,19 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     if (!placed.ok) return fail(c, 422, placed.error, placed.extra);
     const { order, branch, eta, priced } = placed;
     // La mesa queda ocupada (desde su primer pedido) hasta que el equipo la libere.
-    if (tableId !== null) await occupyTable(deps.sql, restaurant.id, tableId, order.id);
+    if (tableId !== null) {
+      await occupyTable(deps.sql, restaurant.id, tableId, order.id);
+      if (waiterId !== null) {
+        await deps.sql`
+          UPDATE public.pedidos SET mesero_id = ${waiterId}
+          WHERE  id = ${order.id} AND restaurante_id = ${restaurant.id} AND mesero_id IS NULL
+        `;
+        await deps.sql`
+          UPDATE public.mesa SET mesero_id = COALESCE(mesero_id, ${waiterId})
+          WHERE  id = ${tableId} AND restaurante_id = ${restaurant.id}
+        `;
+      }
+    }
     if (order.created) {
       await audit(deps.sql, {
         restauranteId: restaurant.id,

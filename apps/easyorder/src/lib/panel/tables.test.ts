@@ -21,6 +21,8 @@ const table = (id: number, zona: number | null, sucursal = 1): DiningTable => ({
   sucursal_id: sucursal,
   ocupada_manual: false,
   ocupada: false,
+  mesero_id: null,
+  mesero_nombre: null,
   ocupada_desde: null,
   pedidos: [],
   pedido: null,
@@ -91,6 +93,7 @@ describe("tiempos de la mesa", () => {
     desde,
     estado_desde: estadoDesde,
     historial: [],
+    mesero_nombre: null,
   });
   const busy = {
     ocupada: true,

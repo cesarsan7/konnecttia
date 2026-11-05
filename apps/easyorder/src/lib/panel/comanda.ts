@@ -93,6 +93,7 @@ export function comandaHtml(order: PanelOrder, options: ComandaOptions): string 
   <hr class="sep">
   <div class="row"><strong>${esc(order.nombre_pedido ?? "Cliente")}</strong><span>${esc(order.telefono)}</span></div>
   ${delivery && order.direccion ? `<div>${esc(order.direccion)}</div>` : ""}
+  ${delivery && order.repartidor_email ? `<div class="small">Reparte: ${esc(order.repartidor_email)}</div>` : ""}
   <hr class="sep">
   ${items || '<div class="center small">(sin detalle de productos)</div>'}
   ${notes.length > 0 ? `<div class="box">NOTA: ${notes.map(esc).join(" · ")}</div>` : ""}

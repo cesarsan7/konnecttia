@@ -1,11 +1,5 @@
 import { authorize, branchFilter, canAccessBranch, PERMISSION } from "@konnecttia/access";
-import {
-  checkTransition,
-  type Fulfillment,
-  isOrderStatus,
-  ORDER_STATUS,
-  PAYMENT_STATUS,
-} from "@konnecttia/domain";
+import { isOrderStatus, ORDER_STATUS, PAYMENT_STATUS } from "@konnecttia/domain";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -13,18 +7,22 @@ import { API_ERROR, fail } from "../lib/http";
 import { requireMember, requirePermission } from "../middleware/auth";
 import { resolveRestaurant } from "../middleware/tenant";
 import { audit } from "../repositories/access";
+import { changeOrderStatus } from "../repositories/order-status";
 import { OUTBOX_EVENT } from "../repositories/orders";
 import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
+import { registerDriverRoutes } from "./panel-drivers";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerManualOrderRoutes } from "./panel-orders";
 import { registerOrderListRoutes } from "./panel-orders-list";
+import { registerRoleRoutes } from "./panel-roles";
 import { registerSettingsRoutes } from "./panel-settings";
 import { registerStreamRoutes } from "./panel-stream";
 import { registerTableRoutes } from "./panel-tables";
 import { registerTeamRoutes } from "./panel-team";
+import { registerWaiterRoutes } from "./panel-waiters";
 
 const PAGE_SIZE = 100;
 
@@ -73,11 +71,14 @@ export function panelRoutes(deps: AppDeps) {
   registerMenuRoutes(app, deps);
   registerSettingsRoutes(app, deps);
   registerDeliveryRoutes(app, deps);
+  registerDriverRoutes(app, deps);
   registerTeamRoutes(app, deps);
+  registerRoleRoutes(app, deps);
   registerManualOrderRoutes(app, deps);
   registerOrderListRoutes(app, deps);
   registerCustomerRoutes(app, deps);
   registerStreamRoutes(app, deps);
+  registerWaiterRoutes(app, deps);
   registerTableRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
@@ -104,10 +105,13 @@ export function panelRoutes(deps: AppDeps) {
              p.total, p.metodo_pago, p.tiempo_estimado, p.notas,
              p.created_at AT TIME ZONE 'UTC' AS created_at,
              p.updated_at AT TIME ZONE 'UTC' AS updated_at,
-             p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre
+             p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre,
+             pr.membership_id::int AS repartidor_id, pr.repartidor_email,
+             pr.salida_at, pr.entregado_at
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
       LEFT   JOIN public.mesa me    ON me.id = p.mesa_id
+      LEFT   JOIN public.pedido_reparto pr ON pr.pedido_id = p.id
       WHERE  p.restaurante_id = ${restaurant.id}
         AND  (${estado ?? null}::text IS NULL OR p.estado = ${estado ?? null})
         AND  p.estado <> ${ORDER_STATUS.InCart}
@@ -141,57 +145,14 @@ export function panelRoutes(deps: AppDeps) {
       }
       const target = parsed.data.estado;
 
-      const result = await deps.sql.begin(async (tx) => {
-        const rows = await tx<
-          {
-            id: number;
-            estado: string;
-            estado_pago: string;
-            tipo_despacho: Fulfillment;
-            sucursal_id: number | null;
-          }[]
-        >`
-          SELECT id, estado, estado_pago, tipo_despacho, sucursal_id
-          FROM   public.pedidos
-          WHERE  id = ${id} AND restaurante_id = ${restaurant.id}
-          FOR UPDATE
-        `;
-        const order = rows[0];
-        if (!order) return { kind: "not_found" as const };
+      const result = await changeOrderStatus(deps.sql, {
+        restaurantId: restaurant.id,
+        orderId: id,
+        target,
+        origin: "panel",
+        actor: user.email ?? user.userId,
         // Un pedido de otro local se trata como inexistente para no revelar nada.
-        if (!canAccessBranch(c.get("access"), order.sucursal_id)) {
-          return { kind: "out_of_scope" as const, from: order.estado };
-        }
-
-        const check = checkTransition({
-          from: order.estado,
-          to: target,
-          fulfillment: order.tipo_despacho,
-          paymentStatus: order.estado_pago,
-        });
-        if (!check.ok) return { kind: "rejected" as const, from: order.estado, error: check.error };
-
-        // El trigger fn_log_estado_pedido lee estos valores para el historial de estados.
-        await tx`SELECT set_config('app.origen', 'panel', true), set_config('app.actor', ${user.email ?? user.userId}, true)`;
-        // Pasar a «pagado» confirma también el cobro: si no, el pedido no podría entregarse.
-        const paid = target === ORDER_STATUS.Paid && order.estado_pago === PAYMENT_STATUS.Pending;
-        await tx`
-          UPDATE public.pedidos
-          SET    estado = ${target}, updated_at = now(),
-                 estado_pago = ${paid ? PAYMENT_STATUS.Paid : order.estado_pago}
-          WHERE  id = ${id} AND restaurante_id = ${restaurant.id}
-        `;
-        await tx`
-          INSERT INTO public.outbox_evento
-            (restaurante_id, tipo, agregado_tipo, agregado_id, payload, clave_idempotencia)
-          VALUES (
-            ${restaurant.id}, ${OUTBOX_EVENT.OrderStatusChanged}, 'pedido', ${String(id)},
-            ${tx.json({ pedido_id: id, desde: order.estado, hacia: target })},
-            ${`${OUTBOX_EVENT.OrderStatusChanged}:${id}:${order.estado}:${target}`}
-          )
-          ON CONFLICT (clave_idempotencia) DO NOTHING
-        `;
-        return { kind: "updated" as const, from: order.estado };
+        allowed: (order) => canAccessBranch(c.get("access"), order.sucursal_id),
       });
 
       if (result.kind === "not_found") {
