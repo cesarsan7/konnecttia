@@ -3379,3 +3379,57 @@
   display: grid;
   gap: 4px;
 }
+
+/* Mis repartos (repartidor) y selector de repartidor en la tarjeta. */
+.k-deliveries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.k-delivery {
+  display: grid;
+  gap: 8px;
+}
+
+.k-delivery p {
+  margin: 0;
+}
+
+.k-delivery-head,
+.k-delivery-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.k-delivery-address {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-weight: 700;
+  color: var(--teal-text);
+}
+
+.k-delivery-pay {
+  font-weight: 800;
+}
+
+.k-delivery-pay.is-pending {
+  color: var(--coral-text);
+}
+
+.k-order-driver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.k-order-driver select {
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}

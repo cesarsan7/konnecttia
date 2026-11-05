@@ -29,6 +29,8 @@ export const PERMISSION = {
   CustomersExport: "customers.export",
   TablesView: "tables.view",
   TablesManage: "tables.manage",
+  DeliveryAssign: "delivery.assign",
+  OrdersDeliverAssigned: "orders.deliver_assigned",
 } as const;
 
 type AccessValue = {
@@ -151,7 +153,19 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
   const permissions = new Set(access.permisos);
   const can = (permission: string) => permissions.has(permission);
   const base = `/panel/${slug}`;
+  // «Mis repartos» es la pantalla de quien solo reparte; quien lleva el tablero asigna desde allí.
+  const driverOnly = can(PERMISSION.OrdersDeliverAssigned) && !can(PERMISSION.OrdersChangeStatus);
   const allNav: NavItem[] = [
+    ...(driverOnly
+      ? [
+          {
+            href: `${base}/repartos`,
+            label: "Mis repartos",
+            icon: "bike" as IconName,
+            permission: PERMISSION.OrdersDeliverAssigned,
+          },
+        ]
+      : []),
     { href: base, label: "Pedidos", icon: "orders", permission: PERMISSION.OrdersView },
     {
       href: `${base}/estadisticas`,
