@@ -1,0 +1,44 @@
+/* Estilos de el pedido manual. Se cargan con el componente (ManualOrder.tsx); variables de panel.css. */
+
+/* Pedidos anteriores del cliente en el pedido manual («Repetir»). */
+.k-previous {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-alt);
+}
+
+.k-previous h4 {
+  margin: 0;
+}
+
+.k-previous ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.k-previous li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.k-previous-main {
+  display: grid;
+  min-width: 0;
+}
+
+.k-previous-main .k-small:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.k-previous p {
+  margin: 0;
+}

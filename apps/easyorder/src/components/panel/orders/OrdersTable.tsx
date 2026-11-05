@@ -1,5 +1,6 @@
 "use client";
 
+import "./orders-table.css";
 import { useEffect, useMemo, useState } from "react";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";

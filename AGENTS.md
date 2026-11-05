@@ -81,3 +81,14 @@ pnpm db:test     # aplica todas las migraciones en un Postgres temporal
 Antes de proponer cambios, indicar: componente, qué se reutiliza, tablas afectadas, riesgo y si es MVP
 o post-MVP. Cambios pequeños, en rama propia y con pull request. Producción solo se toca con aprobación
 del promotor.
+
+Para que fusionar un PR no deje en conflicto a los demás:
+
+- **PR que dependen de otro o tocan los mismos archivos van encadenados**: su base es la rama del PR
+  anterior, no `main`. Al fusionar el primero, GitHub cambia la base del siguiente a `main`
+  (conviene tener activado «Automatically delete head branches» en el repositorio).
+- **Estilos del panel por componente**: cada pantalla o componente nuevo trae su `.css` al lado y
+  lo importa (`import "./mesas.css";`). `apps/easyorder/src/app/panel/panel.css` queda para la base
+  común (variables, estructura, botones, formularios); no se añaden secciones nuevas al final.
+- Antes de abrir un PR, `git merge main` si `main` avanzó, y comprobar que no quedan marcas de
+  conflicto (`<<<<<<<`) ni errores de Biome.

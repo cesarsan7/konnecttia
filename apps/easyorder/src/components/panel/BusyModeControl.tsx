@@ -1,5 +1,6 @@
 "use client";
 
+import "./busy-mode.css";
 import { useState } from "react";
 import type { PanelBranch } from "@/lib/panel/types";
 import { Icon } from "./Icon";

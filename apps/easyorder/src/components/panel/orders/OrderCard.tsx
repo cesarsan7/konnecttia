@@ -1,5 +1,6 @@
 "use client";
 
+import "./order-card.css";
 import { euros } from "@/lib/format";
 import { type Driver, driversFor } from "@/lib/panel/drivers";
 import {
