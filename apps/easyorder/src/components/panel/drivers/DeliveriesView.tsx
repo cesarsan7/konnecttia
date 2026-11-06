@@ -89,6 +89,7 @@ export function DeliveriesView() {
           <button
             type="button"
             className="k-btn k-btn-secondary k-btn-sm"
+            data-tour="repartos-actualizar"
             onClick={() => void load()}
           >
             <Icon name="refresh" size={18} />
@@ -115,6 +116,12 @@ export function DeliveriesView() {
     (delivery) => delivery.entregado_at || delivery.estado === "cancelado",
   );
 
+  // La guía señala la primera foto y el primer botón de paso que haya en pantalla.
+  const firstPhoto = active.findIndex(
+    (delivery) => delivery.estado === "en_camino" && offersPhoto(photoMode),
+  );
+  const firstStep = active.findIndex((delivery) => deliveryStep(delivery) !== null);
+
   return (
     <div className="k-page">
       {header}
@@ -125,13 +132,13 @@ export function DeliveriesView() {
       ) : null}
       {list === null ? <div className="k-skeleton k-skeleton-tall" aria-busy="true" /> : null}
       {list && active.length === 0 ? (
-        <div className="k-card k-empty-state">
+        <div className="k-card k-empty-state" data-tour="repartos-lista">
           <h2 className="k-title">Sin repartos pendientes</h2>
           <p className="k-muted">Cuando el local te asigne un pedido aparecerá aquí.</p>
         </div>
       ) : null}
-      <ol className="k-deliveries">
-        {active.map((delivery) => {
+      <ol className="k-deliveries" data-tour="repartos-lista">
+        {active.map((delivery, position) => {
           const step = deliveryStep(delivery);
           const map = mapsLink(delivery);
           const pending = delivery.estado_pago === "pendiente";
@@ -183,12 +190,18 @@ export function DeliveriesView() {
                 {delivery.salida_at ? ` · salida ${time.format(new Date(delivery.salida_at))}` : ""}
               </p>
               {showPhoto ? (
-                <DeliveryPhotoCapture delivery={delivery} mode={photoMode} onUploaded={load} />
+                <DeliveryPhotoCapture
+                  delivery={delivery}
+                  mode={photoMode}
+                  tour={position === firstPhoto}
+                  onUploaded={load}
+                />
               ) : null}
               {step ? (
                 <button
                   type="button"
                   className="k-btn k-btn-go k-btn-block"
+                  data-tour={position === firstStep ? "repartos-paso" : undefined}
                   disabled={busy !== null || needsPhoto}
                   onClick={() => void advance(delivery, step.action)}
                 >

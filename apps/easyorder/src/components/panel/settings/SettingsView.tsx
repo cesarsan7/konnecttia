@@ -181,7 +181,11 @@ export function SettingsView() {
       ) : null}
 
       {tabs.length > 1 ? (
-        <fieldset className="k-segment" aria-label="Sección de ajustes">
+        <fieldset
+          className="k-segment"
+          aria-label="Sección de ajustes"
+          data-tour="ajustes-secciones"
+        >
           {tabs.map((item) => (
             <button
               key={item.id}
@@ -275,14 +279,17 @@ export function SettingsView() {
 function Section({
   title,
   lead,
+  tour,
   children,
 }: {
   readonly title: string;
   readonly lead?: string;
+  /** Valor de `data-tour` si la guía del panel señala esta sección. */
+  readonly tour?: string;
   readonly children: ReactNode;
 }) {
   return (
-    <section className="k-card k-settings">
+    <section className="k-card k-settings" data-tour={tour}>
       <header className="k-settings-head">
         <h2 className="k-title">{title}</h2>
         {lead ? <p className="k-muted k-small">{lead}</p> : null}
@@ -305,7 +312,7 @@ function SaveBar({
 }) {
   if (!editable) return null;
   return (
-    <div className="k-save-bar">
+    <div className="k-save-bar" data-tour="ajustes-guardar">
       {error ? (
         <p className="k-alert" role="alert">
           {error}
@@ -451,6 +458,7 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
       <Section
         title="Apertura"
         lead="Para abrir o cerrar al momento sin tocar el horario (un imprevisto, inventario…)."
+        tour="ajustes-apertura"
       >
         <OpenModePicker
           label="Estado"

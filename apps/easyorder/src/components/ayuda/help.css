@@ -1,0 +1,221 @@
+/* Contenido del centro de ayuda: índice, buscador y artículos. */
+.k-help-hero {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.k-help-title {
+  margin: 0;
+  font-family: var(--f-display);
+  font-size: clamp(1.625rem, 5vw, 2.25rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.k-help-lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.0625rem;
+}
+
+.k-help-search .k-input {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+.k-help-group {
+  margin-top: 28px;
+}
+
+.k-help-group-title,
+.k-help-h2 {
+  margin: 0 0 12px;
+  font-family: var(--f-display);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+.k-help-h2 {
+  margin-top: 32px;
+}
+
+.k-help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.k-help-card {
+  display: grid;
+  gap: 4px;
+  height: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+}
+
+.k-help-card:hover {
+  border-color: var(--teal);
+}
+
+.k-help-card:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.k-help-card-title {
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.k-help-card-text {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.k-help-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+}
+
+.k-help-empty p {
+  margin: 0;
+}
+
+/* Artículo */
+.k-help-article {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+.k-help-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.k-help-p {
+  margin: 0 0 10px;
+  line-height: 1.6;
+  font-size: 1.0625rem;
+  overflow-wrap: anywhere;
+}
+
+.k-help-steps {
+  display: grid;
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: paso;
+}
+
+.k-help-step {
+  position: relative;
+  padding-left: 44px;
+  counter-increment: paso;
+}
+
+.k-help-step::before {
+  content: counter(paso);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  font-weight: 800;
+}
+
+.k-help-tip {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-left: 4px solid var(--sun);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--bg-alt);
+  font-size: 0.9375rem;
+}
+
+.k-help-shot {
+  margin: 8px 0 0;
+}
+
+.k-help-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.k-help-shot figcaption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.k-help-faq {
+  display: grid;
+  gap: 8px;
+}
+
+.k-help-faq-item {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  padding: 0 16px;
+}
+
+.k-help-faq-item summary {
+  cursor: pointer;
+  padding: 14px 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.k-help-faq-item[open] summary {
+  color: var(--teal-text);
+}
+
+.k-help-faq-item summary:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.k-help-faq-item .k-help-p {
+  padding-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .k-help-step {
+    padding-left: 0;
+    padding-top: 40px;
+  }
+
+  .k-help-shot {
+    width: min(100%, 22rem);
+  }
+}

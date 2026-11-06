@@ -44,7 +44,7 @@ export function RolesSection({ onChanged }: { readonly onChanged: (message: stri
   );
 
   return (
-    <section className="k-card k-cat" aria-labelledby="roles">
+    <section className="k-card k-cat" aria-labelledby="roles" data-tour="equipo-roles">
       <header className="k-cat-head">
         <h2 id="roles" className="k-title">
           Roles

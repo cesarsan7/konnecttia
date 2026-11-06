@@ -16,6 +16,8 @@ import { useAccess } from "../PanelShell";
 type Props = {
   readonly delivery: Pick<Delivery, "id" | "fotos_entrega">;
   readonly mode: DeliveryPhotoMode;
+  /** La guía del panel señala este bloque (solo el de la primera entrega de la lista). */
+  readonly tour?: boolean;
   /** Se llama tras subir la foto para recargar la lista. */
   readonly onUploaded: () => void | Promise<void>;
 };
@@ -24,7 +26,7 @@ type Props = {
  * «Foto de entrega»: abre la cámara del móvil, enseña una vista previa y sube la foto al pulsar
  * «Subir foto». Con la foto obligatoria avisa de que hace falta para marcar «Entregado».
  */
-export function DeliveryPhotoCapture({ delivery, mode, onUploaded }: Props) {
+export function DeliveryPhotoCapture({ delivery, mode, tour = false, onUploaded }: Props) {
   const { api } = usePanel();
   const { slug } = useAccess();
   const input = useRef<HTMLInputElement>(null);
@@ -74,7 +76,7 @@ export function DeliveryPhotoCapture({ delivery, mode, onUploaded }: Props) {
   const required = mode === DELIVERY_PHOTO_MODE.Required;
 
   return (
-    <div className="k-photo-capture">
+    <div className="k-photo-capture" data-tour={tour ? "repartos-foto" : undefined}>
       <div className="k-photo-capture-head">
         <button
           type="button"

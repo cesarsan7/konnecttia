@@ -94,7 +94,7 @@ export function StatsView() {
         </div>
       </header>
 
-      <div className="k-filters">
+      <div className="k-filters" data-tour="estadisticas-periodo">
         <fieldset className="k-segment">
           <legend className="k-sr-only">Periodo</legend>
           {RANGE_PRESETS.map((item) => (
@@ -227,7 +227,7 @@ function StatsBody({
 
   return (
     <div className="k-stats">
-      <section className="k-kpis" aria-label="Resumen">
+      <section className="k-kpis" aria-label="Resumen" data-tour="estadisticas-resumen">
         <article className="k-card k-kpi k-kpi-hero">
           <h2 className="k-kpi-label">Ventas</h2>
           <p className="k-hero-number">{euros(now.ventas)}</p>
@@ -307,7 +307,7 @@ function StatsBody({
         </section>
       )}
 
-      <section className="k-card k-chart-card">
+      <section className="k-card k-chart-card" data-tour="estadisticas-horas">
         <header className="k-chart-head">
           <h2 className="k-title">Pedidos por hora</h2>
           <p className="k-small k-muted">

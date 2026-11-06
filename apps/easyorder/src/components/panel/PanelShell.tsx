@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import { helpPath } from "@/lib/ayuda/slugs";
 import type { ProfileSaved } from "@/lib/panel/api";
 import type { PanelAccess } from "@/lib/panel/types";
 import { EasyOrderLockup } from "./Brand";
@@ -11,6 +12,7 @@ import { rememberRestaurant } from "./LoginScreen";
 import { usePanel } from "./PanelProvider";
 import { ProfileDialog } from "./ProfileDialog";
 import { TrialBanner } from "./TrialBanner";
+import { PanelGuide } from "./tour/PanelGuide";
 import "./profile-dialog.css";
 
 export const PERMISSION = {
@@ -279,6 +281,10 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
               <Icon name="external" />
               <span>Ver carta online</span>
             </a>
+            <a className="k-nav-item" href={helpPath()} target="_blank" rel="noreferrer">
+              <Icon name="help" />
+              <span>Ayuda</span>
+            </a>
             <div className="k-user">
               <UserLine access={access} onEditName={() => setNaming(true)} />
               <button
@@ -295,6 +301,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
           </div>
         </aside>
         <main id="contenido" className="k-main">
+          <PanelGuide slug={slug} access={access} />
           <TrialBanner trial={access.prueba} />
           {children}
         </main>
@@ -341,6 +348,10 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
               <a className="k-nav-item" href={`/${slug}`} target="_blank" rel="noreferrer">
                 <Icon name="external" />
                 <span>Ver carta online</span>
+              </a>
+              <a className="k-nav-item" href={helpPath()} target="_blank" rel="noreferrer">
+                <Icon name="help" />
+                <span>Ayuda</span>
               </a>
               {manyRestaurants ? (
                 <Link href="/panel" className="k-nav-item">
