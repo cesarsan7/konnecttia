@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createApi } from "@/lib/api";
 import { ORDER_STATUS_LABEL, paymentLabel, trackingSteps } from "@/lib/checkout";
 import { euros } from "@/lib/format";
+import { needsPaymentInfo } from "@/lib/payment-proof";
 import { copyText, isClosed } from "@/lib/tracking";
 import type { TrackedOrder } from "@/lib/types";
+import { PaymentProof } from "./PaymentProof";
 import "./tracking.css";
 
 const REFRESH_MS = 15_000;
@@ -98,14 +100,16 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
   const api = useMemo(() => createApi(apiUrl), [apiUrl]);
   const [order, setOrder] = useState(initialOrder);
 
+  const refresh = useCallback(async () => {
+    const result = await api.tracking(token);
+    if (result.ok) setOrder(result.data);
+  }, [api, token]);
+
   useEffect(() => {
     if (isClosed(order.estado)) return;
-    const timer = window.setInterval(async () => {
-      const result = await api.tracking(token);
-      if (result.ok) setOrder(result.data);
-    }, REFRESH_MS);
+    const timer = window.setInterval(refresh, REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [api, token, order.estado]);
+  }, [refresh, order.estado]);
 
   const steps = trackingSteps(order.tipoDespacho);
   const current = steps.indexOf(order.estado === "pagado" ? "confirmado" : order.estado);
@@ -147,21 +151,8 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
         </ol>
       )}
 
-      {order.estadoPago === "pendiente" && order.datosBancarios && (
-        <section className="group card">
-          <h2>Datos para la transferencia</h2>
-          <dl className="totals">
-            {Object.entries(order.datosBancarios).map(([key, value]) => (
-              <div key={key}>
-                <dt className="capitalize">{key}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="muted small">
-            Envía el justificante al local. Prepararán el pedido cuando confirmen el pago.
-          </p>
-        </section>
+      {needsPaymentInfo(order) && (
+        <PaymentProof api={api} token={token} order={order} onUploaded={refresh} />
       )}
 
       <section className="group card">

@@ -17,6 +17,8 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20).optional(),
   /** Bucket público de Supabase Storage para las fotos de la carta. */
   MENU_IMAGES_BUCKET: z.string().min(1).default("menu-images"),
+  /** Bucket PRIVADO de Supabase Storage para los justificantes de pago (usa la clave de servicio). */
+  PAYMENT_PROOFS_BUCKET: z.string().min(1).default("payment-proofs"),
   /** Opcional: clave de Resend para enviar las invitaciones al equipo por email. */
   RESEND_API_KEY: z.string().min(10).optional(),
   /** Remitente verificado en Resend, p. ej. «EasyOrder <hola@konnecttia.com>». */

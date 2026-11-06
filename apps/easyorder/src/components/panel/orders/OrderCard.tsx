@@ -17,9 +17,11 @@ import {
   summarizeLines,
   WAITING_TOO_LONG_MINUTES,
 } from "@/lib/panel/orders";
+import { pendingProofs } from "@/lib/panel/proofs";
 import { personLabel } from "@/lib/panel/team";
 import type { PanelOrder } from "@/lib/panel/types";
 import { Icon } from "../Icon";
+import { ProofViewer } from "./ProofViewer";
 
 export type CardProps = {
   readonly order: PanelOrder;
@@ -205,6 +207,10 @@ export function OrderCard({
         </span>
         <strong className="k-amount">{euros(Number(order.total))}</strong>
       </div>
+
+      {permissions.confirmPayment && !closed ? (
+        <ProofViewer orderId={order.id} count={pendingProofs(order)} />
+      ) : null}
 
       {(!closed && (action || permissions.changeStatus)) || onPrint ? (
         <footer className="k-order-actions">

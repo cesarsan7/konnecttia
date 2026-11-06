@@ -24,6 +24,9 @@ export const API_ERROR = {
   Conflict: "conflict",
   InvalidImage: "invalid_image",
   StorageNotConfigured: "storage_not_configured",
+  InvalidProof: "invalid_proof",
+  ProofLimitReached: "proof_limit_reached",
+  PaymentNotPending: "payment_not_pending",
   PrivacyRequired: "privacy_required",
 } as const;
 

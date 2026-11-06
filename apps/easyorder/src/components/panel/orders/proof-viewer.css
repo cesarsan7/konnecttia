@@ -1,0 +1,44 @@
+/* Justificante de pago en la tarjeta del pedido. Se carga con el componente (ProofViewer.tsx); variables de panel.css. */
+
+.k-proof {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  min-width: 0;
+}
+
+.k-proof-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--teal-tint);
+  color: var(--teal-text);
+}
+
+.k-proof-links {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.k-proof-links ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.k-proof-links a {
+  font-weight: 700;
+  color: var(--teal-text);
+}
+
+.k-proof-links p {
+  margin: 4px 0 0;
+}
+
+.k-proof-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--danger);
+}

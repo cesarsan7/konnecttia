@@ -47,6 +47,15 @@ export function createApi(baseUrl: string) {
         body: JSON.stringify(body),
       }),
     tracking: (token: string) => request<TrackedOrder>(`${base}/orders/${segment(token)}`),
+    /** Sube el justificante de un pago por Bizum o transferencia (con el token del pedido). */
+    uploadProof: (token: string, file: File) => {
+      const form = new FormData();
+      form.append("justificante", file);
+      return request<{ justificantes: number }>(`${base}/orders/${segment(token)}/justificante`, {
+        method: "POST",
+        body: form,
+      });
+    },
   };
 }
 

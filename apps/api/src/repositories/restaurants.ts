@@ -63,6 +63,8 @@ export const CONFIG_KEY = {
   TableWaitAlert: "mesa_aviso_espera_minutos",
   /** Minutos de ocupación a partir de los que una mesa se marca en el plano. */
   TableStayAlert: "mesa_aviso_estancia_minutos",
+  /** Justificantes de pago que el cliente puede subir por pedido. */
+  ProofsMaxPerOrder: "justificantes_max_por_pedido",
   /** URL de la política de privacidad del restaurante (checkout web). */
   PrivacyUrl: "privacidad_url",
   /** Texto que identifica la versión vigente de esa política. */
