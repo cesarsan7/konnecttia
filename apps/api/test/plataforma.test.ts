@@ -214,6 +214,8 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
         zona_horaria: "Atlantic/Canary",
         direccion: "Calle de prueba 1",
         telefono: "+34900000000",
+        // Sin IBAN ni teléfono de Bizum aún: solo los métodos que no necesitan datos.
+        payment_methods: ["efectivo", "tarjeta"],
         metodos_pago_permitidos: null,
       });
       const branches = await ctx.sql`

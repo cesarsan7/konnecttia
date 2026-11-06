@@ -1,6 +1,7 @@
 import { MODULE_KIND, ROLE_TEMPLATE } from "@konnecttia/access";
 import {
   checkRestaurantSlug,
+  DEFERRED_PAYMENT_METHODS,
   isValidTimeZone,
   ORDER_STATUS,
   PAYMENT_METHODS,
@@ -37,8 +38,8 @@ type Ctx = Context<AppEnv>;
 const ACTIVITY_DAYS = 30;
 /** Máximo de restaurantes que devuelve la lista. */
 const LIST_LIMIT = 500;
-/** Pedidos que no cuentan como actividad: carritos y carritos caducados. */
-const NOT_ACTIVITY = [ORDER_STATUS.InCart, ORDER_STATUS.Expired];
+/** Pedidos que no cuentan como actividad: carritos, carritos caducados y cancelados. */
+const NOT_ACTIVITY = [ORDER_STATUS.InCart, ORDER_STATUS.Expired, ORDER_STATUS.Cancelled];
 
 const createSchema = z.object({
   nombre: z.string().trim().min(1).max(120),
@@ -331,11 +332,13 @@ export function plataformaRoutes(deps: AppDeps) {
         const taken = await tx`SELECT 1 FROM public.restaurante WHERE slug = ${input.slug}`;
         if (taken.length > 0) throw new SlugTaken();
         // Solo lo pedido: el resto de columnas queda con el valor por defecto de la tabla. Un
-        // trigger (0003) crea el local principal con estos datos.
+        // trigger (0003) crea el local principal con estos datos. Cobro: solo los métodos que no
+        // necesitan datos (transferencia y Bizum piden IBAN o teléfono); el dueño añade los demás.
         const [restaurant] = await tx<{ id: number }[]>`
-          INSERT INTO public.restaurante (nombre, slug, zona_horaria, direccion, telefono)
+          INSERT INTO public.restaurante (nombre, slug, zona_horaria, direccion, telefono, payment_methods)
           VALUES (${input.nombre}, ${input.slug}, ${input.zona_horaria},
-                  ${input.local.direccion || null}, ${input.local.telefono || null})
+                  ${input.local.direccion || null}, ${input.local.telefono || null},
+                  ${tx.json(PAYMENT_METHODS.filter((method) => !DEFERRED_PAYMENT_METHODS.has(method)))})
           RETURNING id
         `;
         if (!restaurant) throw new Error("No se pudo crear el restaurante");
