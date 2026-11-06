@@ -20,7 +20,13 @@ export type BusyModeSettings = {
 export type PanelAccess = {
   /** Ajustes del restaurante que usa el panel (restaurante_config). null = no configurado. */
   readonly ajustes: { readonly modo_ocupado: BusyModeSettings | null };
-  readonly usuario: { readonly email: string | null };
+  /** `mostrar` = apodo o nombre; null en los miembros antiguos que aún no lo han puesto. */
+  readonly usuario: {
+    readonly email: string | null;
+    readonly nombre: string | null;
+    readonly apodo: string | null;
+    readonly mostrar: string | null;
+  };
   readonly restaurante: {
     readonly nombre: string;
     readonly slug: string;
@@ -60,6 +66,8 @@ export type PanelOrder = {
   /** Reparto asignado (pedido_reparto). */
   readonly repartidor_id?: number | null;
   readonly repartidor_email?: string | null;
+  /** Apodo o nombre del repartidor (el email solo llega a quien ve el equipo). */
+  readonly repartidor_nombre?: string | null;
   readonly salida_at?: string | null;
 };
 

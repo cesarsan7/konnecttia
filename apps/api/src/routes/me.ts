@@ -2,6 +2,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import type { AppDeps, AppEnv, AuthenticatedUser } from "../context";
 import { API_ERROR, fail } from "../lib/http";
+import { memberNameSchema, NAME_REQUIRED_REASON } from "../lib/member-name";
 import { audit } from "../repositories/access";
 import { legacyRole } from "./panel-team";
 
@@ -120,6 +121,9 @@ export function meRoutes(deps: AppDeps) {
     if (!user) return fail(c, 401, API_ERROR.Unauthorized);
     const token = c.req.param("token");
     if (!UUID.test(token)) return fail(c, 404, API_ERROR.NotFound);
+    // Nombre (obligatorio) y apodo (opcional) de quien acepta. Se exigen solo si la invitación
+    // es válida: una usada, caducada o anulada sigue respondiendo 409 como antes.
+    const name = memberNameSchema.safeParse((await c.req.json().catch(() => null)) ?? {});
 
     const result = await deps.sql.begin(async (tx) => {
       const locked = await tx<{ id: number }[]>`
@@ -130,11 +134,13 @@ export function meRoutes(deps: AppDeps) {
       if (!invite || invite.rol_id === null) return { kind: "not_found" as const };
       const state = stateOf(invite, user);
       if (state !== INVITE_STATE.Valid) return { kind: "rejected" as const, state, invite };
+      if (!name.success) return { kind: "invalid_name" as const, issue: name.error.issues[0] };
 
       const [membership] = await tx<{ id: number }[]>`
-        INSERT INTO public.local_memberships (user_id, restaurante_id, rol, email)
+        INSERT INTO public.local_memberships (user_id, restaurante_id, rol, email, nombre, apodo)
         VALUES (${user.userId}::uuid, ${invite.restaurante_id},
-                ${legacyRole(invite.rol_plantilla ? invite.rol_code : null)}, ${user.email})
+                ${legacyRole(invite.rol_plantilla ? invite.rol_code : null)}, ${user.email},
+                ${name.data.nombre}, ${name.data.apodo})
         RETURNING id
       `;
       if (!membership) throw new Error("No se pudo crear la membresía");
@@ -156,6 +162,20 @@ export function meRoutes(deps: AppDeps) {
     });
 
     if (result.kind === "not_found") return fail(c, 404, API_ERROR.NotFound);
+    if (result.kind === "invalid_name") {
+      // Falta el nombre (o está en blanco): name_required. Demasiado largo o apodo inválido: campo.
+      const missing =
+        result.issue?.path[0] === "nombre" &&
+        (result.issue.code === "invalid_type" || result.issue.code === "too_small");
+      return fail(
+        c,
+        400,
+        API_ERROR.InvalidBody,
+        missing
+          ? { reason: NAME_REQUIRED_REASON }
+          : { field: result.issue?.path.join(".") ?? "nombre" },
+      );
+    }
     if (result.kind === "rejected") {
       await audit(deps.sql, {
         restauranteId: result.invite.restaurante_id,

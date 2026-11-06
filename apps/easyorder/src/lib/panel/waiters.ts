@@ -6,7 +6,10 @@ export type Waiter = {
   /** null = de todos los locales. */
   readonly sucursal_id: number | null;
   readonly membership_id: number | null;
+  /** Solo llega a quien ve el equipo. */
   readonly email: string | null;
+  /** Apodo o nombre del miembro enlazado. */
+  readonly nombre_mostrar: string | null;
   readonly pedidos_hoy: number;
   readonly importe_hoy: number;
 };

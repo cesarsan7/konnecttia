@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { branchesLabel, inviteLink, inviteMessage, roleSummary, teamErrorMessage } from "./team";
+import {
+  branchesLabel,
+  inviteLink,
+  inviteMessage,
+  parseMemberName,
+  personLabel,
+  roleSummary,
+  teamErrorMessage,
+} from "./team";
 
 describe("equipo", () => {
   it("arma el enlace y el mensaje de invitación", () => {
@@ -24,5 +32,21 @@ describe("equipo", () => {
     expect(branchesLabel([2], names)).toBe("Playa");
     expect(teamErrorMessage("last_owner")).toMatch(/propietario/);
     expect(teamErrorMessage(undefined)).toMatch(/No se pudo/);
+  });
+
+  it("llama a cada persona por su apodo o nombre y, si no, por el email", () => {
+    expect(personLabel({ name: "Nuria", email: "n@test.local" }, "?")).toBe("Nuria");
+    expect(personLabel({ name: null, email: "n@test.local" }, "?")).toBe("n@test.local");
+    expect(personLabel({ name: " ", email: null }, "Miembro 3")).toBe("Miembro 3");
+    expect(personLabel({}, "Miembro 3")).toBe("Miembro 3");
+  });
+
+  it("valida nombre (obligatorio) y apodo (opcional)", () => {
+    expect(parseMemberName("  Nuria  ", "  ")).toEqual({ value: { nombre: "Nuria", apodo: null } });
+    expect(parseMemberName("Nuria", " Nu ")).toEqual({ value: { nombre: "Nuria", apodo: "Nu" } });
+    expect(parseMemberName("   ", "Nu")).toEqual({ error: "Escribe tu nombre." });
+    expect(parseMemberName("x".repeat(81), "")).toHaveProperty("error");
+    expect(parseMemberName("Nuria", "y".repeat(81))).toHaveProperty("error");
+    expect(teamErrorMessage("name_required")).toMatch(/nombre/);
   });
 });

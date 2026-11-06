@@ -1,0 +1,27 @@
+/* Diálogo de nombre y apodo, aviso «Añade tu nombre» y línea de usuario de la barra lateral. */
+
+.k-profile-hint {
+  display: block;
+  margin-top: 4px;
+}
+
+.k-user-who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.k-user-name {
+  font-weight: 700;
+}
+
+.k-user-add {
+  justify-self: start;
+  margin: 2px 0 0;
+}
+
+/* Nombre propio en el formulario de la invitación. */
+.k-join-name {
+  display: grid;
+  gap: 12px;
+}

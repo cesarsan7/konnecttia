@@ -1,0 +1,5 @@
+/* Nombre, apodo y email en la lista de miembros del equipo. */
+
+.k-member-ids:empty {
+  display: none;
+}

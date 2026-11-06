@@ -142,3 +142,24 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
 END $$;
+
+-- Nombre y apodo de los miembros: opcionales, pero sin vacíos ni más de 80 caracteres.
+DO $$
+DECLARE
+  v_bad text;
+BEGIN
+  FOREACH v_bad IN ARRAY ARRAY['', '   ', repeat('x', 81)] LOOP
+    BEGIN
+      UPDATE public.local_memberships SET nombre = v_bad WHERE restaurante_id = 9001;
+      RAISE EXCEPTION 'FALLO: se aceptó el nombre de longitud %', length(v_bad);
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+    BEGIN
+      UPDATE public.local_memberships SET apodo = v_bad WHERE restaurante_id = 9001;
+      RAISE EXCEPTION 'FALLO: se aceptó el apodo de longitud %', length(v_bad);
+    EXCEPTION WHEN check_violation THEN NULL;
+    END;
+  END LOOP;
+  UPDATE public.local_memberships SET nombre = 'Ana', apodo = NULL WHERE restaurante_id = 9001;
+  UPDATE public.local_memberships SET nombre = NULL WHERE restaurante_id = 9001;
+END $$;

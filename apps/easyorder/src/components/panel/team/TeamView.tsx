@@ -6,6 +6,7 @@ import {
   branchesLabel,
   inviteLink,
   inviteMessage,
+  personLabel,
   roleSummary,
   type Team,
   type TeamInvite,
@@ -16,7 +17,9 @@ import { Icon } from "../Icon";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { ProfileDialog } from "../ProfileDialog";
 import { RolesSection } from "./RolesSection";
+import "./team-names.css";
 
 type Load =
   | { readonly kind: "loading" }
@@ -29,11 +32,12 @@ const dateFormat = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "sh
 
 export function TeamView() {
   const { api } = usePanel();
-  const { slug, access, can } = useAccess();
+  const { slug, access, can, updateProfile } = useAccess();
   const [state, setState] = useState<Load>({ kind: "loading" });
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<TeamMember | null>(null);
+  const [naming, setNaming] = useState<TeamMember | null>(null);
   const [created, setCreated] = useState<{
     link: string;
     role: string;
@@ -144,12 +148,24 @@ export function TeamView() {
           {team.miembros.map((member) => (
             <li key={member.id} className="k-item k-member">
               <span className="k-thumb" aria-hidden="true">
-                <span>{(member.email ?? "?").slice(0, 1).toUpperCase()}</span>
+                <span>
+                  {personLabel({ name: member.mostrar, email: member.email }, "?")
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </span>
               </span>
               <span className="k-item-main">
                 <span className="k-item-name">
-                  <strong className="k-ellipsis">{member.email ?? "Sin email registrado"}</strong>
+                  <strong className="k-ellipsis">
+                    {personLabel({ name: member.mostrar, email: member.email }, "Sin nombre")}
+                  </strong>
                   {member.eres_tu ? <span className="k-chip">Tú</span> : null}
+                  {member.mostrar ? null : <span className="k-chip">Sin nombre</span>}
+                </span>
+                <span className="k-small k-muted k-ellipsis k-member-ids">
+                  {[member.apodo ? member.nombre : null, member.mostrar ? member.email : null]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
                 <span className="k-item-meta k-small">
                   <span>{member.roles.map((role) => role.nombre).join(", ") || "Sin rol"}</span>
@@ -161,15 +177,24 @@ export function TeamView() {
                   Desde el {dateFormat.format(new Date(member.created_at))}
                 </span>
               </span>
-              {canManage && !member.eres_tu ? (
+              {canManage || member.eres_tu ? (
                 <span className="k-item-tools">
                   <button
                     type="button"
-                    className="k-btn k-btn-secondary k-btn-sm"
-                    onClick={() => setEditing(member)}
+                    className="k-link k-small"
+                    onClick={() => setNaming(member)}
                   >
-                    Cambiar
+                    Nombre
                   </button>
+                  {canManage && !member.eres_tu ? (
+                    <button
+                      type="button"
+                      className="k-btn k-btn-secondary k-btn-sm"
+                      onClick={() => setEditing(member)}
+                    >
+                      Cambiar
+                    </button>
+                  ) : null}
                 </span>
               ) : null}
             </li>
@@ -289,6 +314,29 @@ export function TeamView() {
             </button>
           </div>
         </Modal>
+      ) : null}
+      {naming ? (
+        <ProfileDialog
+          title={naming.eres_tu ? "Tu nombre y apodo" : "Nombre y apodo"}
+          intro={
+            naming.eres_tu
+              ? "Así te verá el equipo en el panel, en lugar de tu email."
+              : `Cómo se llama esta persona en el panel (${naming.email ?? "sin email"}).`
+          }
+          initial={naming}
+          onSave={(name) =>
+            naming.eres_tu
+              ? api.saveProfile(slug, name)
+              : api.saveMemberProfile(slug, naming.id, name)
+          }
+          onSaved={(saved) => {
+            if (naming.eres_tu) updateProfile(saved);
+            setNaming(null);
+            toast("Nombre guardado");
+            void load();
+          }}
+          onClose={() => setNaming(null)}
+        />
       ) : null}
       {editing ? (
         <MemberDialog
@@ -522,7 +570,11 @@ function MemberDialog(props: {
   }
 
   return (
-    <Modal title={member.email ?? "Miembro del equipo"} onClose={props.onClose} wide>
+    <Modal
+      title={personLabel({ name: member.mostrar, email: member.email }, "Miembro del equipo")}
+      onClose={props.onClose}
+      wide
+    >
       <form onSubmit={save} noValidate className="k-editor">
         {error ? (
           <p className="k-alert" role="alert">

@@ -17,6 +17,7 @@ import {
   summarizeLines,
   WAITING_TOO_LONG_MINUTES,
 } from "@/lib/panel/orders";
+import { personLabel } from "@/lib/panel/team";
 import type { PanelOrder } from "@/lib/panel/types";
 import { Icon } from "../Icon";
 
@@ -121,8 +122,8 @@ export function OrderCard({
           {showBranch && order.local_nombre ? ` · ${order.local_nombre}` : ""}
           {order.tiempo_estimado ? ` · ${order.tiempo_estimado}` : ""}
           {order.mesero_nombre ? ` · Atiende ${order.mesero_nombre}` : ""}
-          {delivery && order.repartidor_email
-            ? ` · ${order.salida_at ? "sale con" : "reparte"} ${order.repartidor_email}`
+          {delivery && (order.repartidor_nombre || order.repartidor_email)
+            ? ` · ${order.salida_at ? "sale con" : "reparte"} ${personLabel({ name: order.repartidor_nombre, email: order.repartidor_email }, "repartidor")}`
             : ""}
         </span>
       </p>
@@ -153,7 +154,10 @@ export function OrderCard({
                 <option value="">Sin asignar</option>
                 {driversFor(drivers, order.sucursal_id).map((driver) => (
                   <option key={driver.membership_id} value={driver.membership_id}>
-                    {driver.email ?? `Miembro ${driver.membership_id}`}
+                    {personLabel(
+                      { name: driver.nombre_mostrar, email: driver.email },
+                      `Repartidor ${driver.membership_id}`,
+                    )}
                     {driver.en_curso > 0 ? ` · ${driver.en_curso} en curso` : ""}
                   </option>
                 ))}

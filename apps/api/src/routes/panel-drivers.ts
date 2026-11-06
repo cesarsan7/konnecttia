@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import type { Sql } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
+import { canSeeMemberEmails } from "../lib/member-name";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { changeOrderStatus } from "../repositories/order-status";
@@ -30,6 +31,8 @@ const CLOSED = [
 type DriverRow = {
   membership_id: number;
   email: string | null;
+  /** Apodo o nombre del miembro (lo que ve la UI en lugar del email). */
+  nombre_mostrar: string | null;
   roles: string[];
   locales: number[];
   en_curso: number;
@@ -38,7 +41,7 @@ type DriverRow = {
 /** Miembros del restaurante que pueden repartir (tienen orders.deliver_assigned). */
 async function loadDrivers(sql: Sql, restauranteId: number): Promise<DriverRow[]> {
   return sql<DriverRow[]>`
-    SELECT m.id::int AS membership_id, m.email,
+    SELECT m.id::int AS membership_id, m.email, COALESCE(m.apodo, m.nombre) AS nombre_mostrar,
            array_agg(DISTINCT r.nombre ORDER BY r.nombre) AS roles,
            COALESCE((SELECT array_agg(ms.sucursal_id::int) FROM public.membresia_sucursal ms
                      WHERE ms.membership_id = m.id), '{}') AS locales,
@@ -53,7 +56,7 @@ async function loadDrivers(sql: Sql, restauranteId: number): Promise<DriverRow[]
                    JOIN   public.rol_permiso rp ON rp.rol_id = mr2.rol_id
                    WHERE  mr2.membership_id = m.id AND rp.permiso_code = ${PERMISSION.OrdersDeliverAssigned})
     GROUP  BY m.id
-    ORDER  BY m.email NULLS LAST
+    ORDER  BY COALESCE(m.apodo, m.nombre, m.email) NULLS LAST
   `;
 }
 
@@ -98,9 +101,12 @@ export function registerDriverRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       (driver) =>
         driver.locales.length === 0 || driver.locales.some((id) => canAccessBranch(access, id)),
     );
+    // El email solo lo ve quien puede ver el equipo.
+    const emails = canSeeMemberEmails(access);
     return c.json({
       repartidores: visible.map((driver) => ({
         ...driver,
+        email: emails ? driver.email : null,
         locales: driver.locales.length === 0 ? "todos" : driver.locales,
       })),
     });
@@ -153,8 +159,18 @@ export function registerDriverRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         SET    membership_id = EXCLUDED.membership_id, repartidor_email = EXCLUDED.repartidor_email,
                asignado_por = EXCLUDED.asignado_por, asignado_at = now(), salida_at = NULL
       `;
-      await record(c, "delivery.assign", orderId, { repartidor: target, email: driver.email });
-      return c.json({ id: orderId, repartidor: { membership_id: target, email: driver.email } });
+      await record(c, "delivery.assign", orderId, {
+        repartidor: target,
+        nombre: driver.nombre_mostrar,
+      });
+      return c.json({
+        id: orderId,
+        repartidor: {
+          membership_id: target,
+          nombre_mostrar: driver.nombre_mostrar,
+          email: canSeeMemberEmails(c.get("access")) ? driver.email : null,
+        },
+      });
     },
   );
 

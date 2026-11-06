@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import type { ProfileSaved } from "@/lib/panel/api";
 import type { PanelAccess } from "@/lib/panel/types";
 import { EasyOrderLockup } from "./Brand";
 import { Icon, type IconName } from "./Icon";
 import { rememberRestaurant } from "./LoginScreen";
 import { usePanel } from "./PanelProvider";
+import { ProfileDialog } from "./ProfileDialog";
+import "./profile-dialog.css";
 
 export const PERMISSION = {
   OrdersView: "orders.view",
@@ -37,6 +40,8 @@ type AccessValue = {
   readonly slug: string;
   readonly access: PanelAccess;
   readonly can: (permission: string) => boolean;
+  /** Actualiza el nombre y apodo propios que enseña la cabecera (tras guardarlos). */
+  readonly updateProfile: (saved: ProfileSaved) => void;
 };
 
 const AccessContext = createContext<AccessValue | null>(null);
@@ -76,6 +81,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   // Con acceso a varios restaurantes se ofrece cambiar de uno a otro.
   const [manyRestaurants, setManyRestaurants] = useState(false);
+  const [naming, setNaming] = useState(false);
 
   useEffect(() => {
     if (!session) return;
@@ -150,6 +156,19 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
   }
 
   const access = state.access;
+  const updateProfile = (saved: ProfileSaved) =>
+    setState({
+      kind: "ready",
+      access: {
+        ...access,
+        usuario: {
+          ...access.usuario,
+          nombre: saved.nombre,
+          apodo: saved.apodo,
+          mostrar: saved.mostrar,
+        },
+      },
+    });
   const permissions = new Set(access.permisos);
   const can = (permission: string) => permissions.has(permission);
   const base = `/panel/${slug}`;
@@ -204,7 +223,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
   );
 
   return (
-    <AccessContext.Provider value={{ slug, access, can }}>
+    <AccessContext.Provider value={{ slug, access, can, updateProfile }}>
       <div className="k-app">
         <a className="k-skip" href="#contenido">
           Saltar al contenido
@@ -258,9 +277,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
               <span>Ver carta online</span>
             </a>
             <div className="k-user">
-              <span className="k-small k-muted k-ellipsis" title={access.usuario.email ?? ""}>
-                {access.usuario.email}
-              </span>
+              <UserLine access={access} onEditName={() => setNaming(true)} />
               <button
                 type="button"
                 className="k-link k-small"
@@ -330,6 +347,17 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
               <button
                 type="button"
                 className="k-nav-item"
+                onClick={(event) => {
+                  event.currentTarget.closest("details")?.removeAttribute("open");
+                  setNaming(true);
+                }}
+              >
+                <Icon name="user" />
+                <span>{access.usuario.mostrar ? "Mi nombre y apodo" : "Añade tu nombre"}</span>
+              </button>
+              <button
+                type="button"
+                className="k-nav-item"
                 onClick={async () => {
                   await supabase?.auth.signOut();
                   router.replace("/panel");
@@ -341,7 +369,47 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
             </div>
           </details>
         </nav>
+        {naming ? (
+          <ProfileDialog
+            title={access.usuario.mostrar ? "Tu nombre y apodo" : "Añade tu nombre"}
+            intro="Así te verá el equipo en el panel, en lugar de tu email."
+            initial={access.usuario}
+            onSave={(name) => api.saveProfile(slug, name)}
+            onSaved={(saved) => {
+              updateProfile(saved);
+              setNaming(false);
+            }}
+            onClose={() => setNaming(false)}
+          />
+        ) : null}
       </div>
     </AccessContext.Provider>
+  );
+}
+
+/**
+ * Quién está en el panel: «apodo o nombre · rol». Los miembros antiguos, sin nombre, ven su email
+ * y el aviso «Añade tu nombre».
+ */
+function UserLine(props: { readonly access: PanelAccess; readonly onEditName: () => void }) {
+  const { usuario, roles } = props.access;
+  const role = roles.map((item) => item.nombre).join(", ");
+  return (
+    <div className="k-user-who">
+      {usuario.mostrar ? (
+        <span className="k-small k-ellipsis" title={usuario.mostrar}>
+          <span className="k-user-name">{usuario.mostrar}</span>
+          {role ? <span className="k-muted"> · {role}</span> : null}
+        </span>
+      ) : (
+        <span className="k-small k-muted k-ellipsis" title={usuario.email ?? ""}>
+          {usuario.email}
+          {role ? ` · ${role}` : ""}
+        </span>
+      )}
+      <button type="button" className="k-link k-small k-user-add" onClick={props.onEditName}>
+        {usuario.mostrar ? "Mi nombre y apodo" : "Añade tu nombre"}
+      </button>
+    </div>
   );
 }

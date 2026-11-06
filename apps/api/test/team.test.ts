@@ -148,7 +148,9 @@ describe.skipIf(!TEST_DATABASE_URL)("equipo del restaurante", () => {
         rol: "Personal",
         todos_los_locales: false,
       });
-      const accepted = await call("newcomer", "POST", `/me/invitaciones/${token}/aceptar`);
+      const accepted = await call("newcomer", "POST", `/me/invitaciones/${token}/aceptar`, {
+        nombre: "Nuria Nueva",
+      });
       expect(accepted).toMatchObject({ status: 200, body: { slug: "prueba-c" } });
 
       const access = await call("newcomer", "GET", "/panel/prueba-c/acceso");

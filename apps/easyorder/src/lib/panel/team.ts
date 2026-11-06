@@ -12,6 +12,10 @@ export type TeamRole = {
 export type TeamMember = {
   readonly id: number;
   readonly email: string | null;
+  readonly nombre: string | null;
+  readonly apodo: string | null;
+  /** Apodo o nombre; null si aún no lo ha puesto. */
+  readonly mostrar: string | null;
   readonly created_at: string;
   readonly roles: readonly {
     readonly id: number;
@@ -46,6 +50,36 @@ export type InvitePreview = {
   readonly todos_los_locales: boolean;
   readonly tu_email: string | null;
 };
+
+/** Nombre y apodo de una persona del equipo (los mismos límites que la API). */
+export const MEMBER_NAME_MAX = 80;
+
+export type MemberName = { readonly nombre: string; readonly apodo: string | null };
+
+/**
+ * Cómo llamar a una persona del equipo: apodo o nombre y, solo si no los ha puesto, su email
+ * (que únicamente llega a quien ve el equipo) o, si tampoco, el texto de reserva.
+ */
+export function personLabel(
+  person: { readonly name?: string | null; readonly email?: string | null },
+  fallback: string,
+): string {
+  return person.name?.trim() || person.email?.trim() || fallback;
+}
+
+/** Valida el formulario de nombre y apodo; devuelve el error o los valores limpios. */
+export function parseMemberName(
+  nombre: string,
+  apodo: string,
+): { readonly error: string } | { readonly value: MemberName } {
+  const cleanName = nombre.trim();
+  const cleanNick = apodo.trim();
+  if (!cleanName) return { error: "Escribe tu nombre." };
+  if (cleanName.length > MEMBER_NAME_MAX || cleanNick.length > MEMBER_NAME_MAX) {
+    return { error: `Nombre y apodo admiten hasta ${MEMBER_NAME_MAX} caracteres.` };
+  }
+  return { value: { nombre: cleanName, apodo: cleanNick || null } };
+}
 
 /** Qué puede hacer cada plantilla de rol (para elegir sin leer la lista de permisos). */
 export const ROLE_SUMMARY: Readonly<Record<string, string>> = {
@@ -127,6 +161,7 @@ export function branchesLabel(
 }
 
 const TEAM_ERROR: Readonly<Record<string, string>> = {
+  name_required: "Escribe el nombre.",
   already_member: "Esa persona ya forma parte del equipo.",
   role_above_yours: "No puedes asignar un rol con más permisos que el tuyo.",
   branch_out_of_scope: "No puedes asignar locales que tú no gestionas.",

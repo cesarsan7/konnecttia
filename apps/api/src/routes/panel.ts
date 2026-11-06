@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
+import { canSeeMemberEmails, displayName } from "../lib/member-name";
 import { requireMember, requirePermission } from "../middleware/auth";
 import { resolveRestaurant } from "../middleware/tenant";
 import { audit } from "../repositories/access";
@@ -108,12 +109,14 @@ export function panelRoutes(deps: AppDeps) {
              p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre,
              mw.nombre AS mesero_nombre,
              pr.membership_id::int AS repartidor_id, pr.repartidor_email,
+             COALESCE(dm.apodo, dm.nombre) AS repartidor_nombre,
              pr.salida_at, pr.entregado_at
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
       LEFT   JOIN public.mesa me    ON me.id = p.mesa_id
       LEFT   JOIN public.meseros mw ON mw.id = p.mesero_id AND mw.restaurante_id = p.restaurante_id
       LEFT   JOIN public.pedido_reparto pr ON pr.pedido_id = p.id
+      LEFT   JOIN public.local_memberships dm ON dm.id = pr.membership_id
       WHERE  p.restaurante_id = ${restaurant.id}
         AND  (${estado ?? null}::text IS NULL OR p.estado = ${estado ?? null})
         AND  p.estado <> ${ORDER_STATUS.InCart}
@@ -128,7 +131,10 @@ export function panelRoutes(deps: AppDeps) {
       ORDER  BY p.created_at DESC
       LIMIT  ${PAGE_SIZE}
     `;
-    return c.json({ pedidos: rows, ahora: now.toISOString() });
+    // El email del repartidor solo lo ven quienes pueden ver el equipo; el resto ve su nombre.
+    const emails = canSeeMemberEmails(c.get("access"));
+    const pedidos = rows.map((row) => (emails ? row : { ...row, repartidor_email: null }));
+    return c.json({ pedidos, ahora: now.toISOString() });
   });
 
   app.patch(
@@ -490,10 +496,20 @@ export function panelRoutes(deps: AppDeps) {
       WHERE  m.user_id = ${user.userId}::uuid AND m.restaurante_id = ${restaurant.id}
       ORDER  BY r.id
     `;
+    const [profile] = await deps.sql<{ nombre: string | null; apodo: string | null }[]>`
+      SELECT nombre, apodo FROM public.local_memberships
+      WHERE  user_id = ${user.userId}::uuid AND restaurante_id = ${restaurant.id}
+    `;
     const config = await loadConfig(deps.sql, restaurant.id);
     return c.json({
       ajustes: { modo_ocupado: busyModeSettings(config) },
-      usuario: { email: user.email },
+      // El email es el de la propia persona; `mostrar` (apodo o nombre) es lo que enseña el panel.
+      usuario: {
+        email: user.email,
+        nombre: profile?.nombre ?? null,
+        apodo: profile?.apodo ?? null,
+        mostrar: displayName(profile?.apodo ?? null, profile?.nombre ?? null),
+      },
       restaurante: {
         nombre: restaurant.nombre,
         slug: restaurant.slug,
