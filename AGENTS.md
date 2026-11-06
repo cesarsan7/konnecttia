@@ -92,3 +92,16 @@ Para que fusionar un PR no deje en conflicto a los demás:
   común (variables, estructura, botones, formularios); no se añaden secciones nuevas al final.
 - Antes de abrir un PR, `git merge main` si `main` avanzó, y comprobar que no quedan marcas de
   conflicto (`<<<<<<<`) ni errores de Biome.
+
+## Documentación (bajo demanda)
+
+Cuando el promotor pida «actualiza la documentación» (normalmente al final del día):
+
+1. Revisar lo fusionado desde la última actualización (`git log` de `main`, PR fusionados) y lo
+   que cambió de estado.
+2. `docs/plan-panel-easyorder.md`: marcar lo hecho, añadir lo nuevo y lo pendiente.
+3. Documentos comerciales (`docs/comercial/`, ver su `README.md`): se editan en Claude Docs y el
+   repositorio guarda la copia. Primero leer el documento vivo (lo que la comercial o el promotor
+   cambiaron gana), luego actualizar el inventario de funcionalidades y su estado («Disponible»
+   solo si está fusionado y probado en staging), y exportar la copia en Markdown a `docs/comercial/`.
+4. Todo en una rama `docs/...` con su PR. No se inventan funcionalidades ni fechas.

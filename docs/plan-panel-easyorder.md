@@ -199,6 +199,124 @@ Estado (4/11): A y B en el PR #37, C en #38 (0014), D en #39 (0015), E en #40 (0
   Con cobro pendiente (transferencia, Bizum) el repartidor no puede entregar.
 - Pendiente: filtro por repartidor y por mesero en la tabla de pedidos y en estadísticas.
 
+## Requerimientos del promotor (6/11), aterrizados
+
+A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) → O + P → Q + R → L → K
+(con el panel interno) → G → M, N, S, T.
+
+### G · Alta autoservicio con prueba (Fase 3)
+
+- Landing «Prueba gratis» → registro en Supabase con email verificado → asistente: nombre, slug,
+  local, dirección, teléfono, horario, cobro, recogida/reparto.
+- Crea restaurante, local principal, membresía de dueño y plan `prueba`.
+- Límite de la prueba por días **o** por número de pedidos, en configuración global (tabla
+  nueva de configuración de plataforma; nada escrito a mano).
+- Al vencer: la carta pública deja de aceptar pedidos, el panel muestra «Activa tu plan», los
+  datos se conservan.
+- Antiabuso: email verificado, límite por IP, slugs reservados, captcha (Turnstile), aprobación
+  manual opcional.
+- Panel interno: ver, ampliar y convertir pruebas. Checklist de configuración al primer acceso
+  (el mismo de `docs/comercial/checklist-alta-restaurante.md`).
+
+### H · Nombre y apodo en el equipo (MVP)
+
+- `local_memberships`: `nombre` (obligatorio al aceptar la invitación o al editar) y `apodo`
+  (opcional).
+- En la cabecera, el tablero, el historial, los repartos y la comanda se muestra
+  «apodo o nombre · rol», nunca el email. El email solo lo ve quien gestiona el equipo.
+
+### I · Mesero en la comanda (MVP)
+
+- Si el pedido tiene mesero, la comanda imprime «Atiende: <apodo o nombre>».
+
+### J · Aviso en el seguimiento web (MVP)
+
+- Tras pedir: «No cierres esta página para ver el estado de tu pedido», con botón para copiar el
+  enlace de seguimiento (si la cierra, puede volver con él).
+
+### K · Métodos de pago permitidos por Konnecttia (Fase 3, panel interno)
+
+- Hoy cada restaurante elige sus métodos en Ajustes y la carta solo muestra esos.
+- Nuevo: Konnecttia fija qué métodos puede activar cada restaurante (p. ej. La Isla: efectivo y
+  tarjeta); Ajustes solo ofrece esos. Tabla de métodos permitidos por restaurante; hasta que
+  exista el panel interno, se carga por SQL.
+
+### L · Validar cobros de Bizum y transferencia (post-MVP)
+
+- Hoy: el pedido queda «pendiente de pago» y el local lo confirma a mano en el tablero; no se
+  puede entregar sin confirmar. Probado con tests automáticos, no con un cobro bancario real.
+- Paso 1: el concepto del pago es el código del pedido (se muestra al cliente) para cuadrarlo
+  con el banco, y el cliente puede subir el justificante (captura) que el local ve en el pedido.
+- Paso 2 (con «Cobro online»): Bizum y tarjeta por pasarela (TPV del banco con Bizum, o
+  similar), que confirma el pago sola. Leer movimientos del banco por API (PSD2) es posible pero
+  caro de mantener; no se recomienda para el MVP.
+
+### M · Reparto con plataforma externa (post-MVP, investigar)
+
+- Modelo «reparto bajo demanda»: al marcar «listo», EasyOrder pide un repartidor a la plataforma
+  (recogida, entrega, importe), recibe por webhook su estado y lo refleja en el pedido.
+- Pendiente de validar: qué proveedores dan servicio en Canarias, precio por envío, contrato y
+  API. Se modela como un proveedor de reparto por local, con `pedido_reparto` como hoy.
+- Alternativa sin integración: repartidor externo con enlace de un solo pedido (sin cuenta).
+
+### N · Prueba de entrega (post-MVP)
+
+- Al marcar «entregado», el repartidor puede (o debe, según ajuste del local) subir una foto.
+  Se guarda en almacenamiento privado y se enlaza en `pedido_reparto`; la ve el local.
+
+### O · Cancelación por el cliente (MVP)
+
+- Como en las plataformas: el cliente cancela solo mientras el local no ha aceptado el pedido;
+  después, «Contactar con el local» (decide el local).
+- Web: botón «Cancelar pedido» en el seguimiento. WhatsApp: el subflujo Pedidos Cliente aplica
+  la misma regla y, si ya está aceptado, deriva a humano.
+- Mismo cambio de estado que el tablero (`changeOrderStatus`, origen `cliente`) y aviso en el
+  tablero.
+
+### P · Incidencias del cliente (MVP)
+
+- En el seguimiento: «¿Algún problema con tu pedido?» → tipo (falta algo, llegó mal, retraso,
+  otro), texto y foto opcional. Tabla nueva de incidencias por pedido; aviso y listado en el
+  panel, con estado (abierta, resuelta).
+- WhatsApp: un reclamo sigue derivándose a humano (regla 12) y además queda como incidencia.
+
+### Q · Pedidos fraudulentos (MVP por capas, código por SMS post-MVP)
+
+- Un código por SMS en cada pedido cuesta dinero por pedido y frena a los clientes buenos. Se
+  propone por capas:
+  1. Límite de pedidos por teléfono e IP, captcha invisible (Turnstile) en la web y lista de
+     bloqueados por restaurante (bloquear un teléfono desde la ficha del cliente).
+  2. Los pedidos por WhatsApp ya vienen del propio número: no necesitan código.
+  3. Código de verificación solo cuando hay riesgo: teléfono nuevo, reparto con pago en efectivo
+     o importe alto. Se envía por WhatsApp (plantilla de autenticación) o SMS; el proveedor y su
+     coste están por decidir.
+- Los clientes que ya pidieron y recibieron su pedido no vuelven a pasar por el código.
+
+### R · Tratamiento de datos (MVP, revisar con un abogado)
+
+- Casilla obligatoria con enlace a la política de privacidad al pedir; se guarda la fecha y la
+  versión aceptada. Casilla aparte, sin marcar, para recibir promociones.
+- Contrato de encargado del tratamiento entre Konnecttia y cada restaurante.
+- En el panel: exportar y borrar los datos de un cliente que lo pida.
+
+### S · Seguridad del sitio (auditoría)
+
+- Revisión con informe: cabeceras (CSP, HSTS), límites de peticiones, ajustes de Supabase Auth,
+  dependencias, copias de seguridad de Postgres, secretos y proxy de EasyPanel. Después, los
+  arreglos en PR propios.
+
+### T · Coste de un cliente nuevo (documento)
+
+- Estimación del coste para Konnecttia por restaurante: fijo (VPS, servicios) repartido, variable
+  (emails, WhatsApp, IA del agente, SMS) y horas de alta. Necesita los importes reales de los
+  servicios contratados.
+
+## Documentación comercial
+
+- `docs/comercial/guia-comercial.md` y `docs/comercial/checklist-alta-restaurante.md` son la copia
+  en el repositorio de los documentos que usa la comercial (se editan en Claude Docs).
+- Se actualizan cuando el promotor lo pide («actualiza la documentación»); ver `AGENTS.md`.
+
 ## n8n (staging) pendiente
 
 - Director: sacar el restaurante de la bandeja de Chatwoot por la que entra el mensaje, en lugar
