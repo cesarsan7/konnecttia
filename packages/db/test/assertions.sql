@@ -163,3 +163,76 @@ BEGIN
   UPDATE public.local_memberships SET nombre = 'Ana', apodo = NULL WHERE restaurante_id = 9001;
   UPDATE public.local_memberships SET nombre = NULL WHERE restaurante_id = 9001;
 END $$;
+
+-- Alta con prueba: el plan «prueba» trae los módulos de premium, la configuración de plataforma
+-- nace apagada y fn_restaurante_acepta_pedidos aplica estado, fecha y pedidos reales.
+DO $$
+DECLARE
+  v_ahora timestamptz := '2026-11-03 12:00:00+00';
+  v_base  integer;
+BEGIN
+  -- Pedidos reales que ya tiene el restaurante de las fixtures.
+  SELECT count(*) INTO v_base FROM public.pedidos
+  WHERE restaurante_id = 9001 AND estado NOT IN ('en_curso', 'expirado', 'cancelado');
+  IF (SELECT count(*) FROM public.plan_modulo WHERE plan_code = 'prueba')
+     <> (SELECT count(*) FROM public.plan_modulo WHERE plan_code = 'premium') THEN
+    RAISE EXCEPTION 'FALLO: el plan prueba no tiene los módulos de premium';
+  END IF;
+  IF (SELECT valor FROM public.plataforma_config WHERE clave = 'alta_autoservicio_activa') IS DISTINCT FROM to_jsonb(false) THEN
+    RAISE EXCEPTION 'FALLO: el alta autoservicio no nace apagada';
+  END IF;
+  IF (SELECT count(*) FROM public.plataforma_config) <> 5 THEN
+    RAISE EXCEPTION 'FALLO: plataforma_config debe sembrar solo 5 claves';
+  END IF;
+
+  -- Sin prueba: acepta pedidos.
+  IF NOT public.fn_restaurante_acepta_pedidos(9001, v_ahora) THEN
+    RAISE EXCEPTION 'FALLO: un restaurante sin prueba debe aceptar pedidos';
+  END IF;
+
+  INSERT INTO public.restaurante_prueba (restaurante_id, user_id, estado, inicio, fin, max_pedidos)
+  VALUES (9001, gen_random_uuid(), 'activa', v_ahora - interval '1 day', v_ahora + interval '1 day', v_base + 2);
+  IF NOT public.fn_restaurante_acepta_pedidos(9001, v_ahora) THEN
+    RAISE EXCEPTION 'FALLO: prueba activa vigente debe aceptar pedidos';
+  END IF;
+  IF public.fn_restaurante_acepta_pedidos(9001, v_ahora + interval '2 days') THEN
+    RAISE EXCEPTION 'FALLO: prueba vencida por fecha debe rechazar pedidos';
+  END IF;
+
+  -- Carritos, expirados y cancelados no cuentan; dos pedidos reales agotan el máximo.
+  INSERT INTO public.pedidos (restaurante_id, telefono, estado) VALUES
+    (9001, '+34600000000', 'en_curso'), (9001, '+34600000000', 'expirado'),
+    (9001, '+34600000000', 'cancelado'), (9001, '+34600000000', 'entregado');
+  IF NOT public.fn_restaurante_acepta_pedidos(9001, v_ahora) THEN
+    RAISE EXCEPTION 'FALLO: solo un pedido real, aún debe aceptar';
+  END IF;
+  INSERT INTO public.pedidos (restaurante_id, telefono, estado) VALUES (9001, '+34600000000', 'recibido');
+  IF public.fn_restaurante_acepta_pedidos(9001, v_ahora) THEN
+    RAISE EXCEPTION 'FALLO: prueba sin pedidos restantes debe rechazar';
+  END IF;
+
+  UPDATE public.restaurante_prueba SET estado = 'convertida' WHERE restaurante_id = 9001;
+  IF NOT public.fn_restaurante_acepta_pedidos(9001, v_ahora + interval '30 days') THEN
+    RAISE EXCEPTION 'FALLO: prueba convertida debe aceptar pedidos';
+  END IF;
+  UPDATE public.restaurante_prueba SET estado = 'pendiente' WHERE restaurante_id = 9001;
+  IF public.fn_restaurante_acepta_pedidos(9001) THEN
+    RAISE EXCEPTION 'FALLO: prueba pendiente debe rechazar pedidos';
+  END IF;
+  UPDATE public.restaurante_prueba SET estado = 'rechazada' WHERE restaurante_id = 9001;
+  IF public.fn_restaurante_acepta_pedidos(9001) THEN
+    RAISE EXCEPTION 'FALLO: prueba rechazada debe rechazar pedidos';
+  END IF;
+
+  -- Un usuario, una prueba.
+  BEGIN
+    INSERT INTO public.restaurante_prueba (restaurante_id, user_id, estado)
+    SELECT 9002, user_id, 'activa' FROM public.restaurante_prueba WHERE restaurante_id = 9001;
+    RAISE EXCEPTION 'FALLO: un usuario con dos pruebas';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+
+  -- Se deja la base como estaba para los bloques siguientes.
+  DELETE FROM public.restaurante_prueba WHERE restaurante_id = 9001;
+  DELETE FROM public.pedidos WHERE restaurante_id = 9001 AND telefono = '+34600000000';
+END $$;

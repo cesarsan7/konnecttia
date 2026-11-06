@@ -30,6 +30,34 @@ export const USERS = {
     userId: "00000000-0000-0000-0000-0000000000e3",
     email: "baja@konnecttia.test",
   },
+  /** Alta autoservicio: personas con el email confirmado en Supabase (`emailVerified`). */
+  altaUno: {
+    userId: "00000000-0000-0000-0000-0000000000f1",
+    email: "alta1@test.local",
+    emailVerified: true,
+  },
+  altaDos: {
+    userId: "00000000-0000-0000-0000-0000000000f2",
+    email: "alta2@test.local",
+    emailVerified: true,
+  },
+  altaTres: {
+    userId: "00000000-0000-0000-0000-0000000000f3",
+    email: "alta3@test.local",
+    emailVerified: true,
+  },
+  altaCuatro: {
+    userId: "00000000-0000-0000-0000-0000000000f4",
+    email: "alta4@test.local",
+    emailVerified: true,
+  },
+  /** Email sin confirmar, o sin dato: el alta falla cerrado. */
+  altaSinVerificar: {
+    userId: "00000000-0000-0000-0000-0000000000f5",
+    email: "sin-verificar@test.local",
+    emailVerified: false,
+  },
+  altaSinDato: { userId: "00000000-0000-0000-0000-0000000000f6", email: "sin-dato@test.local" },
   managerPlaya: {
     userId: "00000000-0000-0000-0000-0000000000c3",
     email: "encargado-c@test.local",

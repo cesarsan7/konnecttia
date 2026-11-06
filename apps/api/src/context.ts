@@ -3,7 +3,15 @@ import type { PlatformRole } from "@konnecttia/domain";
 import type { Sql } from "./lib/db";
 import type { Restaurant } from "./repositories/restaurants";
 
-export type AuthenticatedUser = { readonly userId: string; readonly email: string | null };
+export type AuthenticatedUser = {
+  readonly userId: string;
+  readonly email: string | null;
+  /**
+   * Si el email está confirmado en Supabase Auth. Sin indicar se trata como NO verificado: el
+   * alta autoservicio lo exige y falla cerrado.
+   */
+  readonly emailVerified?: boolean;
+};
 
 /** Persona del equipo de Konnecttia que usa el panel interno (`plataforma_miembro`). */
 export type PlatformUser = {

@@ -30,6 +30,7 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "admin",
   "ajustes",
+  "alta",
   "api",
   "app",
   "assets",

@@ -1,5 +1,5 @@
 import { authorize, branchFilter, canAccessBranch, PERMISSION } from "@konnecttia/access";
-import { isOrderStatus, ORDER_STATUS, PAYMENT_STATUS } from "@konnecttia/domain";
+import { isOrderStatus, ORDER_STATUS, PAYMENT_STATUS, TRIAL_STATE } from "@konnecttia/domain";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -12,10 +12,12 @@ import { changeOrderStatus } from "../repositories/order-status";
 import { OUTBOX_EVENT } from "../repositories/orders";
 import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
+import { loadPlatformConfig, loadTrial } from "../repositories/trial";
 import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerDriverRoutes } from "./panel-drivers";
 import { registerMenuRoutes } from "./panel-menu";
+import { registerOnboardingRoutes } from "./panel-onboarding";
 import { registerManualOrderRoutes } from "./panel-orders";
 import { registerOrderListRoutes } from "./panel-orders-list";
 import { registerProofRoutes } from "./panel-proofs";
@@ -77,6 +79,7 @@ export function panelRoutes(deps: AppDeps) {
   registerTeamRoutes(app, deps);
   registerRoleRoutes(app, deps);
   registerManualOrderRoutes(app, deps);
+  registerOnboardingRoutes(app, deps);
   registerOrderListRoutes(app, deps);
   registerProofRoutes(app, deps);
   registerCustomerRoutes(app, deps);
@@ -505,7 +508,20 @@ export function panelRoutes(deps: AppDeps) {
       WHERE  user_id = ${user.userId}::uuid AND restaurante_id = ${restaurant.id}
     `;
     const config = await loadConfig(deps.sql, restaurant.id);
+    // Prueba gratuita: el banner del panel. Convertida o sin prueba (los de siempre): null.
+    const trial = await loadTrial(deps.sql, restaurant.id, deps.now());
+    const prueba =
+      trial && trial.estado !== TRIAL_STATE.Converted
+        ? {
+            estado: trial.estado,
+            dias_restantes: trial.diasRestantes,
+            pedidos_restantes: trial.pedidosRestantes,
+            acepta_pedidos: trial.aceptaPedidos,
+            contacto: (await loadPlatformConfig(deps.sql)).contactEmail,
+          }
+        : null;
     return c.json({
+      prueba,
       ajustes: { modo_ocupado: busyModeSettings(config) },
       // El email es el de la propia persona; `mostrar` (apodo o nombre) es lo que enseña el panel.
       usuario: {

@@ -1,7 +1,6 @@
 import { MODULE_KIND, ROLE_TEMPLATE } from "@konnecttia/access";
 import {
   checkRestaurantSlug,
-  DEFERRED_PAYMENT_METHODS,
   isValidTimeZone,
   ORDER_STATUS,
   PAYMENT_METHODS,
@@ -19,11 +18,16 @@ import { audit } from "../repositories/access";
 import {
   applyPlan,
   changeModule,
+  createRestaurant,
+  knownTimeZone,
   MANUAL_ORIGINS,
   MODULE_STATE,
   planExists,
+  SlugTaken,
 } from "../repositories/platform";
+import { TRIAL_PLAN } from "../repositories/trial";
 import { legacyRole } from "./panel-team";
+import { registerPlatformTrialRoutes } from "./plataforma-pruebas";
 
 /**
  * Panel interno de Konnecttia (ADR 0009, pieza 8 y K). Toda ruta exige pertenecer al equipo de
@@ -161,7 +165,7 @@ export function plataformaRoutes(deps: AppDeps) {
       LIMIT  ${LIST_LIMIT}
     `;
     const planes = await sql<{ code: string; nombre: string }[]>`
-      SELECT code, nombre FROM public.plan ORDER BY code
+      SELECT code, nombre FROM public.plan WHERE code <> ${TRIAL_PLAN} ORDER BY code
     `;
     return c.json({ restaurantes: rows, planes });
   });
@@ -188,7 +192,9 @@ export function plataformaRoutes(deps: AppDeps) {
                created_at AT TIME ZONE 'UTC' AS creado, payment_methods, metodos_pago_permitidos
         FROM   public.restaurante WHERE id = ${id}
       `,
-      sql<{ code: string; nombre: string }[]>`SELECT code, nombre FROM public.plan ORDER BY code`,
+      sql<{ code: string; nombre: string }[]>`
+        SELECT code, nombre FROM public.plan WHERE code <> ${TRIAL_PLAN} ORDER BY code
+      `,
       sql<{ plan_code: string; nombre: string; desde: string }[]>`
         SELECT rp.plan_code, p.nombre, rp.desde
         FROM   public.restaurante_plan rp JOIN public.plan p ON p.code = rp.plan_code
@@ -309,11 +315,10 @@ export function plataformaRoutes(deps: AppDeps) {
     if (!isValidTimeZone(input.zona_horaria)) {
       return unprocessable(c, "invalid_time_zone", { field: "zona_horaria" });
     }
-    const [knownZone] = await sql`
-      SELECT 1 FROM pg_timezone_names WHERE name = ${input.zona_horaria}
-    `;
-    if (!knownZone) return unprocessable(c, "invalid_time_zone", { field: "zona_horaria" });
-    if (!(await planExists(sql, input.plan))) {
+    if (!(await knownTimeZone(sql, input.zona_horaria)))
+      return unprocessable(c, "invalid_time_zone", { field: "zona_horaria" });
+    // «prueba» solo la da el alta autoservicio, que crea sus límites; se sale de ella al convertir.
+    if (input.plan === TRIAL_PLAN || !(await planExists(sql, input.plan))) {
       return unprocessable(c, "unknown_plan", { field: "plan" });
     }
     const [ownerRole] = await sql<{ id: number; nombre: string }[]>`
@@ -329,30 +334,17 @@ export function plataformaRoutes(deps: AppDeps) {
     };
     try {
       created = await sql.begin(async (tx) => {
-        const taken = await tx`SELECT 1 FROM public.restaurante WHERE slug = ${input.slug}`;
-        if (taken.length > 0) throw new SlugTaken();
-        // Solo lo pedido: el resto de columnas queda con el valor por defecto de la tabla. Un
-        // trigger (0003) crea el local principal con estos datos. Cobro: solo los métodos que no
-        // necesitan datos (transferencia y Bizum piden IBAN o teléfono); el dueño añade los demás.
-        const [restaurant] = await tx<{ id: number }[]>`
-          INSERT INTO public.restaurante (nombre, slug, zona_horaria, direccion, telefono, payment_methods)
-          VALUES (${input.nombre}, ${input.slug}, ${input.zona_horaria},
-                  ${input.local.direccion || null}, ${input.local.telefono || null},
-                  ${tx.json(PAYMENT_METHODS.filter((method) => !DEFERRED_PAYMENT_METHODS.has(method)))})
-          RETURNING id
-        `;
-        if (!restaurant) throw new Error("No se pudo crear el restaurante");
-        const [branch] = await tx<{ id: number }[]>`
-          UPDATE public.sucursal SET nombre = ${input.local.nombre}
-          WHERE  restaurante_id = ${restaurant.id} AND es_principal
-          RETURNING id
-        `;
-        if (!branch) throw new Error("No se creó el local principal");
-        await applyPlan(tx, restaurant.id, input.plan, deps.now());
-        const modules = await tx<{ modulo_code: string }[]>`
-          SELECT modulo_code FROM public.restaurante_modulo
-          WHERE  restaurante_id = ${restaurant.id} ORDER BY modulo_code
-        `;
+        const restaurant = await createRestaurant(
+          tx,
+          {
+            nombre: input.nombre,
+            slug: input.slug,
+            zonaHoraria: input.zona_horaria,
+            plan: input.plan,
+            local: input.local,
+          },
+          deps.now(),
+        );
         const [invite] = await tx<{ id: number; token: string; expires_at: string }[]>`
           INSERT INTO public.restaurant_invites
             (restaurante_id, rol, rol_id, sucursal_ids, email, created_by, expires_at)
@@ -362,12 +354,7 @@ export function plataformaRoutes(deps: AppDeps) {
           RETURNING id, token::text AS token, expires_at AT TIME ZONE 'UTC' AS expires_at
         `;
         if (!invite) throw new Error("No se pudo crear la invitación");
-        return {
-          id: restaurant.id,
-          branchId: branch.id,
-          invite,
-          modules: modules.map((row) => row.modulo_code),
-        };
+        return { ...restaurant, invite };
       });
     } catch (error) {
       if (error instanceof SlugTaken || (error as { code?: string }).code === UNIQUE_VIOLATION) {
@@ -421,7 +408,7 @@ export function plataformaRoutes(deps: AppDeps) {
     if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
     const parsed = await body(c, planSchema);
     if (!parsed.success) return invalid(c, "plan");
-    if (!(await planExists(sql, parsed.data.plan))) {
+    if (parsed.data.plan === TRIAL_PLAN || !(await planExists(sql, parsed.data.plan))) {
       return unprocessable(c, "unknown_plan", { field: "plan" });
     }
     const result = await sql.begin(async (tx) => {
@@ -521,7 +508,7 @@ export function plataformaRoutes(deps: AppDeps) {
     });
   });
 
+  registerPlatformTrialRoutes(app, deps);
+
   return app;
 }
-
-class SlugTaken extends Error {}
