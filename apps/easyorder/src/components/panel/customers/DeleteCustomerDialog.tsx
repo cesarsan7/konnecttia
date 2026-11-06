@@ -43,7 +43,8 @@ export function DeleteCustomerDialog({
           direcciones y notas, tanto del perfil como de sus pedidos.
         </p>
         <p className="delete-customer-keep k-small">
-          Los pedidos se conservan con su importe y su fecha, pero sin identificar a la persona.
+          Los pedidos se conservan con su importe y su fecha, pero sin identificar a la persona. Si
+          el cliente está bloqueado, el bloqueo de su teléfono se mantiene (sin el motivo).
         </p>
         <p className="delete-customer-warning" role="alert">
           No se puede deshacer.

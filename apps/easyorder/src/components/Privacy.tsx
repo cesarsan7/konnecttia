@@ -78,7 +78,9 @@ export function Privacy({ info }: { readonly info: PrivacyInfo }) {
         <h2>Por qué podemos tratarlos</h2>
         <p>
           Para gestionar tu pedido, porque es necesario para atenderlo. Para las promociones, porque
-          tú das tu consentimiento al marcar la casilla.
+          tú das tu consentimiento al marcar la casilla. Para prevenir pedidos fraudulentos, por
+          interés legítimo del restaurante, puede conservarse el teléfono de quien ha sido bloqueado
+          por ese motivo, aunque se borren sus demás datos.
         </p>
       </section>
 
