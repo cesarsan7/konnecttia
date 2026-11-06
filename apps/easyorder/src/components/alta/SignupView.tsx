@@ -248,6 +248,11 @@ function AccountForm() {
       <button type="submit" className="k-btn k-btn-primary k-btn-block" disabled={busy}>
         {busy ? "Un momento…" : mode === "signup" ? "Crear cuenta y continuar" : "Entrar"}
       </button>
+      {mode === "signup" ? null : (
+        <a className="k-link" href="/panel?recuperar=1">
+          ¿Olvidaste tu contraseña?
+        </a>
+      )}
     </form>
   );
 }

@@ -52,6 +52,12 @@ export type Mailer = {
  */
 export type CaptchaVerifier = (token: string | undefined, ip: string | null) => Promise<boolean>;
 
+/**
+ * Genera el enlace de recuperación de contraseña de Supabase Auth (clave de servicio). Devuelve
+ * null si el email no tiene cuenta o no se pudo generar: quien llama no lo distingue.
+ */
+export type RecoveryLinkGenerator = (email: string, redirectTo: string) => Promise<string | null>;
+
 /** Dependencias inyectadas: permiten probar la API con una base real y una autenticación falsa. */
 export type AppDeps = {
   readonly sql: Sql;
@@ -67,6 +73,11 @@ export type AppDeps = {
   readonly mailer?: Mailer | null;
   /** URL pública del panel para los enlaces de los emails si la petición no trae Origin. */
   readonly panelUrl?: string | null;
+  /**
+   * null si no hay clave de servicio: el panel pide el email de recuperación directamente a
+   * Supabase (que necesita su propio SMTP).
+   */
+  readonly generateRecoveryLink?: RecoveryLinkGenerator | null;
   /** null si no hay TURNSTILE_SECRET_KEY: el pedido web no exige captcha. */
   readonly verifyCaptcha?: CaptchaVerifier | null;
 };

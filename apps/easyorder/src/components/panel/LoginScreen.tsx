@@ -38,9 +38,14 @@ export function authMessage(message: string): string {
 }
 
 export function LoginScreen() {
-  const { supabase, api, session, configured } = usePanel();
+  const { supabase, api, publicApi, session, configured } = usePanel();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
+
+  // `?recuperar=1` abre directamente «Recupera tu contraseña» (enlace desde /alta y /interno).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("recuperar")) setMode("recover");
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -92,6 +97,23 @@ export function LoginScreen() {
     if (!supabase) return;
     setBusy(true);
     setError(null);
+    // Primero la API (email de EasyOrder con Resend); si no puede, el de Supabase.
+    const sent = await publicApi.recoverPassword(email.trim());
+    if (sent.ok && sent.data.enviado_por === "easyorder") {
+      setBusy(false);
+      setMode("recover-sent");
+      return;
+    }
+    if (!sent.ok && sent.status === 429) {
+      setBusy(false);
+      setError("Demasiados intentos. Espera unos minutos y vuelve a probar.");
+      return;
+    }
+    if (!sent.ok && sent.status === 400) {
+      setBusy(false);
+      setError("Escribe un email válido.");
+      return;
+    }
     const { error: recoverError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/panel/restablecer`,
     });
