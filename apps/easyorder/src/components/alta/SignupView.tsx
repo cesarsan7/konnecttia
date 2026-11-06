@@ -249,7 +249,7 @@ function AccountForm() {
         {busy ? "Un momento…" : mode === "signup" ? "Crear cuenta y continuar" : "Entrar"}
       </button>
       {mode === "signup" ? null : (
-        <a className="k-link" href="/panel?recuperar=1">
+        <a className="k-link" href="/panel?recuperar=1&volver=alta">
           ¿Olvidaste tu contraseña?
         </a>
       )}

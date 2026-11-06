@@ -70,7 +70,7 @@ export function InternalLogin() {
             <button type="submit" className="k-btn k-btn-primary k-btn-block" disabled={busy}>
               {busy ? "Un momento…" : "Entrar"}
             </button>
-            <a className="k-link" href="/panel?recuperar=1">
+            <a className="k-link" href="/panel?recuperar=1&volver=interno">
               ¿Olvidaste tu contraseña?
             </a>
           </form>
