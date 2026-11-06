@@ -146,10 +146,11 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                p.total, p.metodo_pago, p.tiempo_estimado, p.notas,
                p.created_at AT TIME ZONE 'UTC' AS created_at,
                p.updated_at AT TIME ZONE 'UTC' AS updated_at,
-               p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre
+               p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre, mw.nombre AS mesero_nombre
         FROM   public.pedidos p
         LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
         LEFT   JOIN public.mesa me    ON me.id = p.mesa_id
+        LEFT   JOIN public.meseros mw ON mw.id = p.mesero_id AND mw.restaurante_id = p.restaurante_id
         WHERE  ${where}
         ORDER  BY ${sql.unsafe(ORDER_SORT[orden])} ${dir} NULLS LAST, p.id ${dir}
         LIMIT  ${ORDERS_PAGE_SIZE} OFFSET ${(pagina - 1) * ORDERS_PAGE_SIZE}
