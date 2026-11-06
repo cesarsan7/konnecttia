@@ -441,6 +441,11 @@ export function ManualOrder({
                 />
               </label>
             </div>
+            {previous?.bloqueado ? (
+              <p className="k-manual-blocked" role="status">
+                Cliente bloqueado: no puede pedir por la web. Puedes continuar con este pedido.
+              </p>
+            ) : null}
             {previous && previous.pedidos.length > 0 ? (
               <section className="k-previous" aria-label="Pedidos anteriores">
                 <h4 className="k-field-label">

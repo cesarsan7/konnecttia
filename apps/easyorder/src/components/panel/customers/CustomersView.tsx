@@ -5,6 +5,8 @@ import { ORDER_STATUS_LABEL, paymentLabel } from "@/lib/checkout";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
 import {
+  blockCustomerError,
+  blockLabel,
   CHANNEL_LABEL,
   CUSTOMER_SORT,
   type CustomerDetail,
@@ -19,7 +21,9 @@ import { Icon } from "../Icon";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { BlockCustomerDialog } from "./BlockCustomerDialog";
 import { DeleteCustomerDialog } from "./DeleteCustomerDialog";
+import "./block-customer.css";
 import "./delete-customer.css";
 
 type Load =
@@ -36,6 +40,7 @@ export function CustomersView() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<CustomerSort>("recientes");
   const [page, setPage] = useState(1);
+  const [onlyBlocked, setOnlyBlocked] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -57,13 +62,18 @@ export function CustomersView() {
   }, [query]);
 
   const load = useCallback(async () => {
-    const result = await api.customers(slug, { q: search, orden: sort, pagina: page });
+    const result = await api.customers(slug, {
+      q: search,
+      orden: sort,
+      pagina: page,
+      bloqueados: onlyBlocked,
+    });
     setState(
       result.ok
         ? { kind: "ready", list: result.data }
         : { kind: "error", message: describePanelError(result.status, result.body) },
     );
-  }, [api, slug, search, sort, page]);
+  }, [api, slug, search, sort, page, onlyBlocked]);
 
   useEffect(() => {
     if (allowed) void load();
@@ -147,6 +157,17 @@ export function CustomersView() {
             </button>
           ))}
         </fieldset>
+        <button
+          type="button"
+          className={`k-btn k-btn-secondary k-btn-sm block-customer-filter${onlyBlocked ? " is-on" : ""}`}
+          aria-pressed={onlyBlocked}
+          onClick={() => {
+            setOnlyBlocked(!onlyBlocked);
+            setPage(1);
+          }}
+        >
+          Solo bloqueados
+        </button>
       </div>
 
       {state.kind === "loading" ? (
@@ -163,11 +184,16 @@ export function CustomersView() {
         list.clientes.length === 0 ? (
           <div className="k-card k-empty-state">
             <h2 className="k-title">
-              {search ? "Nadie coincide con la búsqueda" : "Aún no hay clientes"}
+              {onlyBlocked
+                ? "No hay clientes bloqueados"
+                : search
+                  ? "Nadie coincide con la búsqueda"
+                  : "Aún no hay clientes"}
             </h2>
             <p className="k-muted">
-              Los clientes aparecen al hacer su primer pedido por la web, por WhatsApp o desde el
-              panel.
+              {onlyBlocked
+                ? "Puedes bloquear a un cliente desde su ficha si hace pedidos falsos."
+                : "Los clientes aparecen al hacer su primer pedido por la web, por WhatsApp o desde el panel."}
             </p>
           </div>
         ) : (
@@ -192,6 +218,9 @@ export function CustomersView() {
                       >
                         {customer.nombre ?? "Sin nombre"}
                       </button>
+                      {customer.bloqueado ? (
+                        <span className="k-chip block-customer-chip"> Bloqueado</span>
+                      ) : null}
                     </span>
                     <span className="k-item-meta k-small">
                       <a href={`tel:${customer.telefono}`}>{formatPhone(customer.telefono)}</a>
@@ -246,6 +275,7 @@ export function CustomersView() {
           id={openId}
           dateFormat={dateFormat}
           onClose={() => setOpenId(null)}
+          onChanged={() => void load()}
           onDeleted={() => {
             setOpenId(null);
             void load();
@@ -260,11 +290,14 @@ function CustomerDialog({
   id,
   dateFormat,
   onClose,
+  onChanged,
   onDeleted,
 }: {
   readonly id: number;
   readonly dateFormat: Intl.DateTimeFormat;
   readonly onClose: () => void;
+  /** Se bloqueó o desbloqueó al cliente: la lista debe refrescarse. */
+  readonly onChanged: () => void;
   readonly onDeleted: () => void;
 }) {
   const { api } = usePanel();
@@ -272,13 +305,29 @@ function CustomerDialog({
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [unblocking, setUnblocking] = useState(false);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
 
+  // `version` vuelve a pedir la ficha tras bloquear o desbloquear.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: version solo dispara la recarga
   useEffect(() => {
     void api.customer(slug, id).then((result) => {
       if (result.ok) setDetail(result.data);
       else setError(describePanelError(result.status, result.body));
     });
-  }, [api, slug, id]);
+  }, [api, slug, id, version]);
+
+  async function unblock() {
+    setUnblocking(true);
+    setBlockError(null);
+    const result = await api.unblockCustomer(slug, id);
+    setUnblocking(false);
+    if (!result.ok) return setBlockError(blockCustomerError(result.status, true));
+    setVersion((current) => current + 1);
+    onChanged();
+  }
 
   const name = detail?.cliente.nombre ?? "Cliente";
   return (
@@ -300,6 +349,26 @@ function CustomerDialog({
               WhatsApp
             </a>
           </p>
+          {detail.bloqueo ? (
+            <p className="block-customer-banner k-small" role="status">
+              <span>{blockLabel(detail.bloqueo, (date) => dateFormat.format(date))}</span>
+              {can(PERMISSION.CustomersBlock) ? (
+                <button
+                  type="button"
+                  className="k-btn k-btn-secondary k-btn-sm"
+                  disabled={unblocking}
+                  onClick={unblock}
+                >
+                  {unblocking ? "Desbloqueando…" : "Desbloquear"}
+                </button>
+              ) : null}
+            </p>
+          ) : null}
+          {blockError ? (
+            <p className="k-alert" role="alert">
+              {blockError}
+            </p>
+          ) : null}
           {detail.cliente.direccion_frecuente ? (
             <p className="k-small">
               <span className="k-muted">Dirección habitual: </span>
@@ -315,6 +384,15 @@ function CustomerDialog({
                 (date) => dateFormat.format(date),
               )}
             </span>
+            {can(PERMISSION.CustomersBlock) && !detail.bloqueo ? (
+              <button
+                type="button"
+                className="k-link k-link-danger"
+                onClick={() => setBlocking(true)}
+              >
+                Bloquear
+              </button>
+            ) : null}
             {can(PERMISSION.CustomersDelete) ? (
               <button
                 type="button"
@@ -386,6 +464,18 @@ function CustomerDialog({
             )}
           </section>
         </div>
+      ) : null}
+      {blocking ? (
+        <BlockCustomerDialog
+          customerId={id}
+          name={name}
+          onClose={() => setBlocking(false)}
+          onBlocked={() => {
+            setBlocking(false);
+            setVersion((current) => current + 1);
+            onChanged();
+          }}
+        />
       ) : null}
       {deleting ? (
         <DeleteCustomerDialog

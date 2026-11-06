@@ -1,0 +1,12 @@
+/* Contenedor del captcha Turnstile. En modo «interaction-only» está vacío salvo que
+   Cloudflare pida una comprobación; entonces el desafío cabe en el ancho del formulario. */
+.turnstile-slot {
+  display: flex;
+  justify-content: center;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.turnstile-slot:empty {
+  display: none;
+}

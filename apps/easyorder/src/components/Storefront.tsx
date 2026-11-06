@@ -12,6 +12,8 @@ import { ItemSheet } from "./ItemSheet";
 
 type Props = {
   readonly apiUrl: string;
+  /** Clave pública de Turnstile; null = el checkout no usa captcha. */
+  readonly captchaSiteKey: string | null;
   readonly slug: string;
   readonly initialMenu: Menu;
   readonly branches: readonly Branch[];
@@ -42,7 +44,14 @@ function fromPrice(item: MenuItem): number {
   return Math.min(...item.variants.map((variant) => variant.price));
 }
 
-export function Storefront({ apiUrl, slug, initialMenu, branches: initialBranches, zones }: Props) {
+export function Storefront({
+  apiUrl,
+  captchaSiteKey,
+  slug,
+  initialMenu,
+  branches: initialBranches,
+  zones,
+}: Props) {
   const api = useMemo(() => createApi(apiUrl), [apiUrl]);
   const router = useRouter();
   const [menu, setMenu] = useState(initialMenu);
@@ -122,6 +131,7 @@ export function Storefront({ apiUrl, slug, initialMenu, branches: initialBranche
         <Checkout
           api={api}
           slug={slug}
+          captchaSiteKey={captchaSiteKey}
           restaurant={restaurant}
           branches={branches}
           branchId={branchId}

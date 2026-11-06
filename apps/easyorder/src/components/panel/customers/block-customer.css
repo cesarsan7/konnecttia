@@ -1,0 +1,35 @@
+/* Bloquear clientes: diálogo, aviso en la ficha y marca en la lista. */
+.block-customer-note {
+  margin: 0;
+  color: var(--muted);
+}
+
+.block-customer-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-tint);
+  color: var(--danger);
+  min-width: 0;
+}
+
+.block-customer-banner > span {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.block-customer-chip {
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.block-customer-filter {
+  white-space: nowrap;
+}

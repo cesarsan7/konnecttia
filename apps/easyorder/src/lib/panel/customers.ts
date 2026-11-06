@@ -9,6 +9,8 @@ export type CustomerRow = {
   readonly pedidos: number;
   readonly gastado: number;
   readonly ultimo_pedido: string | null;
+  /** El teléfono está bloqueado: no puede pedir por la web. */
+  readonly bloqueado: boolean;
 };
 
 export type CustomerList = {
@@ -18,7 +20,15 @@ export type CustomerList = {
   readonly por_pagina: number;
 };
 
+/** Bloqueo del teléfono de un cliente (pieza Q, antifraude). `desde` es una fecha ISO. */
+export type CustomerBlock = {
+  readonly motivo: string | null;
+  readonly desde: string;
+};
+
 export type CustomerDetail = {
+  /** null si el cliente no está bloqueado. */
+  readonly bloqueo: CustomerBlock | null;
   readonly cliente: {
     readonly id: number;
     readonly nombre: string | null;
@@ -95,6 +105,24 @@ export function promotionsLabel(
   if (accepts === null) return "Sin preguntar";
   if (!accepts) return at ? `No acepta (desde ${format(new Date(at))})` : "No acepta";
   return at ? `Acepta (desde ${format(new Date(at))})` : "Acepta";
+}
+
+/** Tope del motivo al bloquear (igual que en la API y en la tabla). */
+export const BLOCK_REASON_MAX = 300;
+
+/** Mensaje al fallar «Bloquear» o «Desbloquear» a partir del estado HTTP. */
+export function blockCustomerError(status: number, unblock: boolean): string {
+  if (status === 403) return "Tu usuario no tiene permiso para bloquear clientes.";
+  if (status === 404) return "Este cliente ya no está disponible.";
+  return unblock
+    ? "No se pudo desbloquear. Inténtalo de nuevo."
+    : "No se pudo bloquear. Inténtalo de nuevo.";
+}
+
+/** Texto de la ficha de un cliente bloqueado: «Bloqueado desde …» y, si lo hay, el motivo. */
+export function blockLabel(block: CustomerBlock, format: (date: Date) => string): string {
+  const since = `Bloqueado desde ${format(new Date(block.desde))}`;
+  return block.motivo ? `${since}. Motivo: ${block.motivo}` : since;
 }
 
 /** Mensaje al fallar «Borrar datos del cliente» a partir del estado y el motivo de la API. */

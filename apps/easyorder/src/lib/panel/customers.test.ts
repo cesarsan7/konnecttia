@@ -1,11 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
+  BLOCK_REASON_MAX,
+  blockCustomerError,
+  blockLabel,
   deleteCustomerError,
   formatPhone,
   pageCount,
   promotionsLabel,
   sinceLabel,
 } from "./customers";
+
+describe("bloqueo de clientes", () => {
+  it("explica desde cuándo y por qué está bloqueado", () => {
+    const format = () => "3 nov 2026";
+    expect(blockLabel({ motivo: null, desde: "2026-11-03T10:00:00Z" }, format)).toBe(
+      "Bloqueado desde 3 nov 2026",
+    );
+    expect(blockLabel({ motivo: "Pedidos falsos", desde: "2026-11-03T10:00:00Z" }, format)).toBe(
+      "Bloqueado desde 3 nov 2026. Motivo: Pedidos falsos",
+    );
+  });
+
+  it("traduce los errores de la API sin códigos técnicos", () => {
+    expect(blockCustomerError(403, false)).toContain("permiso");
+    expect(blockCustomerError(404, false)).toContain("ya no está disponible");
+    expect(blockCustomerError(503, false)).toContain("bloquear");
+    expect(blockCustomerError(503, true)).toContain("desbloquear");
+  });
+
+  it("el motivo tiene el mismo tope que la API", () => {
+    expect(BLOCK_REASON_MAX).toBe(300);
+  });
+});
 
 describe("clientes", () => {
   it("formatea teléfonos españoles", () => {

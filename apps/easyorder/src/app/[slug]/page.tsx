@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Storefront } from "@/components/Storefront";
 import { publicApiUrl, serverApi } from "@/lib/api";
+import { turnstileSiteKey } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function RestaurantPage({ params }: Props) {
   return (
     <Storefront
       apiUrl={publicApiUrl()}
+      captchaSiteKey={turnstileSiteKey()}
       slug={slug}
       initialMenu={menu.data}
       branches={branches.ok ? branches.data.locales : []}

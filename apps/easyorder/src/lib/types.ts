@@ -117,6 +117,8 @@ export type TrackedOrder = {
 
 export type ApiErrorBody = {
   readonly error: string;
+  /** Motivo concreto cuando un mismo `error` tiene varias causas (p. ej. `phone_limit`). */
+  readonly reason?: string;
   readonly errors?: readonly { readonly code: string; readonly detail?: string }[];
   readonly locales?: readonly { readonly id: number; readonly nombre: string }[];
   readonly issues?: readonly { readonly path: string; readonly message: string }[];

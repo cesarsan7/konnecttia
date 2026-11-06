@@ -130,17 +130,35 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       request<PreviousOrders>(
         panel(slug, `/orders/anteriores?${new URLSearchParams({ telefono })}`),
       ),
-    customers: (slug: string, query: { q: string; orden: string; pagina: number }) =>
+    customers: (
+      slug: string,
+      query: { q: string; orden: string; pagina: number; bloqueados?: boolean },
+    ) =>
       request<CustomerList>(
         panel(
           slug,
-          `/clientes?${new URLSearchParams({ q: query.q, orden: query.orden, pagina: String(query.pagina) })}`,
+          `/clientes?${new URLSearchParams({
+            q: query.q,
+            orden: query.orden,
+            pagina: String(query.pagina),
+            ...(query.bloqueados ? { bloqueados: "1" } : {}),
+          })}`,
         ),
       ),
     customer: (slug: string, id: number) => request<CustomerDetail>(panel(slug, `/clientes/${id}`)),
     /** Borra (anonimiza) los datos personales del cliente y de sus pedidos. */
     deleteCustomer: (slug: string, id: number) =>
       send<{ ok: true; pedidos_anonimizados: number }>(slug, `/clientes/${id}`, "DELETE"),
+    /** Bloquea el teléfono del cliente (no podrá pedir por la web). */
+    blockCustomer: (slug: string, id: number, motivo: string) =>
+      send<{ ok: true; bloqueo: { motivo: string | null; desde: string } }>(
+        slug,
+        `/clientes/${id}/bloqueo`,
+        "PUT",
+        motivo.trim() ? { motivo: motivo.trim() } : {},
+      ),
+    unblockCustomer: (slug: string, id: number) =>
+      send<{ ok: true }>(slug, `/clientes/${id}/bloqueo`, "DELETE"),
     /** Descarga el CSV de clientes (con el token de la sesión). */
     exportCustomers: async (slug: string): Promise<Blob | null> => {
       const token = await getToken();
