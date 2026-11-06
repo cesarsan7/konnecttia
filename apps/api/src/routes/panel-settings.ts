@@ -1,9 +1,11 @@
 import { ALL_BRANCHES, canAccessBranch, PERMISSION } from "@konnecttia/access";
 import {
+  allowedPaymentMethods,
   type BankDetails,
   checkDaySchedule,
   checkPaymentSetup,
   type DaySchedule,
+  enabledPaymentMethods,
   FULFILLMENT,
   isValidIban,
   PAYMENT_METHODS,
@@ -282,11 +284,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           pickup_enabled: boolean;
           delivery_enabled: boolean;
           payment_methods: unknown;
+          metodos_pago_permitidos: unknown;
           datos_bancarios: unknown;
         }[]
       >`
         SELECT nombre, telefono, direccion, descripcion, eslogan, zona_horaria, pickup_enabled,
-               delivery_enabled, payment_methods, datos_bancarios
+               delivery_enabled, payment_methods, metodos_pago_permitidos, datos_bancarios
         FROM   public.restaurante WHERE id = ${restauranteId}
       `,
       loadConfig(sql, restauranteId),
@@ -340,9 +343,6 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     ]);
     const restaurant = restaurants[0];
     if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
-    const methods = Array.isArray(restaurant.payment_methods)
-      ? restaurant.payment_methods.filter((m): m is string => typeof m === "string")
-      : [];
     const bank =
       restaurant.datos_bancarios && typeof restaurant.datos_bancarios === "object"
         ? (restaurant.datos_bancarios as Record<string, unknown>)
@@ -357,8 +357,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         zona_horaria: restaurant.zona_horaria,
         recogida: restaurant.pickup_enabled,
         reparto: restaurant.delivery_enabled,
-        // Solo los que el panel sabe gestionar (sin «online» hasta la pasarela).
-        metodos_pago: PAYMENT_METHODS.filter((method) => methods.includes(method)),
+        // Solo los que el panel sabe gestionar (sin «online» hasta la pasarela) y que Konnecttia
+        // permite a este restaurante.
+        metodos_pago: enabledPaymentMethods(
+          restaurant.payment_methods,
+          restaurant.metodos_pago_permitidos,
+        ),
         datos_bancarios: bank,
         apertura_manual: overrideFrom(config.get(CONFIG_KEY.OpenOverride)),
         recogida_minutos: positiveInt(config.get(CONFIG_KEY.PickupEtaMinutes)),
@@ -398,7 +402,8 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       festivos: holidays.filter(
         (holiday) => holiday.sucursal_id === null || branchIds.includes(holiday.sucursal_id),
       ),
-      metodos_disponibles: PAYMENT_METHODS,
+      // Lo que Konnecttia permite a este restaurante (todos si no fijó una lista).
+      metodos_disponibles: allowedPaymentMethods(restaurant.metodos_pago_permitidos),
       edicion_completa: c.get("access").branchScope === ALL_BRANCHES,
     });
   });
@@ -420,10 +425,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           pickup_enabled: boolean;
           delivery_enabled: boolean;
           payment_methods: unknown;
+          metodos_pago_permitidos: unknown;
           datos_bancarios: unknown;
         }[]
       >`
-        SELECT pickup_enabled, delivery_enabled, payment_methods, datos_bancarios
+        SELECT pickup_enabled, delivery_enabled, payment_methods, metodos_pago_permitidos,
+               datos_bancarios
         FROM   public.restaurante WHERE id = ${restauranteId}
       `;
       if (!current) return fail(c, 404, API_ERROR.RestaurantNotFound);
@@ -442,12 +449,20 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           : (current.datos_bancarios as BankDetails | null);
       if (bank?.iban && !isValidIban(bank.iban))
         return invalid(c, "datos_bancarios.iban", "invalid_iban");
+      if (body.metodos_pago !== undefined) {
+        // Konnecttia fija qué métodos puede activar cada restaurante (pieza K).
+        const allowed = allowedPaymentMethods(current.metodos_pago_permitidos);
+        if (body.metodos_pago.some((method) => !allowed.includes(method))) {
+          return fail(c, 422, API_ERROR.Unprocessable, {
+            field: "metodos_pago",
+            reason: "payment_method_not_allowed",
+          });
+        }
+      }
       if (body.metodos_pago !== undefined || body.datos_bancarios !== undefined) {
         const methods =
           body.metodos_pago ??
-          (Array.isArray(current.payment_methods)
-            ? PAYMENT_METHODS.filter((m) => (current.payment_methods as unknown[]).includes(m))
-            : []);
+          enabledPaymentMethods(current.payment_methods, current.metodos_pago_permitidos);
         const problem = checkPaymentSetup(methods, bank);
         if (problem) return invalid(c, "metodos_pago", problem);
       }

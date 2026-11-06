@@ -22,6 +22,8 @@ export const API_ERROR = {
   ServiceUnavailable: "service_unavailable",
   NotFound: "not_found",
   Conflict: "conflict",
+  /** La petición está bien formada pero una regla la rechaza; `reason` dice cuál. */
+  Unprocessable: "unprocessable",
   InvalidImage: "invalid_image",
   StorageNotConfigured: "storage_not_configured",
   InvalidProof: "invalid_proof",

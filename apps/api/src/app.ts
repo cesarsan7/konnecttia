@@ -6,6 +6,7 @@ import type { AppDeps, AppEnv } from "./context";
 import { API_ERROR, fail } from "./lib/http";
 import { meRoutes } from "./routes/me";
 import { panelRoutes } from "./routes/panel";
+import { plataformaRoutes } from "./routes/plataforma";
 import { publicRoutes } from "./routes/public";
 
 export function createApp(deps: AppDeps) {
@@ -30,6 +31,7 @@ export function createApp(deps: AppDeps) {
   app.route("/public", publicRoutes(deps));
   app.route("/me", meRoutes(deps));
   app.route("/panel", panelRoutes(deps));
+  app.route("/plataforma", plataformaRoutes(deps));
 
   app.onError((error, c) => {
     // Nunca se devuelven detalles internos: solo una referencia para soporte.

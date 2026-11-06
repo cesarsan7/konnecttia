@@ -1,0 +1,204 @@
+import { describe, expect, it } from "vitest";
+import {
+  activeDependents,
+  canCancelModule,
+  invitationLink,
+  methodsThatWouldBeRemoved,
+  moduleToggle,
+  type NewRestaurantForm,
+  platformErrorMessage,
+  samePaymentSelection,
+  slugMessage,
+  suggestSlug,
+  toNewRestaurantBody,
+  validateNewRestaurant,
+} from "./logic";
+import type { ModuleRow } from "./types";
+
+const valid: NewRestaurantForm = {
+  nombre: "Bar Nuevo",
+  slug: "bar-nuevo",
+  zonaHoraria: "Atlantic/Canary",
+  plan: "basico",
+  localNombre: "Bar Nuevo Centro",
+  direccion: "",
+  telefono: "",
+  propietarioEmail: "dueno@nuevo.test",
+};
+
+const module = (overrides: Partial<ModuleRow>): ModuleRow => ({
+  code: "tables",
+  nombre: "Mesas",
+  tipo: "plan",
+  depende_de: ["core.orders"],
+  estado: null,
+  origen: null,
+  en_plan: false,
+  gestionable: true,
+  ...overrides,
+});
+
+describe("alta de restaurante: validación", () => {
+  it("un formulario completo no tiene errores", () => {
+    expect(validateNewRestaurant(valid)).toEqual({});
+  });
+
+  it("valida el slug: formato, longitud y reservados", () => {
+    expect(slugMessage("bar-nuevo")).toBeNull();
+    expect(slugMessage("ab")).toMatch(/al menos 3/);
+    expect(slugMessage("Bar Nuevo")).toMatch(/minúsculas/);
+    for (const reserved of [
+      "panel",
+      "interno",
+      "api",
+      "admin",
+      "www",
+      "plataforma",
+      "privacidad",
+    ]) {
+      expect(slugMessage(reserved), reserved).toMatch(/reservado/);
+    }
+    expect(validateNewRestaurant({ ...valid, slug: "interno" }).slug).toMatch(/reservado/);
+  });
+
+  it("exige nombre, local, plan, email y zona horaria válidos", () => {
+    const errors = validateNewRestaurant({
+      ...valid,
+      nombre: "  ",
+      localNombre: "",
+      plan: "",
+      propietarioEmail: "sin-arroba",
+      zonaHoraria: "Canarias",
+    });
+    expect(Object.keys(errors).sort()).toEqual([
+      "localNombre",
+      "nombre",
+      "plan",
+      "propietarioEmail",
+      "zonaHoraria",
+    ]);
+  });
+
+  it("limita la longitud de los textos opcionales", () => {
+    const errors = validateNewRestaurant({
+      ...valid,
+      direccion: "x".repeat(201),
+      telefono: "9".repeat(31),
+    });
+    expect(Object.keys(errors).sort()).toEqual(["direccion", "telefono"]);
+  });
+
+  it("el cuerpo limpia espacios, pasa el email a minúsculas y omite lo vacío", () => {
+    expect(
+      toNewRestaurantBody({
+        ...valid,
+        nombre: "  Bar Nuevo ",
+        propietarioEmail: " Dueno@Nuevo.test ",
+        telefono: " 900000000 ",
+      }),
+    ).toEqual({
+      nombre: "Bar Nuevo",
+      slug: "bar-nuevo",
+      zona_horaria: "Atlantic/Canary",
+      plan: "basico",
+      local: { nombre: "Bar Nuevo Centro", telefono: "900000000" },
+      propietario_email: "dueno@nuevo.test",
+    });
+  });
+
+  it("propone el slug desde el nombre", () => {
+    expect(suggestSlug("Pizzería «La Isla»")).toBe("pizzeria-la-isla");
+  });
+});
+
+describe("enlace de invitación", () => {
+  it("usa el de la API y, si falta, arma uno con el origen", () => {
+    expect(invitationLink("https://panel.test/panel/unirse/t1", "t1", "https://otro")).toBe(
+      "https://panel.test/panel/unirse/t1",
+    );
+    expect(invitationLink(null, "t1", "https://panel.test/")).toBe(
+      "https://panel.test/panel/unirse/t1",
+    );
+  });
+});
+
+describe("mensajes de error", () => {
+  it("traduce el motivo y nombra los módulos implicados", () => {
+    const names = new Map([["whatsapp.channel", "Conexión de WhatsApp"]]);
+    expect(
+      platformErrorMessage(
+        422,
+        { error: "unprocessable", reason: "dependency_missing", modulos: ["whatsapp.channel"] },
+        names,
+      ),
+    ).toBe("Antes hay que activar los módulos de los que depende. (Conexión de WhatsApp)");
+    expect(platformErrorMessage(409, { error: "conflict", reason: "slug_taken" })).toMatch(
+      /Ya existe/,
+    );
+    expect(
+      platformErrorMessage(403, { error: "forbidden", reason: "platform_role_insufficient" }),
+    ).toMatch(/solo puede consultar/);
+    expect(platformErrorMessage(0, null)).toMatch(/Sin conexión/);
+    expect(platformErrorMessage(401, null)).toMatch(/caducado/);
+    expect(platformErrorMessage(500, null)).toMatch(/No se pudo/);
+  });
+});
+
+describe("módulos", () => {
+  it("el interruptor suspende lo activo y activa lo demás", () => {
+    expect(moduleToggle(module({ estado: "activo", origen: "plan" }), "cortesia")).toEqual({
+      estado: "suspendido",
+    });
+    // Sin fila: usa el origen elegido.
+    expect(moduleToggle(module({}), "cortesia")).toEqual({ estado: "activo", origen: "cortesia" });
+    // Con fila suspendida: conserva su origen.
+    expect(moduleToggle(module({ estado: "suspendido", origen: "plan" }), "cortesia")).toEqual({
+      estado: "activo",
+    });
+  });
+
+  it("solo se cancela lo que el restaurante tiene y no está cancelado", () => {
+    expect(canCancelModule(module({}))).toBe(false);
+    expect(canCancelModule(module({ estado: "activo", origen: "plan" }))).toBe(true);
+    expect(canCancelModule(module({ estado: "suspendido", origen: "plan" }))).toBe(true);
+    expect(canCancelModule(module({ estado: "cancelado", origen: "plan" }))).toBe(false);
+    expect(canCancelModule(module({ estado: "activo", origen: "plan", gestionable: false }))).toBe(
+      false,
+    );
+  });
+
+  it("encuentra los activos que dependen de uno", () => {
+    const list = [
+      module({ code: "whatsapp.channel", depende_de: [], estado: "activo", origen: "complemento" }),
+      module({
+        code: "whatsapp.agent",
+        depende_de: ["whatsapp.channel", "core.orders"],
+        estado: "activo",
+        origen: "complemento",
+      }),
+      module({
+        code: "notify.whatsapp",
+        depende_de: ["whatsapp.channel"],
+        estado: "suspendido",
+        origen: "complemento",
+      }),
+    ];
+    expect(activeDependents(list, "whatsapp.channel").map((m) => m.code)).toEqual([
+      "whatsapp.agent",
+    ]);
+  });
+});
+
+describe("métodos de pago permitidos", () => {
+  it("compara la selección sin importar el orden; null es «todos»", () => {
+    expect(samePaymentSelection(null, null)).toBe(true);
+    expect(samePaymentSelection(null, ["efectivo"])).toBe(false);
+    expect(samePaymentSelection(["efectivo", "tarjeta"], ["tarjeta", "efectivo"])).toBe(true);
+    expect(samePaymentSelection(["efectivo"], ["efectivo", "tarjeta"])).toBe(false);
+  });
+
+  it("avisa de lo activo que se quitaría", () => {
+    expect(methodsThatWouldBeRemoved(["efectivo", "bizum"], ["efectivo"])).toEqual(["bizum"]);
+    expect(methodsThatWouldBeRemoved(["efectivo", "bizum"], null)).toEqual([]);
+  });
+});

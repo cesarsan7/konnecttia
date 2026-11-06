@@ -1,0 +1,38 @@
+.k-mp {
+  display: grid;
+  gap: 12px;
+}
+
+.k-mp .k-title,
+.k-mp p {
+  margin: 0;
+}
+
+.k-mp-set {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.k-mp-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.k-mp-option input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--teal);
+}
+
+.k-mp-actions {
+  display: flex;
+}

@@ -1,8 +1,16 @@
 import type { AccessContext } from "@konnecttia/access";
+import type { PlatformRole } from "@konnecttia/domain";
 import type { Sql } from "./lib/db";
 import type { Restaurant } from "./repositories/restaurants";
 
 export type AuthenticatedUser = { readonly userId: string; readonly email: string | null };
+
+/** Persona del equipo de Konnecttia que usa el panel interno (`plataforma_miembro`). */
+export type PlatformUser = {
+  readonly userId: string;
+  readonly email: string | null;
+  readonly rol: PlatformRole;
+};
 
 /** Almacén de imágenes (fotos de la carta). Devuelve la URL pública del archivo guardado. */
 export type ImageStorage = {
@@ -61,5 +69,6 @@ export type AppEnv = {
     restaurant: Restaurant;
     user: AuthenticatedUser;
     access: AccessContext;
+    platform: PlatformUser;
   };
 };

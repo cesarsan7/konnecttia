@@ -13,7 +13,7 @@ import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import type { Sql } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
-import { inviteEmail } from "../lib/mailer";
+import { INVITE_DAYS, sendInviteEmail } from "../lib/invite-link";
 import { displayName, memberNameSchema } from "../lib/member-name";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
@@ -31,9 +31,6 @@ import { loadBranches } from "../repositories/branches";
 
 type Ctx = Context<AppEnv>;
 type Tx = TransactionSql<{ bigint: number }>;
-
-/** Días que dura una invitación. */
-export const INVITE_DAYS = 7;
 
 /** Rol de la columna antigua local_memberships.rol (la lee el dashboard antiguo). */
 export function legacyRole(templateCode: string | null): "owner" | "manager" | "viewer" {
@@ -114,39 +111,6 @@ export function registerTeamRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       detalle,
       requestId: c.get("requestId"),
     });
-
-  /**
-   * Envía la invitación por email (si hay Resend). El enlace apunta al panel desde el que se
-   * invita (Origin, que CORS ya limita a los orígenes permitidos) o a PANEL_PUBLIC_URL. Un fallo
-   * del envío no anula la invitación: el panel ofrece copiar el enlace igualmente.
-   */
-  const sendInviteEmail = async (c: Ctx, to: string, roleName: string, token: string) => {
-    if (!deps.mailer) return false;
-    const origin = c.req.header("Origin");
-    const base = origin && deps.allowedOrigins.includes(origin) ? origin : deps.panelUrl;
-    if (!base) return false;
-    try {
-      await deps.mailer.send({
-        to,
-        ...inviteEmail({
-          restaurante: c.get("restaurant").nombre,
-          rol: roleName,
-          link: `${base.replace(/\/$/, "")}/panel/unirse/${token}`,
-          dias: INVITE_DAYS,
-        }),
-      });
-      return true;
-    } catch (error) {
-      console.error(
-        JSON.stringify({
-          level: "warn",
-          message: "email de invitación no enviado",
-          error: String(error),
-        }),
-      );
-      return false;
-    }
-  };
 
   const deny = async (c: Ctx, accion: string, reason: string, recursoId: number | null = null) => {
     await record(c, accion, "equipo", recursoId, { motivo: reason }, "denegado");
@@ -300,7 +264,13 @@ export function registerTeamRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     `;
       const emailSent =
         invite && body.email
-          ? await sendInviteEmail(c, body.email, role.role.nombre, invite.token)
+          ? await sendInviteEmail(deps, {
+              origin: c.req.header("Origin"),
+              to: body.email,
+              restaurante: c.get("restaurant").nombre,
+              rol: role.role.nombre,
+              token: invite.token,
+            })
           : false;
       await record(c, "team.invite", "invitacion", invite?.id ?? null, {
         email: body.email,
