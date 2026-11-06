@@ -4,6 +4,7 @@ import type { CustomerDetail, CustomerList } from "./customers";
 import type { Delivery, Driver } from "./drivers";
 import type { OrderHistory } from "./history";
 import type { AdminMenu } from "./menu";
+import type { OrderProofs } from "./proofs";
 import type { PreviousOrders } from "./reorder";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { TablePlan } from "./tables";
@@ -196,6 +197,9 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         method: "PATCH",
         body: JSON.stringify({ estado_pago: "pagado" }),
       }),
+    /** URLs firmadas (de corta duración) de los justificantes de pago de un pedido. */
+    orderProofs: (slug: string, orderId: number) =>
+      request<OrderProofs>(panel(slug, `/orders/${orderId}/justificantes`)),
     branches: (slug: string) => request<{ locales: PanelBranch[] }>(panel(slug, "/locales")),
     startBusy: (slug: string, branchId: number, minutes: number) =>
       request(panel(slug, `/locales/${branchId}/modo-ocupado`), {

@@ -1,0 +1,119 @@
+/* Pago por Bizum o transferencia en el seguimiento: datos, concepto y justificante. */
+.pay-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.pay-rows > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pay-rows dt {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.pay-rows dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.pay-value {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.pay-concept {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.pay-concept-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.pay .btn.pay-copy {
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  background: var(--ink);
+  color: var(--card);
+}
+
+.pay-copy-state {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--ok);
+}
+
+.pay-proof {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.pay-proof p {
+  margin: 0;
+}
+
+/* El input real queda fuera de la vista pero accesible; el label hace de botón. */
+.pay-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+.pay-upload {
+  cursor: pointer;
+}
+
+.pay-file:focus-visible + .pay-upload {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pay-upload.is-busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.pay-sent {
+  font-weight: 700;
+  color: var(--ok);
+}
+
+.pay-error {
+  padding: 8px 12px;
+  color: var(--bad);
+  background: var(--bad-bg);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+}

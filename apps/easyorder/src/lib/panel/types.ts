@@ -69,6 +69,8 @@ export type PanelOrder = {
   /** Apodo o nombre del repartidor (el email solo llega a quien ve el equipo). */
   readonly repartidor_nombre?: string | null;
   readonly salida_at?: string | null;
+  /** Justificantes de pago que ha subido el cliente (solo el tablero y el listado los traen). */
+  readonly justificantes?: number;
 };
 
 export type BusyMode = {

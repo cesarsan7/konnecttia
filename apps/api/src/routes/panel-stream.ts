@@ -12,8 +12,8 @@ import { requirePermission } from "../middleware/auth";
  * «pedidos» cuando cambia algo; entonces vuelve a pedir el tablero.
  *
  * Por qué una huella y no solo outbox_evento: los pedidos de WhatsApp los crea y actualiza n8n
- * directamente en `pedidos`, sin outbox. La huella (ids, estados y cobro de los pedidos del
- * tablero, más el modo ocupado) detecta cualquier cambio venga de donde venga, con una consulta
+ * directamente en `pedidos`, sin outbox. La huella (ids, estados, cobro y justificantes de los
+ * pedidos del tablero, más el modo ocupado) detecta cualquier cambio venga de donde venga, con una consulta
  * pequeña cada pocos segundos en el servidor en lugar de muchas desde cada navegador.
  */
 
@@ -37,7 +37,9 @@ export async function boardFingerprint(
     SELECT md5(
              COALESCE((
                SELECT string_agg(p.id || ':' || p.estado || ':' || p.estado_pago || ':' ||
-                                 COALESCE(p.updated_at::text, ''), ',' ORDER BY p.id)
+                                 COALESCE(p.updated_at::text, '') || ':' ||
+                                 (SELECT count(*) FROM public.pedido_justificante j
+                                  WHERE j.pedido_id = p.id), ',' ORDER BY p.id)
                FROM   public.pedidos p
                WHERE  p.restaurante_id = ${restauranteId}
                  AND  p.estado <> ${ORDER_STATUS.InCart}

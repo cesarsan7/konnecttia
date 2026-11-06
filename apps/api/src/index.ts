@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createClient } from "@supabase/supabase-js";
 import { createApp } from "./app";
-import type { ImageStorage } from "./context";
+import type { ImageStorage, ProofStorage } from "./context";
 import { createSql } from "./lib/db";
 import { loadEnv } from "./lib/env";
 import { createResendMailer } from "./lib/mailer";
@@ -32,8 +32,32 @@ function imageStorage(): ImageStorage | null {
   };
 }
 
+/** Justificantes de pago en un bucket privado de Supabase Storage (solo con clave de servicio). */
+function proofStorage(): ProofStorage | null {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const bucket = admin.storage.from(env.PAYMENT_PROOFS_BUCKET);
+  return {
+    upload: async (path, bytes, contentType) => {
+      const { error } = await bucket.upload(path, bytes, { contentType, upsert: false });
+      if (error) throw new Error(`No se pudo guardar el justificante: ${error.message}`);
+    },
+    signedUrl: async (path, expiresInSeconds) => {
+      const { data, error } = await bucket.createSignedUrl(path, expiresInSeconds);
+      if (error || !data) throw new Error(`No se pudo firmar el justificante: ${error?.message}`);
+      return data.signedUrl;
+    },
+    remove: async (path) => {
+      await bucket.remove([path]);
+    },
+  };
+}
+
 const app = createApp({
   imageStorage: imageStorage(),
+  proofStorage: proofStorage(),
   mailer: env.RESEND_API_KEY ? createResendMailer(env.RESEND_API_KEY, env.RESEND_FROM) : null,
   panelUrl: env.PANEL_PUBLIC_URL ?? null,
   sql,

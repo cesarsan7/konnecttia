@@ -104,7 +104,11 @@ export type TrackedOrder = {
   readonly costoEnvio: number;
   readonly total: number;
   readonly metodoPago: string | null;
+  /** Solo los datos del método elegido (IBAN y titular, o teléfono de Bizum). */
   readonly datosBancarios: Record<string, string> | null;
+  /** Justificantes ya subidos y si el cliente aún puede subir otro. */
+  readonly justificantes: number;
+  readonly aceptaJustificante: boolean;
   readonly createdAt: string;
   readonly updatedAt: string | null;
 };

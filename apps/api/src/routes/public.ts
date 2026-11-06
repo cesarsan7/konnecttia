@@ -8,6 +8,7 @@ import {
   rankBranches,
 } from "@konnecttia/domain";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
@@ -18,6 +19,15 @@ import { loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
 import { findOrderByTrackingToken, ORDER_CHANNEL } from "../repositories/orders";
+import {
+  checkProofTarget,
+  detectProofType,
+  MAX_PROOF_BYTES,
+  PROOF_REJECTION,
+  type ProofRejection,
+  proofPath,
+  saveProof,
+} from "../repositories/payment-proofs";
 import { placeOrder } from "../repositories/place-order";
 import {
   deliveryEta,
@@ -30,11 +40,20 @@ import {
 const MAX_LINES = 50;
 const ORDERS_PER_IP_PER_10_MIN = 20;
 const TRACKING_PER_IP_PER_MIN = 60;
+/** Tope técnico por IP contra el abuso del almacenamiento (el límite por pedido va aparte). */
+const PROOFS_PER_IP_PER_10_MIN = 10;
 /** n8n llama desde la red interna (una sola IP para todos los chats): margen amplio. */
 const QUOTES_PER_IP_PER_MIN = 300;
 const IDEMPOTENCY_HEADER = "Idempotency-Key";
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Estado HTTP de cada motivo por el que no se admite un justificante. */
+const PROOF_STATUS: Record<ProofRejection, 404 | 409> = {
+  [PROOF_REJECTION.OrderNotFound]: 404,
+  [PROOF_REJECTION.NotPending]: 409,
+  [PROOF_REJECTION.LimitReached]: 409,
+};
 
 const positiveInt = z.number().int().positive();
 const latitude = z.number().min(-90).max(90);
@@ -149,6 +168,7 @@ export function publicRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   const ordersLimited = createRateLimiter(ORDERS_PER_IP_PER_10_MIN, 10 * 60_000);
   const trackingLimited = createRateLimiter(TRACKING_PER_IP_PER_MIN, 60_000);
+  const proofsLimited = createRateLimiter(PROOFS_PER_IP_PER_10_MIN, 10 * 60_000);
   const clientIp = (header: string | undefined) => header ?? "desconocida";
   const quotesLimited = createRateLimiter(QUOTES_PER_IP_PER_MIN, 60_000);
 
@@ -164,6 +184,61 @@ export function publicRoutes(deps: AppDeps) {
     const order = await findOrderByTrackingToken(deps.sql, token);
     return order ? c.json(order) : fail(c, 404, API_ERROR.OrderNotFound);
   });
+
+  /**
+   * Justificante de pago (captura o PDF) de un pedido de Bizum o transferencia. Acceso por el
+   * token del pedido, solo mientras el cobro esté pendiente y hasta el máximo por pedido. El
+   * archivo se valida por su firma real y va a un bucket privado; nunca se guarda una URL.
+   */
+  app.post(
+    "/orders/:token/justificante",
+    async (c, next) => {
+      if (proofsLimited(clientIp(c.req.header(deps.clientIpHeader)))) {
+        return fail(c, 429, API_ERROR.RateLimited);
+      }
+      await next();
+    },
+    bodyLimit({
+      maxSize: MAX_PROOF_BYTES + 64 * 1024,
+      onError: (c) => fail(c, 413, API_ERROR.InvalidProof, { reason: "too_large" }),
+    }),
+    async (c) => {
+      const token = c.req.param("token");
+      if (!UUID_PATTERN.test(token)) return fail(c, 404, API_ERROR.OrderNotFound);
+      const storage = deps.proofStorage;
+      if (!storage) return fail(c, 503, API_ERROR.StorageNotConfigured);
+
+      const form = await c.req.parseBody().catch(() => null);
+      const file = form?.justificante;
+      if (!(file instanceof File)) {
+        return fail(c, 400, API_ERROR.InvalidBody, { field: "justificante" });
+      }
+      if (file.size > MAX_PROOF_BYTES) {
+        return fail(c, 413, API_ERROR.InvalidProof, { reason: "too_large" });
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (bytes.length === 0) return fail(c, 400, API_ERROR.InvalidBody, { field: "justificante" });
+      const type = detectProofType(bytes);
+      if (!type) return fail(c, 415, API_ERROR.InvalidProof, { reason: "unsupported_type" });
+
+      // Comprobación previa (barata) para no subir archivos que se van a rechazar.
+      const early = await checkProofTarget(deps.sql, token);
+      if (!early.ok) return fail(c, PROOF_STATUS[early.error], early.error);
+
+      const path = proofPath(early.restauranteId, early.pedidoId, type);
+      await storage.upload(path, bytes, type.mime);
+      const saved = await saveProof(deps.sql, token, {
+        ruta: path,
+        tipoMime: type.mime,
+        bytes: bytes.length,
+      });
+      if (!saved.ok) {
+        await storage.remove(path).catch(() => {});
+        return fail(c, PROOF_STATUS[saved.error], saved.error);
+      }
+      return c.json({ justificantes: saved.total }, 201);
+    },
+  );
 
   app.use("/:slug/*", resolveRestaurant(deps));
 

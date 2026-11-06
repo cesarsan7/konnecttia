@@ -18,6 +18,7 @@ import { registerDriverRoutes } from "./panel-drivers";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerManualOrderRoutes } from "./panel-orders";
 import { registerOrderListRoutes } from "./panel-orders-list";
+import { registerProofRoutes } from "./panel-proofs";
 import { registerRoleRoutes } from "./panel-roles";
 import { registerSettingsRoutes } from "./panel-settings";
 import { registerStreamRoutes } from "./panel-stream";
@@ -77,6 +78,7 @@ export function panelRoutes(deps: AppDeps) {
   registerRoleRoutes(app, deps);
   registerManualOrderRoutes(app, deps);
   registerOrderListRoutes(app, deps);
+  registerProofRoutes(app, deps);
   registerCustomerRoutes(app, deps);
   registerStreamRoutes(app, deps);
   registerWaiterRoutes(app, deps);
@@ -110,7 +112,9 @@ export function panelRoutes(deps: AppDeps) {
              mw.nombre AS mesero_nombre,
              pr.membership_id::int AS repartidor_id, pr.repartidor_email,
              COALESCE(dm.apodo, dm.nombre) AS repartidor_nombre,
-             pr.salida_at, pr.entregado_at
+             pr.salida_at, pr.entregado_at,
+             (SELECT count(*)::int FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
+               AS justificantes
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
       LEFT   JOIN public.mesa me    ON me.id = p.mesa_id

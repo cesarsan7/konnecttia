@@ -63,6 +63,8 @@ export const CONFIG_KEY = {
   TableWaitAlert: "mesa_aviso_espera_minutos",
   /** Minutos de ocupación a partir de los que una mesa se marca en el plano. */
   TableStayAlert: "mesa_aviso_estancia_minutos",
+  /** Justificantes de pago que el cliente puede subir por pedido. */
+  ProofsMaxPerOrder: "justificantes_max_por_pedido",
 } as const;
 
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {

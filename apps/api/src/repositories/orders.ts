@@ -1,6 +1,13 @@
 import type { Fulfillment, Quote } from "@konnecttia/domain";
-import { DEFERRED_PAYMENT_METHODS, ORDER_STATUS, PAYMENT_STATUS } from "@konnecttia/domain";
+import {
+  DEFERRED_PAYMENT_METHODS,
+  ORDER_STATUS,
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
+} from "@konnecttia/domain";
 import { centsToEuros, eurosToCents, type Sql, UNIQUE_VIOLATION } from "../lib/db";
+import { acceptsProof, maxProofsPerOrder } from "./payment-proofs";
+import { CONFIG_KEY } from "./restaurants";
 
 /** Canal del pedido (pedidos.canal). n8n escribe «whatsapp». */
 export const ORDER_CHANNEL = {
@@ -213,14 +220,43 @@ export type TrackedOrder = {
   readonly costoEnvio: number;
   readonly total: number;
   readonly metodoPago: string | null;
-  readonly datosBancarios: unknown;
+  /** Solo los datos del método elegido (IBAN y titular, o teléfono de Bizum); null si no aplica. */
+  readonly datosBancarios: Record<string, string> | null;
+  /** Justificantes ya subidos y si el cliente aún puede subir otro. */
+  readonly justificantes: number;
+  readonly aceptaJustificante: boolean;
   readonly createdAt: string;
   readonly updatedAt: string | null;
 };
 
+/** Datos de `restaurante.datos_bancarios` que necesita cada método para que el cliente pague. */
+const PAYMENT_DETAIL_KEYS: Readonly<Record<string, readonly string[]>> = {
+  [PAYMENT_METHOD.Transfer]: ["titular", "iban", "banco"],
+  [PAYMENT_METHOD.Bizum]: ["bizum"],
+};
+
+/**
+ * Datos para pagar con el método del pedido y nada más (no se expone el resto de la ficha
+ * bancaria del restaurante). null si no hay ninguno configurado.
+ */
+export function paymentInstructions(
+  method: string | null,
+  bank: unknown,
+): Record<string, string> | null {
+  const keys = PAYMENT_DETAIL_KEYS[method ?? ""];
+  if (!keys || !bank || typeof bank !== "object") return null;
+  const source = bank as Record<string, unknown>;
+  const picked: Record<string, string> = {};
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) picked[key] = value.trim();
+  }
+  return Object.keys(picked).length > 0 ? picked : null;
+}
+
 /**
  * Seguimiento público por token aleatorio. No devuelve teléfono, dirección ni notas.
- * Los datos bancarios solo se muestran si el cliente aún tiene que pagar por transferencia.
+ * Los datos para pagar solo se muestran mientras el cobro (transferencia, Bizum) esté pendiente.
  */
 export async function findOrderByTrackingToken(
   sql: Sql,
@@ -242,6 +278,8 @@ export async function findOrderByTrackingToken(
       total: string;
       metodo_pago: string | null;
       datos_bancarios: unknown;
+      justificantes: number;
+      justificantes_max: string | null;
       created_at: string;
       updated_at: string | null;
     }[]
@@ -249,6 +287,11 @@ export async function findOrderByTrackingToken(
     SELECT p.pedido_codigo, r.nombre AS restaurante, p.estado, p.estado_pago, p.tipo_despacho,
            p.tiempo_estimado, p.items, p.subtotal, p.costo_envio, p.total, p.metodo_pago,
            r.datos_bancarios, p.created_at, p.updated_at,
+           (SELECT count(*)::int FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
+             AS justificantes,
+           (SELECT c.config_value FROM public.restaurante_config c
+            WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ProofsMaxPerOrder})
+             AS justificantes_max,
            s.nombre AS local_nombre, s.direccion AS local_direccion
     FROM   public.pedidos p
     JOIN   public.restaurante r ON r.id = p.restaurante_id
@@ -258,9 +301,16 @@ export async function findOrderByTrackingToken(
   `;
   const row = rows[0];
   if (!row) return null;
-  const showBankDetails =
-    row.estado_pago === PAYMENT_STATUS.Pending &&
-    DEFERRED_PAYMENT_METHODS.has(row.metodo_pago ?? "");
+  const payable = acceptsProof({
+    estado: row.estado,
+    estado_pago: row.estado_pago,
+    metodo_pago: row.metodo_pago,
+  });
+  const maxProofs = maxProofsPerOrder(
+    new Map(
+      row.justificantes_max === null ? [] : [[CONFIG_KEY.ProofsMaxPerOrder, row.justificantes_max]],
+    ),
+  );
   return {
     pedidoCodigo: row.pedido_codigo,
     restaurante: row.restaurante,
@@ -274,7 +324,9 @@ export async function findOrderByTrackingToken(
     costoEnvio: Number(row.costo_envio),
     total: Number(row.total),
     metodoPago: row.metodo_pago,
-    datosBancarios: showBankDetails ? row.datos_bancarios : null,
+    datosBancarios: payable ? paymentInstructions(row.metodo_pago, row.datos_bancarios) : null,
+    justificantes: row.justificantes,
+    aceptaJustificante: payable && row.justificantes < maxProofs,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
