@@ -172,7 +172,9 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre, p.mesero_id, mw.nombre AS mesero_nombre,
                pr.membership_id::int AS repartidor_id, pr.repartidor_email,
                COALESCE(dm.apodo, dm.nombre) AS repartidor_nombre,
-               pr.salida_at, pr.entregado_at
+               pr.salida_at, pr.entregado_at,
+               (SELECT count(*)::int FROM public.pedido_foto_entrega f WHERE f.pedido_id = p.id)
+                 AS fotos_entrega
         FROM   public.pedidos p
         LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
         LEFT   JOIN public.mesa me    ON me.id = p.mesa_id

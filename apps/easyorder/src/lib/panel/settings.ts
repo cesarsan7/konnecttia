@@ -1,3 +1,5 @@
+import type { DeliveryPhotoMode } from "./delivery-photo";
+
 /** Respuestas de GET /panel/:slug/ajustes (apps/api/src/routes/panel-settings.ts). */
 
 export type OpenMode = "auto" | "abierto" | "cerrado";
@@ -36,6 +38,8 @@ export type RestaurantSettings = {
   readonly reparto_minutos_max: number | null;
   readonly modo_ocupado_opciones: readonly number[];
   readonly modo_ocupado_duracion_minutos: number | null;
+  /** Foto de entrega del repartidor (reparto_foto_entrega). */
+  readonly reparto_foto_entrega: DeliveryPhotoMode;
   readonly privacidad_url: string | null;
   readonly privacidad_version: string | null;
   readonly antifraude_abiertos: number | null;

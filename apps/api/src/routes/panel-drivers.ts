@@ -1,6 +1,7 @@
 import { canAccessBranch, PERMISSION } from "@konnecttia/access";
 import { FULFILLMENT, ORDER_STATUS } from "@konnecttia/domain";
 import type { Context, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import type { Sql } from "../lib/db";
@@ -8,7 +9,20 @@ import { API_ERROR, fail } from "../lib/http";
 import { canSeeMemberEmails } from "../lib/member-name";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
+import {
+  countDeliveryPhotos,
+  DELIVERY_PHOTO_REJECTION,
+  type DeliveryPhotoRejection,
+  deliveryNeedsPhoto,
+  deliveryPhotoMode,
+  deliveryPhotoPath,
+  detectDeliveryPhotoType,
+  MAX_DELIVERY_PHOTO_BYTES,
+  photoRejection,
+  saveDeliveryPhoto,
+} from "../repositories/delivery-photos";
 import { changeOrderStatus } from "../repositories/order-status";
+import { loadConfig } from "../repositories/restaurants";
 
 /**
  * Repartos asignados (módulo «delivery»):
@@ -17,9 +31,21 @@ import { changeOrderStatus } from "../repositories/order-status";
  * - orders.deliver_assigned: «Mis repartos». El repartidor solo ve los pedidos que tiene
  *   asignados y solo los marca «en camino» y «entregado» (misma máquina de estados).
  * Trazabilidad: pedido_reparto (quién, quién asignó, horas) + pedido_estado_log con el actor.
+ * Prueba de entrega (`reparto_foto_entrega`): el repartidor sube la foto con una petición
+ * propia (POST .../foto, multipart) mientras el pedido va en camino y después marca «entregado»
+ * (JSON, como siempre). Con `obligatoria`, «entregado» responde 422 `delivery_photo_required`
+ * hasta que exista al menos una foto. Dos peticiones separadas permiten reintentar la subida
+ * con mala cobertura sin repetir ni perder el cambio de estado.
  */
 
 type Ctx = Context<AppEnv>;
+
+/** Estado HTTP de cada rechazo de la subida de la foto de entrega. */
+const PHOTO_STATUS: Record<DeliveryPhotoRejection, 404 | 409 | 422> = {
+  [DELIVERY_PHOTO_REJECTION.Disabled]: 422,
+  [DELIVERY_PHOTO_REJECTION.NotOnTheWay]: 409,
+  [DELIVERY_PHOTO_REJECTION.LimitReached]: 409,
+};
 
 const CLOSED = [
   ORDER_STATUS.Delivered,
@@ -184,12 +210,15 @@ export function registerDriverRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       const member = await ownMembership(sql, restaurant.id, c.get("user").userId);
       if (member === null) return c.json({ repartos: [] });
       const tz = restaurant.zonaHoraria;
+      const foto = deliveryPhotoMode(await loadConfig(sql, restaurant.id));
       const rows = await sql`
         SELECT p.id, p.pedido_codigo, p.estado, p.estado_pago, p.metodo_pago, p.total,
                p.nombre_pedido, p.telefono, p.direccion, p.lat, p.lng, p.items, p.notas,
                p.tiempo_estimado, s.nombre AS local_nombre,
                p.created_at AT TIME ZONE 'UTC' AS created_at,
-               pr.asignado_at, pr.salida_at, pr.entregado_at
+               pr.asignado_at, pr.salida_at, pr.entregado_at,
+               (SELECT count(*)::int FROM public.pedido_foto_entrega f WHERE f.pedido_id = p.id)
+                 AS fotos_entrega
         FROM   public.pedido_reparto pr
         JOIN   public.pedidos p       ON p.id = pr.pedido_id
         LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
@@ -198,7 +227,7 @@ export function registerDriverRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                 OR (pr.entregado_at AT TIME ZONE ${tz})::date = (now() AT TIME ZONE ${tz})::date)
         ORDER  BY (p.estado IN ${sql(CLOSED)}), pr.asignado_at
       `;
-      return c.json({ repartos: rows });
+      return c.json({ repartos: rows, foto_entrega: foto });
     },
   );
 
@@ -216,6 +245,27 @@ export function registerDriverRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     if (!assigned || member === null || assigned.membership_id !== member) {
       await record(c, `delivery.${accion}`, orderId, { motivo: "not_assigned" }, "denegado");
       return fail(c, 404, API_ERROR.OrderNotFound);
+    }
+    if (accion === "entregado") {
+      const [order] = await sql<{ estado: string }[]>`
+        SELECT estado FROM public.pedidos WHERE id = ${orderId} AND restaurante_id = ${restaurant.id}
+      `;
+      // Solo se exige al entregar un pedido en camino; el resto de casos los resuelve la
+      // máquina de estados con su error de siempre.
+      if (order?.estado === ORDER_STATUS.OnTheWay) {
+        const mode = deliveryPhotoMode(await loadConfig(sql, restaurant.id));
+        const photos = await countDeliveryPhotos(sql, restaurant.id, orderId);
+        if (deliveryNeedsPhoto(mode, photos)) {
+          await record(
+            c,
+            "delivery.entregado",
+            orderId,
+            { motivo: "delivery_photo_required" },
+            "denegado",
+          );
+          return fail(c, 422, API_ERROR.Unprocessable, { reason: "delivery_photo_required" });
+        }
+      }
     }
     const target = accion === "salida" ? ORDER_STATUS.OnTheWay : ORDER_STATUS.Delivered;
     const result = await changeOrderStatus(sql, {
@@ -270,5 +320,77 @@ export function registerDriverRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     "/:slug/mis-repartos/:id/entregado",
     requirePermission(deps, PERMISSION.OrdersDeliverAssigned),
     step("entregado"),
+  );
+
+  // Foto de entrega (multipart, campo `foto`): JPG, PNG o WebP de hasta 5 MB, validada por su
+  // firma real, en el bucket privado de justificantes con el prefijo `entregas/`.
+  app.post(
+    "/:slug/mis-repartos/:id/foto",
+    requirePermission(deps, PERMISSION.OrdersDeliverAssigned),
+    bodyLimit({
+      maxSize: MAX_DELIVERY_PHOTO_BYTES + 64 * 1024,
+      onError: (c) => fail(c, 413, API_ERROR.InvalidImage, { reason: "too_large" }),
+    }),
+    async (c) => {
+      const orderId = Number(c.req.param("id"));
+      if (!Number.isSafeInteger(orderId) || orderId < 1) return fail(c, 400, API_ERROR.InvalidBody);
+      const restaurant = c.get("restaurant");
+      const storage = deps.proofStorage;
+      if (!storage) return fail(c, 503, API_ERROR.StorageNotConfigured);
+      const member = await ownMembership(sql, restaurant.id, c.get("user").userId);
+      const [assigned] = await sql<{ membership_id: number | null }[]>`
+        SELECT membership_id::int AS membership_id FROM public.pedido_reparto
+        WHERE  pedido_id = ${orderId} AND restaurante_id = ${restaurant.id}
+      `;
+      // Un pedido que no es suyo se trata como inexistente.
+      if (!assigned || member === null || assigned.membership_id !== member) {
+        await record(c, "delivery.foto", orderId, { motivo: "not_assigned" }, "denegado");
+        return fail(c, 404, API_ERROR.OrderNotFound);
+      }
+
+      const form = await c.req.parseBody().catch(() => null);
+      const file = form?.foto;
+      if (!(file instanceof File)) return fail(c, 400, API_ERROR.InvalidBody, { field: "foto" });
+      if (file.size > MAX_DELIVERY_PHOTO_BYTES) {
+        return fail(c, 413, API_ERROR.InvalidImage, { reason: "too_large" });
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (bytes.length === 0) return fail(c, 400, API_ERROR.InvalidBody, { field: "foto" });
+      const type = detectDeliveryPhotoType(bytes);
+      if (!type) return fail(c, 415, API_ERROR.InvalidImage, { reason: "unsupported_type" });
+
+      const mode = deliveryPhotoMode(await loadConfig(sql, restaurant.id));
+      const path = deliveryPhotoPath(restaurant.id, orderId, type);
+      // Comprobación previa (barata) para no subir archivos que se van a rechazar.
+      const [order] = await sql<{ estado: string }[]>`
+        SELECT estado FROM public.pedidos WHERE id = ${orderId} AND restaurante_id = ${restaurant.id}
+      `;
+      const early = await countDeliveryPhotos(sql, restaurant.id, orderId);
+      const rejected = photoRejection({ mode, estado: order?.estado ?? "", subidas: early });
+      if (rejected) {
+        await record(c, "delivery.foto", orderId, { motivo: rejected }, "denegado");
+        return fail(c, PHOTO_STATUS[rejected], API_ERROR.Unprocessable, { reason: rejected });
+      }
+
+      await storage.upload(path, bytes, type.mime);
+      const saved = await saveDeliveryPhoto(sql, {
+        restauranteId: restaurant.id,
+        pedidoId: orderId,
+        membershipId: member,
+        mode,
+        ruta: path,
+        tipoMime: type.mime,
+        bytes: bytes.length,
+      });
+      if (!saved.ok) {
+        await storage.remove(path).catch(() => {});
+        await record(c, "delivery.foto", orderId, { motivo: saved.error }, "denegado");
+        return fail(c, PHOTO_STATUS[saved.error], API_ERROR.Unprocessable, {
+          reason: saved.error,
+        });
+      }
+      await record(c, "delivery.foto", orderId, { fotos: saved.total });
+      return c.json({ id: orderId, fotos_entrega: saved.total }, 201);
+    },
   );
 }

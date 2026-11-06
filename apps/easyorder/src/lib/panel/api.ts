@@ -2,6 +2,7 @@ import type { SignupBody, SignupResult } from "../alta/types";
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { CustomerDetail, CustomerList } from "./customers";
+import type { DeliveryPhotoMode, OrderDeliveryPhotos } from "./delivery-photo";
 import type { Delivery, Driver } from "./drivers";
 import type { OrderHistory } from "./history";
 import type { AdminMenu } from "./menu";
@@ -212,7 +213,22 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         method: "PUT",
         body: JSON.stringify({ membership_id: membershipId }),
       }),
-    myDeliveries: (slug: string) => request<{ repartos: Delivery[] }>(panel(slug, "/mis-repartos")),
+    myDeliveries: (slug: string) =>
+      request<{ repartos: Delivery[]; foto_entrega: DeliveryPhotoMode }>(
+        panel(slug, "/mis-repartos"),
+      ),
+    /** Foto de entrega (multipart, campo `foto`): el pedido debe ir en camino. */
+    uploadDeliveryPhoto: (slug: string, orderId: number, file: File) => {
+      const form = new FormData();
+      form.append("foto", file);
+      return request<{ id: number; fotos_entrega: number }>(
+        panel(slug, `/mis-repartos/${orderId}/foto`),
+        { method: "POST", body: form },
+      );
+    },
+    /** URLs firmadas (de corta duración) de las fotos de entrega de un pedido. */
+    deliveryPhotos: (slug: string, orderId: number) =>
+      request<OrderDeliveryPhotos>(panel(slug, `/orders/${orderId}/foto-entrega`)),
     deliveryStep: (slug: string, orderId: number, step: "salida" | "entregado") =>
       request(panel(slug, `/mis-repartos/${orderId}/${step}`), { method: "POST" }),
     changeStatus: (slug: string, orderId: number, estado: string) =>

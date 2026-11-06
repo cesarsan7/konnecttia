@@ -29,6 +29,7 @@ import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { phoneLimits } from "../repositories/antifraud";
 import { loadBranches } from "../repositories/branches";
+import { deliveryPhotoMode } from "../repositories/delivery-photos";
 import { CONFIG_KEY, loadConfig, surchargeRules } from "../repositories/restaurants";
 
 /**
@@ -99,6 +100,8 @@ const restaurantSchema = z
     reparto_minutos_max: minutes,
     modo_ocupado_opciones: z.array(z.number().int().min(1).max(240)).max(6),
     modo_ocupado_duracion_minutos: z.number().int().min(5).max(720).nullable(),
+    /** Foto de entrega del repartidor: no | opcional | obligatoria. */
+    reparto_foto_entrega: z.enum(["no", "opcional", "obligatoria"]),
     /** Política de privacidad propia (http/https); vacío = página plantilla /[slug]/privacidad. */
     privacidad_url: text(PRIVACY_URL_MAX).refine(isValidPolicyUrl),
     /** Versión vigente de la política: los pedidos web nuevos guardan esta. */
@@ -397,6 +400,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         reparto_minutos_max: positiveInt(config.get(CONFIG_KEY.DeliveryEtaMax)),
         modo_ocupado_opciones: busyOptions(config.get(CONFIG_KEY.BusyModeOptions)),
         modo_ocupado_duracion_minutos: positiveInt(config.get(CONFIG_KEY.BusyModeDuration)),
+        reparto_foto_entrega: deliveryPhotoMode(config),
         privacidad_url: config.get(CONFIG_KEY.PrivacyUrl)?.trim() || null,
         privacidad_version: config.get(CONFIG_KEY.PrivacyVersion)?.trim() || null,
         antifraude_abiertos: phoneLimits(config).open,
@@ -579,6 +583,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
             CONFIG_KEY.BusyModeDuration,
             body.modo_ocupado_duracion_minutos?.toString() ?? null,
             "Duración del modo ocupado (minutos)",
+          ],
+          [
+            "reparto_foto_entrega",
+            CONFIG_KEY.DeliveryPhoto,
+            body.reparto_foto_entrega ?? null,
+            "Foto de entrega del repartidor (panel)",
           ],
           [
             "privacidad_url",

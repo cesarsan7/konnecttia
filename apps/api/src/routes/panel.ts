@@ -117,7 +117,9 @@ export function panelRoutes(deps: AppDeps) {
              COALESCE(dm.apodo, dm.nombre) AS repartidor_nombre,
              pr.salida_at, pr.entregado_at,
              (SELECT count(*)::int FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
-               AS justificantes
+               AS justificantes,
+             (SELECT count(*)::int FROM public.pedido_foto_entrega f WHERE f.pedido_id = p.id)
+               AS fotos_entrega
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
       LEFT   JOIN public.mesa me    ON me.id = p.mesa_id

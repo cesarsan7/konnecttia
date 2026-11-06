@@ -4,6 +4,12 @@ import "./deliveries.css";
 import { useCallback, useEffect, useState } from "react";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
+import {
+  DELIVERY_PHOTO_MODE,
+  type DeliveryPhotoMode,
+  offersPhoto,
+  photoBlocksDelivery,
+} from "@/lib/panel/delivery-photo";
 import { type Delivery, deliveryStep, mapsLink } from "@/lib/panel/drivers";
 import {
   orderLines,
@@ -15,18 +21,22 @@ import {
 import { Icon } from "../Icon";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { DeliveryPhotoCapture } from "./DeliveryPhotoCapture";
 
 const REFRESH_MS = 20_000;
 
 /**
  * «Mis repartos»: la pantalla del repartidor (pensada para el móvil). Solo ve los pedidos que
  * tiene asignados y los marca «en camino» y «entregado». Con cobro pendiente (transferencia,
- * Bizum) no puede entregar hasta que el local lo confirme.
+ * Bizum) no puede entregar hasta que el local lo confirme. Si el local pide prueba de entrega
+ * (`reparto_foto_entrega`), con el pedido en camino ofrece «Foto de entrega» (cámara del móvil,
+ * vista previa y subida); con la foto obligatoria, «Entregado» espera a que se suba.
  */
 export function DeliveriesView() {
   const { api } = usePanel();
   const { slug, access, can } = useAccess();
   const [list, setList] = useState<readonly Delivery[] | null>(null);
+  const [photoMode, setPhotoMode] = useState<DeliveryPhotoMode>(DELIVERY_PHOTO_MODE.No);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const allowed = can(PERMISSION.OrdersDeliverAssigned);
@@ -40,6 +50,7 @@ export function DeliveriesView() {
     const result = await api.myDeliveries(slug);
     if (result.ok) {
       setList(result.data.repartos);
+      setPhotoMode(result.data.foto_entrega);
       setError(null);
     } else {
       setError(describePanelError(result.status, result.body));
@@ -57,7 +68,13 @@ export function DeliveriesView() {
     setBusy(delivery.id);
     const result = await api.deliveryStep(slug, delivery.id, step);
     setBusy(null);
-    if (!result.ok) setError(describePanelError(result.status, result.body));
+    if (!result.ok) {
+      setError(
+        result.body?.reason === "delivery_photo_required"
+          ? "Sube la foto de la entrega antes de marcarlo como entregado."
+          : describePanelError(result.status, result.body),
+      );
+    }
     await load();
   }
 
@@ -119,6 +136,9 @@ export function DeliveriesView() {
           const map = mapsLink(delivery);
           const pending = delivery.estado_pago === "pendiente";
           const notes = orderNotes(delivery.notas);
+          const showPhoto = delivery.estado === "en_camino" && offersPhoto(photoMode);
+          const needsPhoto =
+            step?.action === "entregado" && photoBlocksDelivery(photoMode, delivery);
           return (
             <li key={delivery.id} className="k-card k-delivery">
               <header className="k-delivery-head">
@@ -162,16 +182,23 @@ export function DeliveriesView() {
                 Asignado {time.format(new Date(delivery.asignado_at))}
                 {delivery.salida_at ? ` · salida ${time.format(new Date(delivery.salida_at))}` : ""}
               </p>
+              {showPhoto ? (
+                <DeliveryPhotoCapture delivery={delivery} mode={photoMode} onUploaded={load} />
+              ) : null}
               {step ? (
                 <button
                   type="button"
                   className="k-btn k-btn-go k-btn-block"
-                  disabled={busy !== null}
+                  disabled={busy !== null || needsPhoto}
                   onClick={() => void advance(delivery, step.action)}
                 >
                   {busy === delivery.id ? "Guardando…" : step.label}
                 </button>
-              ) : delivery.estado !== "en_camino" ? (
+              ) : null}
+              {needsPhoto ? (
+                <p className="k-small k-muted">Sube la foto de la entrega para poder marcarlo.</p>
+              ) : null}
+              {!step && delivery.estado !== "en_camino" ? (
                 <p className="k-small k-muted">Aún se está preparando.</p>
               ) : null}
             </li>

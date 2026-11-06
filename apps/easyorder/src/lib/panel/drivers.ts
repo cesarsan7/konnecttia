@@ -32,6 +32,8 @@ export type Delivery = {
   readonly asignado_at: string;
   readonly salida_at: string | null;
   readonly entregado_at: string | null;
+  /** Fotos de entrega ya subidas de este pedido. */
+  readonly fotos_entrega: number;
 };
 
 /** Repartidores que pueden llevar un pedido de ese local. */

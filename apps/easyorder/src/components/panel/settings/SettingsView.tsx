@@ -30,6 +30,7 @@ import { BusyModeHelp } from "../BusyModeControl";
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { DeliveryPhotoSetting } from "./DeliveryPhotoSetting";
 import { DeliverySection } from "./DeliverySection";
 import { PeakTimes } from "./PeakTimes";
 
@@ -220,7 +221,18 @@ export function SettingsView() {
         </>
       ) : null}
       {current === TAB.Delivery ? (
-        <DeliverySection editable={can(PERMISSION.DeliveryManage)} notify={toast} />
+        <>
+          {full ? (
+            <DeliveryPhotoSetting
+              value={data.restaurante.reparto_foto_entrega}
+              editable={editRestaurant}
+              onSave={(mode) =>
+                save(patch({ reparto_foto_entrega: mode }), "Ajuste de la foto de entrega guardado")
+              }
+            />
+          ) : null}
+          <DeliverySection editable={can(PERMISSION.DeliveryManage)} notify={toast} />
+        </>
       ) : null}
       {current === TAB.Branches ? (
         <>

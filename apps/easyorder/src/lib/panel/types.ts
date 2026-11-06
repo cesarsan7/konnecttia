@@ -76,6 +76,8 @@ export type PanelOrder = {
   readonly salida_at?: string | null;
   /** Justificantes de pago que ha subido el cliente (solo el tablero y el listado los traen). */
   readonly justificantes?: number;
+  /** Fotos de entrega que ha subido el repartidor (tablero e historial las traen). */
+  readonly fotos_entrega?: number;
 };
 
 export type BusyMode = {
