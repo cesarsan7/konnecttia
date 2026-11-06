@@ -109,7 +109,7 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     const digits = search?.replace(/[^0-9]/g, "") ?? "";
 
     const ordenRaw = query("orden") ?? "fecha";
-    if (!(ordenRaw in ORDER_SORT)) return invalid("orden");
+    if (!Object.hasOwn(ORDER_SORT, ordenRaw)) return invalid("orden");
     const orden = ordenRaw as SortKey;
     const dir = query("dir") === "asc" ? sql`ASC` : sql`DESC`;
     const pagina = Math.max(1, Number.parseInt(query("pagina") ?? "1", 10) || 1);

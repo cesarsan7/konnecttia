@@ -170,6 +170,8 @@ describe.skipIf(!TEST_DATABASE_URL)("historial de pedidos (vista tabla)", () => 
       "estado=inventado",
       "tipo=avion",
       "orden=telefono",
+      "orden=constructor",
+      "orden=__proto__",
       "desde=2026-11-03",
       "desde=2026-02-31&hasta=2026-03-01",
       "local=abc",
