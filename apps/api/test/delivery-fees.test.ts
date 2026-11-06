@@ -21,6 +21,7 @@ async function order(extra: Record<string, unknown>, quantity = 1) {
       tipo_despacho: "delivery",
       metodo_pago: "efectivo",
       direccion: "Calle Prueba 1",
+      privacidad_aceptada: true,
       items: [{ menu_item_id: 5201, menu_variant_id: 5301, quantity }],
       ...extra,
     }),

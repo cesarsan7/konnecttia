@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { describeApiError, describeZoneFee, normalizePhone, trackingSteps } from "./checkout";
+import {
+  consentFields,
+  describeApiError,
+  describeZoneFee,
+  normalizePhone,
+  PRIVACY_REQUIRED_MESSAGE,
+  privacyHref,
+  privacyProblem,
+  trackingSteps,
+} from "./checkout";
 
 describe("teléfono", () => {
   it.each([
@@ -52,5 +61,32 @@ describe("tarifa de una zona", () => {
     expect(describeZoneFee({ ...base, tipo_tarifa: "fija", gratis_desde: 30, minimo: 25 })).toMatch(
       /gratis desde 30,00\s€ · mínimo 25,00\s€$/u,
     );
+  });
+});
+
+describe("privacidad en el checkout", () => {
+  it("no deja pedir sin aceptar la política", () => {
+    expect(privacyProblem(false)).toBe(PRIVACY_REQUIRED_MESSAGE);
+    expect(privacyProblem(true)).toBeNull();
+  });
+
+  it("enlaza a la política propia o, si no hay, a la página genérica del local", () => {
+    expect(privacyHref("la-isla", "https://laisla.example/privacidad")).toBe(
+      "https://laisla.example/privacidad",
+    );
+    expect(privacyHref("la-isla", null)).toBe("/la-isla/privacidad");
+    expect(privacyHref("la-isla", "  ")).toBe("/la-isla/privacidad");
+  });
+
+  it("envía las dos casillas por separado", () => {
+    expect(consentFields(true, false)).toEqual({
+      privacidad_aceptada: true,
+      acepta_promociones: false,
+    });
+    expect(consentFields(true, true).acepta_promociones).toBe(true);
+  });
+
+  it("traduce el rechazo de la API a un mensaje claro", () => {
+    expect(describeApiError(422, { error: "privacy_required" })).toMatch(/política de privacidad/);
   });
 });

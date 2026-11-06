@@ -29,6 +29,7 @@ const menu: Menu = {
     recogida: true,
     reparto: true,
     metodos_pago: ["efectivo"],
+    privacidad_url: null,
   },
   local: null,
   abierto: true,

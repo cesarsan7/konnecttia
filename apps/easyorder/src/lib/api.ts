@@ -1,4 +1,12 @@
-import type { ApiErrorBody, Branch, CreatedOrder, DeliveryZone, Menu, TrackedOrder } from "./types";
+import type {
+  ApiErrorBody,
+  Branch,
+  CreatedOrder,
+  DeliveryZone,
+  Menu,
+  PrivacyInfo,
+  TrackedOrder,
+} from "./types";
 
 /** Resultado de una llamada: o datos, o estado HTTP con el cuerpo de error de la API. */
 export type ApiResult<T> =
@@ -30,6 +38,7 @@ export function createApi(baseUrl: string) {
       request<{ locales: Branch[] }>(
         `${base}/${segment(slug)}/locales${point ? `?lat=${point.lat}&lng=${point.lng}` : ""}`,
       ),
+    privacy: (slug: string) => request<PrivacyInfo>(`${base}/${segment(slug)}/privacidad`),
     zones: (slug: string) => request<{ zonas: DeliveryZone[] }>(`${base}/${segment(slug)}/zonas`),
     createOrder: (slug: string, body: unknown, idempotencyKey: string) =>
       request<CreatedOrder>(`${base}/${segment(slug)}/orders`, {

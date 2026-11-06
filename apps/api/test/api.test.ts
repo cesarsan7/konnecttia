@@ -29,7 +29,8 @@ async function postOrder(
       "x-real-ip": "203.0.113.10",
       ...(key ? { "Idempotency-Key": key } : {}),
     },
-    body: JSON.stringify(body),
+    // El checkout web exige aceptar la política de privacidad; un caso concreto puede anularlo.
+    body: JSON.stringify({ privacidad_aceptada: true, ...(body as Record<string, unknown>) }),
   });
   return { status: response.status, json: (await response.json()) as Record<string, unknown> };
 }

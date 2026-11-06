@@ -24,6 +24,7 @@ export const API_ERROR = {
   Conflict: "conflict",
   InvalidImage: "invalid_image",
   StorageNotConfigured: "storage_not_configured",
+  PrivacyRequired: "privacy_required",
 } as const;
 
 export type ApiError = (typeof API_ERROR)[keyof typeof API_ERROR];

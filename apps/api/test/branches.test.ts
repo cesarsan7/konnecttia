@@ -27,7 +27,7 @@ async function postOrder(body: unknown) {
       "x-real-ip": "203.0.113.20",
       "Idempotency-Key": `branch-test-${Date.now()}-${counter++}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ privacidad_aceptada: true, ...(body as Record<string, unknown>) }),
   });
   return { status: response.status, json: (await response.json()) as Record<string, unknown> };
 }

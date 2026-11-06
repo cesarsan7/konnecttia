@@ -18,6 +18,7 @@ async function pickupEta(): Promise<unknown> {
       telefono: "+34600000070",
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
+      privacidad_aceptada: true,
       items: [{ menu_item_id: 1101, menu_variant_id: 1202, quantity: 2 }],
     }),
   });
