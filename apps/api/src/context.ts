@@ -1,5 +1,6 @@
 import type { AccessContext } from "@konnecttia/access";
 import type { PlatformRole } from "@konnecttia/domain";
+import type { Mailer } from "@konnecttia/notifications";
 import type { Sql } from "./lib/db";
 import type { Restaurant } from "./repositories/restaurants";
 
@@ -36,15 +37,8 @@ export type ProofStorage = {
   readonly remove: (path: string) => Promise<void>;
 };
 
-/** Envío de emails (Resend). */
-export type Mailer = {
-  readonly send: (message: {
-    readonly to: string;
-    readonly subject: string;
-    readonly html: string;
-    readonly text: string;
-  }) => Promise<void>;
-};
+/** Envío de emails (Resend); vive en `@konnecttia/notifications`, compartido con el worker. */
+export type { Mailer };
 
 /**
  * Verifica el token del captcha del checkout web con la IP del cliente (si se conoce).

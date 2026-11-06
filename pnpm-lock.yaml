@@ -32,6 +32,9 @@ importers:
       '@konnecttia/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@konnecttia/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@supabase/supabase-js':
         specifier: ^2.50.0
         version: 2.118.0
@@ -120,6 +123,34 @@ importers:
         specifier: ^19.0.0
         version: 19.3.0(@types/react@19.3.0)
 
+  apps/worker:
+    dependencies:
+      '@konnecttia/access':
+        specifier: workspace:*
+        version: link:../../packages/access
+      '@konnecttia/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
+      '@konnecttia/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
+      zod:
+        specifier: ^4.1.0
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      tsx:
+        specifier: ^4.20.0
+        version: 4.23.15
+
   packages/access: {}
 
   packages/db:
@@ -136,6 +167,12 @@ importers:
         version: 22.20.5
 
   packages/domain: {}
+
+  packages/notifications:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.5
 
 packages:
 
