@@ -25,6 +25,8 @@ export const PERMISSION = {
   CustomersExport: "customers.export",
   /** Borrar (anonimizar) los datos personales de un cliente que lo pide. */
   CustomersDelete: "customers.delete",
+  /** Bloquear y desbloquear el teléfono de un cliente (no puede pedir por la web). */
+  CustomersBlock: "customers.block",
   TablesView: "tables.view",
   TablesManage: "tables.manage",
   AnalyticsView: "analytics.view",
@@ -60,6 +62,7 @@ export const PERMISSION_MODULE: Readonly<Record<PermissionCode, ModuleCode>> = {
   [PERMISSION.CustomersView]: MODULE.Customers,
   [PERMISSION.CustomersExport]: MODULE.Customers,
   [PERMISSION.CustomersDelete]: MODULE.Customers,
+  [PERMISSION.CustomersBlock]: MODULE.Customers,
   [PERMISSION.TablesView]: MODULE.Tables,
   [PERMISSION.TablesManage]: MODULE.Tables,
   [PERMISSION.AnalyticsView]: MODULE.Analytics,
@@ -94,6 +97,7 @@ export const PERMISSION_LABEL: Readonly<Record<PermissionCode, string>> = {
   [PERMISSION.CustomersView]: "Ver clientes",
   [PERMISSION.CustomersExport]: "Exportar clientes",
   [PERMISSION.CustomersDelete]: "Borrar los datos de un cliente",
+  [PERMISSION.CustomersBlock]: "Bloquear y desbloquear clientes",
   [PERMISSION.TablesView]: "Ver mesas",
   [PERMISSION.TablesManage]: "Ocupar, liberar y configurar mesas y meseros",
   [PERMISSION.AnalyticsView]: "Ver estadísticas",
