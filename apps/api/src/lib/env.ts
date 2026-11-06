@@ -25,6 +25,11 @@ const envSchema = z.object({
   RESEND_FROM: z.string().min(3).default("EasyOrder <onboarding@resend.dev>"),
   /** URL pública del panel (enlaces de los emails si la petición no trae Origin). */
   PANEL_PUBLIC_URL: z.string().url().optional(),
+  /**
+   * Opcional: clave secreta de Cloudflare Turnstile. Con ella, el pedido web exige el token del
+   * captcha y lo verifica; sin ella, el pedido funciona como siempre. Nunca se envía al navegador.
+   */
+  TURNSTILE_SECRET_KEY: z.string().min(10).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

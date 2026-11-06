@@ -1,6 +1,7 @@
 import { ALL_BRANCHES, canAccessBranch, PERMISSION } from "@konnecttia/access";
 import { ORDER_STATUS } from "@konnecttia/domain";
 import type { Context, Hono } from "hono";
+import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import type { Sql } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
@@ -26,6 +27,11 @@ const NOT_A_SALE = [ORDER_STATUS.InCart, ORDER_STATUS.Cancelled, ORDER_STATUS.Ex
 const CLOSED_ORDER = [ORDER_STATUS.Delivered, ORDER_STATUS.Cancelled, ORDER_STATUS.Expired];
 /** Marcador del teléfono de un perfil anonimizado (`usuarios.telefono` es NOT NULL y único). */
 const ANONYMIZED_PHONE_PREFIX = "anonimizado-";
+/** Tope del motivo (nota interna) al bloquear a un cliente; coincide con la tabla. */
+const MAX_BLOCK_REASON = 300;
+const blockBodySchema = z.object({
+  motivo: z.string().trim().max(MAX_BLOCK_REASON).optional(),
+});
 const SORT = { Recent: "recientes", Orders: "pedidos", Spent: "gasto" } as const;
 type Sort = (typeof SORT)[keyof typeof SORT];
 
@@ -52,6 +58,7 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     sort: Sort,
     limit: number | null,
     offset: number,
+    onlyBlocked = false,
   ) => {
     const restauranteId = c.get("restaurant").id;
     const pattern = search ? `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%` : null;
@@ -71,11 +78,12 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         pedidos: number;
         gastado: string;
         ultimo_pedido: string | null;
+        bloqueado: boolean;
         total_filas: number;
       }[]
     >`
       SELECT u.id, u.nombre, u.telefono, u.direccion_frecuente,
-             u.created_at AS creado,
+             u.created_at AS creado, (b.id IS NOT NULL) AS bloqueado,
              COALESCE(s.pedidos, 0)::int AS pedidos,
              COALESCE(s.gastado, 0) AS gastado,
              s.ultimo_pedido,
@@ -89,8 +97,12 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           AND  p.estado NOT IN ${sql(NOT_A_SALE)}
           ${branchClause(c)}
       ) s ON true
+      LEFT   JOIN public.cliente_bloqueado b
+             ON b.restaurante_id = u.restaurante_id
+            AND b.telefono = public.fn_telefono_normalizado(u.telefono)
       WHERE  u.restaurante_id = ${restauranteId}
         AND  u.anonimizado_at IS NULL
+        ${onlyBlocked ? sql`AND b.id IS NOT NULL` : sql``}
         AND  (${pattern}::text IS NULL OR u.nombre ILIKE ${pattern} OR u.telefono ILIKE ${pattern})
         ${limited(c) ? sql`AND COALESCE(s.pedidos, 0) > 0` : sql``}
       ORDER  BY ${order}
@@ -110,6 +122,7 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       parseSort(c.req.query("orden")),
       PAGE_SIZE,
       (page - 1) * PAGE_SIZE,
+      c.req.query("bloqueados") === "1",
     );
     return c.json({
       clientes: rows.map(({ total_filas: _, gastado, ...row }) => ({
@@ -190,6 +203,11 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       WHERE  id = ${id} AND restaurante_id = ${restauranteId} AND anonimizado_at IS NULL
     `;
     if (!customer) return fail(c, 404, API_ERROR.NotFound);
+    const [block] = await sql<{ motivo: string | null; created_at: string }[]>`
+      SELECT motivo, created_at FROM public.cliente_bloqueado
+      WHERE  restaurante_id = ${restauranteId}
+        AND  telefono = public.fn_telefono_normalizado(${customer.telefono})
+    `;
     const orders = await sql<
       {
         id: number;
@@ -248,6 +266,7 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     }
     return c.json({
       cliente: customer,
+      bloqueo: block ? { motivo: block.motivo, desde: block.created_at } : null,
       resumen: {
         pedidos: count,
         gastado: Math.round(spent * 100) / 100,
@@ -262,6 +281,100 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       pedidos: orders.map(({ items: _, total, ...order }) => ({ ...order, total: Number(total) })),
     });
   });
+  /**
+   * Cliente visible para el usuario: de este restaurante, sin anonimizar y, si está limitado a
+   * unos locales, con pedidos en ellos (igual que la ficha). Devuelve su teléfono.
+   */
+  const visibleCustomer = async (c: Ctx, id: number) => {
+    const [customer] = await sql<{ telefono: string }[]>`
+      SELECT u.telefono FROM public.usuarios u
+      WHERE  u.id = ${id} AND u.restaurante_id = ${c.get("restaurant").id}
+        AND  u.anonimizado_at IS NULL
+        ${
+          limited(c)
+            ? sql`AND EXISTS (
+                SELECT 1 FROM public.pedidos p
+                WHERE  p.restaurante_id = u.restaurante_id AND p.telefono = u.telefono
+                  ${branchClause(c)}
+              )`
+            : sql``
+        }
+    `;
+    return customer ?? null;
+  };
+
+  // Bloquear el teléfono: sus pedidos web se rechazan sin decirle por qué (pieza Q, antifraude).
+  // El bloqueo vale para todo el restaurante, no solo para los locales del usuario.
+  app.put(
+    "/:slug/clientes/:id/bloqueo",
+    requirePermission(deps, PERMISSION.CustomersBlock),
+    async (c) => {
+      const id = Number(c.req.param("id"));
+      if (!Number.isSafeInteger(id) || id < 1) return fail(c, 400, API_ERROR.InvalidBody);
+      const parsed = blockBodySchema.safeParse((await c.req.json().catch(() => ({}))) ?? {});
+      if (!parsed.success) return fail(c, 400, API_ERROR.InvalidBody);
+      const customer = await visibleCustomer(c, id);
+      if (!customer) return fail(c, 404, API_ERROR.NotFound);
+      const restauranteId = c.get("restaurant").id;
+      const reason = parsed.data.motivo || null;
+      const [saved] = await sql<{ motivo: string | null; created_at: string }[]>`
+        INSERT INTO public.cliente_bloqueado (restaurante_id, telefono, motivo, bloqueado_por)
+        VALUES (
+          ${restauranteId}, public.fn_telefono_normalizado(${customer.telefono}), ${reason},
+          ${c.get("user").userId}
+        )
+        ON CONFLICT (restaurante_id, telefono)
+        DO UPDATE SET motivo = EXCLUDED.motivo, bloqueado_por = EXCLUDED.bloqueado_por
+        RETURNING motivo, created_at
+      `;
+      // Sin teléfono ni motivo en el detalle: la auditoría es inmutable.
+      await audit(sql, {
+        restauranteId,
+        actorTipo: "usuario",
+        actorId: c.get("user").userId,
+        accion: PERMISSION.CustomersBlock,
+        recursoTipo: "cliente",
+        recursoId: String(id),
+        resultado: "ok",
+        detalle: { operacion: "bloquear", con_motivo: reason !== null },
+        requestId: c.get("requestId"),
+      });
+      return c.json({
+        ok: true,
+        bloqueo: { motivo: saved?.motivo ?? null, desde: saved?.created_at },
+      });
+    },
+  );
+
+  app.delete(
+    "/:slug/clientes/:id/bloqueo",
+    requirePermission(deps, PERMISSION.CustomersBlock),
+    async (c) => {
+      const id = Number(c.req.param("id"));
+      if (!Number.isSafeInteger(id) || id < 1) return fail(c, 400, API_ERROR.InvalidBody);
+      const customer = await visibleCustomer(c, id);
+      if (!customer) return fail(c, 404, API_ERROR.NotFound);
+      const restauranteId = c.get("restaurant").id;
+      await sql`
+        DELETE FROM public.cliente_bloqueado
+        WHERE  restaurante_id = ${restauranteId}
+          AND  telefono = public.fn_telefono_normalizado(${customer.telefono})
+      `;
+      await audit(sql, {
+        restauranteId,
+        actorTipo: "usuario",
+        actorId: c.get("user").userId,
+        accion: PERMISSION.CustomersBlock,
+        recursoTipo: "cliente",
+        recursoId: String(id),
+        resultado: "ok",
+        detalle: { operacion: "desbloquear" },
+        requestId: c.get("requestId"),
+      });
+      return c.json({ ok: true });
+    },
+  );
+
   // Borrar los datos del cliente que lo pide: anonimiza el perfil y sus pedidos (no los elimina).
   app.delete(
     "/:slug/clientes/:id",
@@ -384,6 +497,12 @@ async function anonymizeCustomer(
            acepta_promociones = false, acepta_promociones_at = now(),
            anonimizado_at = now(), updated_at = now()
     WHERE  id = ${usuarioId} AND restaurante_id = ${restauranteId}
+  `;
+  // Su teléfono no debe sobrevivir al borrado, tampoco en la lista de bloqueados.
+  await tx`
+    DELETE FROM public.cliente_bloqueado
+    WHERE  restaurante_id = ${restauranteId}
+      AND  telefono = public.fn_telefono_normalizado(${telefono})
   `;
   await tx`
     DELETE FROM public.contexto WHERE restaurante_id = ${restauranteId} AND telefono = ${telefono}

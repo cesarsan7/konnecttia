@@ -30,6 +30,12 @@ export type Mailer = {
   }) => Promise<void>;
 };
 
+/**
+ * Verifica el token del captcha del checkout web con la IP del cliente (si se conoce).
+ * Devuelve false si el token falta, es inválido o caducó, o si no se pudo comprobar.
+ */
+export type CaptchaVerifier = (token: string | undefined, ip: string | null) => Promise<boolean>;
+
 /** Dependencias inyectadas: permiten probar la API con una base real y una autenticación falsa. */
 export type AppDeps = {
   readonly sql: Sql;
@@ -45,6 +51,8 @@ export type AppDeps = {
   readonly mailer?: Mailer | null;
   /** URL pública del panel para los enlaces de los emails si la petición no trae Origin. */
   readonly panelUrl?: string | null;
+  /** null si no hay TURNSTILE_SECRET_KEY: el pedido web no exige captcha. */
+  readonly verifyCaptcha?: CaptchaVerifier | null;
 };
 
 export type AppEnv = {

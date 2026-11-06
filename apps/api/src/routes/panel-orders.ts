@@ -6,6 +6,7 @@ import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
+import { isPhoneBlocked } from "../repositories/antifraud";
 import { ORDER_CHANNEL } from "../repositories/orders";
 import { type OrderInput, placeOrder } from "../repositories/place-order";
 import { CONFIG_KEY, loadConfig } from "../repositories/restaurants";
@@ -91,7 +92,7 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       // Un número español sin prefijo (9 cifras) también coincide con el mismo número con 34.
       const short = digits.startsWith("34") && digits.length === 11 ? digits.slice(2) : digits;
       const samePhone = deps.sql`regexp_replace(p.telefono, '[^0-9]', '', 'g') IN (${digits}, ${short}, ${`34${short}`})`;
-      const [orders, customers] = await Promise.all([
+      const [orders, customers, blocked] = await Promise.all([
         deps.sql<
           {
             id: number;
@@ -122,12 +123,15 @@ export function registerManualOrderRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           ORDER  BY u.updated_at DESC NULLS LAST
           LIMIT  1
         `,
+        // Aviso en el pedido manual: el equipo puede continuar igualmente.
+        isPhoneBlocked(deps.sql, restaurantId, digits),
       ]);
       // Un usuario limitado a unos locales no ve datos de clientes sin pedidos en ellos.
       const customer =
         scope !== ALL_BRANCHES && orders.length === 0 ? null : (customers[0] ?? null);
       return c.json({
         cliente: customer,
+        bloqueado: blocked,
         pedidos: orders.map((order) => ({ ...order, total: Number(order.total) })),
       });
     },
