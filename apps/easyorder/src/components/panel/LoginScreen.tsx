@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { parseReturnTarget, rememberReturn } from "@/lib/panel/recovery";
 import { sortByLastUsed } from "@/lib/panel/restaurants";
 import type { MyRestaurants } from "@/lib/panel/types";
 import { EasyOrderLockup } from "./Brand";
@@ -44,7 +45,11 @@ export function LoginScreen() {
 
   // `?recuperar=1` abre directamente «Recupera tu contraseña» (enlace desde /alta y /interno).
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("recuperar")) setMode("recover");
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("recuperar")) {
+      setMode("recover");
+      rememberReturn(parseReturnTarget(params.get("volver")));
+    }
   }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

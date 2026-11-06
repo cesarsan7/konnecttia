@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
+import { resetDestination, takeReturn } from "@/lib/panel/recovery";
 import { EasyOrderLockup } from "./Brand";
 import { usePanel } from "./PanelProvider";
 
@@ -9,7 +10,7 @@ const MIN_PASSWORD = 8;
 
 /** Destino del enlace de recuperación: Supabase abre la sesión y aquí se elige la contraseña. */
 export function ResetPassword() {
-  const { supabase, session } = usePanel();
+  const { supabase, session, api, platformApi } = usePanel();
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
@@ -34,7 +35,17 @@ export function ResetPassword() {
       setError("No se pudo guardar la contraseña. Pide un enlace nuevo.");
       return;
     }
-    router.replace("/panel");
+    const remembered = takeReturn();
+    if (remembered) {
+      router.replace(resetDestination({ remembered, restaurants: null, platformMember: false }));
+      return;
+    }
+    // Solo sin restaurantes se pregunta si es del equipo de Konnecttia (evita denegaciones en
+    // la auditoría para el resto).
+    const mine = await api.myRestaurants();
+    const restaurants = mine.ok ? mine.data.restaurantes.length : null;
+    const platformMember = restaurants === 0 && (await platformApi.me()).ok;
+    router.replace(resetDestination({ remembered: null, restaurants, platformMember }));
   }
 
   return (
