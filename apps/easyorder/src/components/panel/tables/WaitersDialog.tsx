@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { euros } from "@/lib/format";
-import type { TeamMember } from "@/lib/panel/team";
+import { personLabel, type TeamMember } from "@/lib/panel/team";
 import type { Waiter, WaiterList } from "@/lib/panel/waiters";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
@@ -116,7 +116,9 @@ export function WaitersDialog(props: {
                   {waiter.sucursal_id === null
                     ? "Todos los locales"
                     : (names.get(waiter.sucursal_id) ?? "Otro local")}
-                  {waiter.email ? ` · ${waiter.email}` : ""}
+                  {waiter.nombre_mostrar || waiter.email
+                    ? ` · ${personLabel({ name: waiter.nombre_mostrar, email: waiter.email }, "")}`
+                    : ""}
                 </span>
                 <span className="k-small">
                   Hoy: {waiter.pedidos_hoy} {waiter.pedidos_hoy === 1 ? "pedido" : "pedidos"} ·{" "}
@@ -184,7 +186,10 @@ export function WaitersDialog(props: {
                     <option value="">Sin usuario</option>
                     {members.map((member) => (
                       <option key={member.id} value={member.id}>
-                        {member.email ?? `Miembro ${member.id}`}
+                        {personLabel(
+                          { name: member.mostrar, email: member.email },
+                          `Miembro ${member.id}`,
+                        )}
                         {member.roles.length > 0
                           ? ` · ${member.roles.map((role) => role.nombre).join(", ")}`
                           : ""}

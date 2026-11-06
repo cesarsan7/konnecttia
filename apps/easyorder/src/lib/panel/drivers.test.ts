@@ -13,8 +13,15 @@ describe("repartos", () => {
 
   it("filtra repartidores por local", () => {
     const drivers = [
-      { membership_id: 1, email: "a", roles: [], locales: "todos" as const, en_curso: 0 },
-      { membership_id: 2, email: "b", roles: [], locales: [7], en_curso: 0 },
+      {
+        membership_id: 1,
+        email: "a",
+        nombre_mostrar: null,
+        roles: [],
+        locales: "todos" as const,
+        en_curso: 0,
+      },
+      { membership_id: 2, email: "b", nombre_mostrar: "B", roles: [], locales: [7], en_curso: 0 },
     ];
     expect(driversFor(drivers, 7).map((d) => d.membership_id)).toEqual([1, 2]);
     expect(driversFor(drivers, 8).map((d) => d.membership_id)).toEqual([1]);

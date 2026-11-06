@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { type Sql, UNIQUE_VIOLATION } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
+import { canSeeMemberEmails } from "../lib/member-name";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 
@@ -127,10 +128,16 @@ export function registerWaiterRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     const tz = restaurant.zonaHoraria;
     const [rows, member] = await Promise.all([
       sql<
-        (WaiterRow & { email: string | null; pedidos_hoy: number; importe_hoy: string | null })[]
+        (WaiterRow & {
+          email: string | null;
+          nombre_mostrar: string | null;
+          pedidos_hoy: number;
+          importe_hoy: string | null;
+        })[]
       >`
         SELECT w.id, w.nombre, COALESCE(w.activo, true) AS activo, w.sucursal_id::int AS sucursal_id,
                w.membership_id::int AS membership_id, m.email,
+               COALESCE(m.apodo, m.nombre) AS nombre_mostrar,
                (SELECT count(*)::int FROM public.pedidos p
                 WHERE  p.restaurante_id = w.restaurante_id AND p.mesero_id = w.id
                   AND  p.estado NOT IN ${sql(NOT_A_SALE)}
@@ -151,9 +158,12 @@ export function registerWaiterRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     const visible = rows.filter((row) =>
       row.sucursal_id === null ? true : canAccessBranch(access, row.sucursal_id),
     );
+    // `nombre_mostrar` = apodo o nombre del miembro enlazado; el email solo lo ve quien ve el equipo.
+    const emails = canSeeMemberEmails(access);
     return c.json({
       meseros: visible.map(({ importe_hoy, ...row }) => ({
         ...row,
+        email: emails ? row.email : null,
         importe_hoy: Number(importe_hoy ?? 0),
       })),
       /** Mesero que es el propio usuario (se asigna solo al tomar pedidos en mesa). */

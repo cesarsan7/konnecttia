@@ -14,6 +14,7 @@ import type { AppDeps, AppEnv } from "../context";
 import type { Sql } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
 import { inviteEmail } from "../lib/mailer";
+import { displayName, memberNameSchema } from "../lib/member-name";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { loadBranches } from "../repositories/branches";
@@ -184,12 +185,14 @@ export function registerTeamRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           id: number;
           user_id: string;
           email: string | null;
+          nombre: string | null;
+          apodo: string | null;
           created_at: string;
           roles: { id: number; code: string; nombre: string }[];
           locales: number[];
         }[]
       >`
-        SELECT m.id, m.user_id::text AS user_id, m.email, m.created_at,
+        SELECT m.id, m.user_id::text AS user_id, m.email, m.nombre, m.apodo, m.created_at,
                COALESCE((SELECT json_agg(json_build_object('id', r.id, 'code', r.code, 'nombre', r.nombre) ORDER BY r.id)
                          FROM public.membresia_rol mr JOIN public.rol r ON r.id = mr.rol_id
                          WHERE mr.membership_id = m.id), '[]') AS roles,
@@ -232,6 +235,7 @@ export function registerTeamRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         .filter((member) => sees(member.locales))
         .map(({ user_id, ...member }) => ({
           ...member,
+          mostrar: displayName(member.apodo, member.nombre),
           locales: member.locales.length === 0 ? "todos" : member.locales,
           eres_tu: user_id === c.get("user").userId,
         })),
@@ -420,6 +424,47 @@ export function registerTeamRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         ...(branches?.ok ? { locales: branches.ids } : {}),
       });
       return c.json({ id: member.id });
+    },
+  );
+
+  /**
+   * Nombre y apodo de una persona del equipo. Cada una edita los suyos en `/:slug/me/perfil`
+   * (sin permiso especial: es su propio dato); quien gestiona el equipo edita los de otros
+   * dentro de su alcance de locales. El nombre no da ni quita acceso, así que no se aplican las
+   * reglas de escalada de roles.
+   */
+  const saveProfile = async (c: Ctx, membershipId: number, propio: boolean) => {
+    const parsed = memberNameSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return fail(c, 400, API_ERROR.InvalidBody, {
+        field: parsed.error.issues[0]?.path.join("."),
+      });
+    }
+    const { nombre, apodo } = parsed.data;
+    await sql`
+      UPDATE public.local_memberships SET nombre = ${nombre}, apodo = ${apodo}
+      WHERE  id = ${membershipId} AND restaurante_id = ${c.get("restaurant").id}
+    `;
+    await record(c, "team.profile", "miembro", membershipId, { propio });
+    return c.json({ id: membershipId, nombre, apodo, mostrar: displayName(apodo, nombre) });
+  };
+
+  app.put("/:slug/me/perfil", async (c) => {
+    const [own] = await sql<{ id: number }[]>`
+      SELECT id::int AS id FROM public.local_memberships
+      WHERE  restaurante_id = ${c.get("restaurant").id} AND user_id = ${c.get("user").userId}::uuid
+    `;
+    if (!own) return fail(c, 404, API_ERROR.NotFound);
+    return saveProfile(c, own.id, true);
+  });
+
+  app.put(
+    "/:slug/equipo/miembros/:id/perfil",
+    requirePermission(deps, PERMISSION.TeamManage),
+    async (c) => {
+      const member = await findMember(c);
+      if (!member) return fail(c, 404, API_ERROR.NotFound);
+      return saveProfile(c, member.id, member.user_id === c.get("user").userId);
     },
   );
 

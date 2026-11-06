@@ -7,9 +7,17 @@ import type { AdminMenu } from "./menu";
 import type { PreviousOrders } from "./reorder";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { TablePlan } from "./tables";
-import type { InvitePreview, RolesCatalog, Team } from "./team";
+import type { InvitePreview, MemberName, RolesCatalog, Team } from "./team";
 import type { MyRestaurants, PanelAccess, PanelBranch, PanelOrder, SalesOverview } from "./types";
 import type { WaiterList } from "./waiters";
+
+/** Respuesta de PUT .../perfil. */
+export type ProfileSaved = {
+  readonly id: number;
+  readonly nombre: string;
+  readonly apodo: string | null;
+  readonly mostrar: string;
+};
 
 /** Cliente de la API del panel. Cada llamada lleva el token de la sesión de Supabase. */
 export function createPanelApi(baseUrl: string, getToken: () => Promise<string | null>) {
@@ -87,9 +95,22 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     roles: (slug: string) => request<RolesCatalog>(panel(slug, "/equipo/roles")),
     invite: (token: string) =>
       request<InvitePreview>(`/me/invitaciones/${encodeURIComponent(token)}`),
-    acceptInvite: (token: string) =>
+    acceptInvite: (token: string, name: MemberName) =>
       request<{ slug: string | null }>(`/me/invitaciones/${encodeURIComponent(token)}/aceptar`, {
         method: "POST",
+        body: JSON.stringify(name),
+      }),
+    /** Nombre y apodo propios. */
+    saveProfile: (slug: string, name: MemberName) =>
+      request<ProfileSaved>(panel(slug, "/me/perfil"), {
+        method: "PUT",
+        body: JSON.stringify(name),
+      }),
+    /** Nombre y apodo de otra persona del equipo (team.manage). */
+    saveMemberProfile: (slug: string, memberId: number, name: MemberName) =>
+      request<ProfileSaved>(panel(slug, `/equipo/miembros/${memberId}/perfil`), {
+        method: "PUT",
+        body: JSON.stringify(name),
       }),
     manualOrder: (slug: string, body: unknown, idempotencyKey: string) =>
       request<{

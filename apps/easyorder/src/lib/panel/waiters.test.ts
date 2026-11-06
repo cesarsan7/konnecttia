@@ -8,6 +8,7 @@ const waiter = (id: number, sucursal: number | null, activo = true) => ({
   sucursal_id: sucursal,
   membership_id: null,
   email: null,
+  nombre_mostrar: null,
   pedidos_hoy: 0,
   importe_hoy: 0,
 });

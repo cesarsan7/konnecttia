@@ -2,10 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { type InvitePreview, inviteStateText } from "@/lib/panel/team";
+import {
+  type InvitePreview,
+  inviteStateText,
+  MEMBER_NAME_MAX,
+  parseMemberName,
+  teamErrorMessage,
+} from "@/lib/panel/team";
 import { EasyOrderLockup } from "../Brand";
 import { rememberRestaurant } from "../LoginScreen";
 import { usePanel } from "../PanelProvider";
+import "../profile-dialog.css";
 
 type Mode = "login" | "signup" | "check-email";
 
@@ -21,6 +28,8 @@ export function JoinView({ token }: { readonly token: string }) {
   const [mode, setMode] = useState<Mode>("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [apodo, setApodo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -72,13 +81,22 @@ export function JoinView({ token }: { readonly token: string }) {
     if (loginError) setError("Email o contraseña incorrectos.");
   }
 
-  async function accept() {
+  async function accept(event: FormEvent) {
+    event.preventDefault();
+    const parsed = parseMemberName(nombre, apodo);
+    if ("error" in parsed) return setError(parsed.error);
     setBusy(true);
-    const result = await api.acceptInvite(token);
+    setError(null);
+    const result = await api.acceptInvite(token, parsed.value);
     setBusy(false);
     if (!result.ok) {
-      const reason = (result.body as { reason?: InvitePreview["estado"] } | null)?.reason;
-      setError(reason ? inviteStateText(reason) : "No se pudo aceptar la invitación.");
+      const reason = (result.body as { reason?: string } | null)?.reason;
+      // name_required y los estados de la invitación (usada, caducada…) tienen su texto.
+      setError(
+        (reason === "name_required" ? teamErrorMessage(reason) : null) ||
+          (reason ? inviteStateText(reason as InvitePreview["estado"]) : null) ||
+          "No se pudo aceptar la invitación.",
+      );
       return;
     }
     if (result.data.slug) {
@@ -174,26 +192,46 @@ export function JoinView({ token }: { readonly token: string }) {
           <>
             <h1 className="k-title">Únete a {preview.restaurante.nombre}</h1>
             {preview.estado === "valida" ? (
-              <>
+              <form onSubmit={accept} noValidate className="k-join-name">
                 <p className="k-muted">
                   Entrarás como <strong>{preview.rol?.toLowerCase()}</strong>
                   {preview.todos_los_locales ? "" : " en algunos locales"}. Cuenta:{" "}
                   <strong>{preview.tu_email}</strong>.
+                </p>
+                <p className="k-muted k-small">
+                  Dinos cómo te llamas: el equipo te verá con tu nombre (o tu apodo), no con tu
+                  email.
                 </p>
                 {error ? (
                   <p className="k-alert" role="alert">
                     {error}
                   </p>
                 ) : null}
-                <button
-                  type="button"
-                  className="k-btn k-btn-primary k-btn-block"
-                  disabled={busy}
-                  onClick={accept}
-                >
+                <label className="k-field">
+                  <span>Nombre</span>
+                  <input
+                    value={nombre}
+                    maxLength={MEMBER_NAME_MAX}
+                    autoComplete="name"
+                    onChange={(e) => setNombre(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className="k-field">
+                  <span>
+                    Apodo <span className="k-muted k-optional">(opcional)</span>
+                  </span>
+                  <input
+                    value={apodo}
+                    maxLength={MEMBER_NAME_MAX}
+                    autoComplete="nickname"
+                    onChange={(e) => setApodo(e.target.value)}
+                  />
+                </label>
+                <button type="submit" className="k-btn k-btn-primary k-btn-block" disabled={busy}>
                   Aceptar y entrar al panel
                 </button>
-              </>
+              </form>
             ) : (
               <>
                 <p className="k-alert" role="alert">

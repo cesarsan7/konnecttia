@@ -2,7 +2,10 @@
 
 export type Driver = {
   readonly membership_id: number;
+  /** Solo llega a quien ve el equipo. */
   readonly email: string | null;
+  /** Apodo o nombre del miembro. */
+  readonly nombre_mostrar: string | null;
   readonly roles: readonly string[];
   readonly locales: "todos" | readonly number[];
   /** Repartos en marcha que tiene asignados. */
