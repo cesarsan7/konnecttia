@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createApi } from "@/lib/api";
 import { ORDER_STATUS_LABEL, paymentLabel, trackingSteps } from "@/lib/checkout";
 import { euros } from "@/lib/format";
+import { copyText, isClosed } from "@/lib/tracking";
 import type { TrackedOrder } from "@/lib/types";
+import "./tracking.css";
 
 const REFRESH_MS = 15_000;
-const FINAL = new Set(["entregado", "cancelado", "expirado"]);
+const COPIED_MS = 3_000;
 
 type Props = {
   readonly apiUrl: string;
@@ -34,13 +36,70 @@ function describeItem(item: StoredItem) {
   };
 }
 
+/**
+ * Aviso mientras el pedido sigue abierto: no cerrar la página y cómo volver con el enlace.
+ * Si el navegador no deja copiar, se muestra la URL seleccionada para copiarla a mano.
+ */
+function KeepOpenNotice() {
+  const [copied, setCopied] = useState(false);
+  const [manualUrl, setManualUrl] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), COPIED_MS);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  useEffect(() => {
+    if (manualUrl) field.current?.select();
+  }, [manualUrl]);
+
+  async function copyLink() {
+    const url = window.location.href;
+    if (await copyText(url, navigator.clipboard)) {
+      setManualUrl(null);
+      setCopied(true);
+    } else {
+      setManualUrl(url);
+    }
+  }
+
+  return (
+    <section className="track-notice" aria-label="Guarda el enlace de tu pedido">
+      <p className="track-notice-title">
+        No cierres esta página: aquí verás el estado de tu pedido.
+      </p>
+      <p className="track-notice-hint">Si la cierras, vuelve con este enlace.</p>
+      <div className="track-notice-actions">
+        <button type="button" className="btn" onClick={copyLink}>
+          Copiar enlace
+        </button>
+        <span className="track-notice-done" role="status">
+          {copied ? "Enlace copiado" : ""}
+        </span>
+      </div>
+      {manualUrl && (
+        <input
+          ref={field}
+          className="track-notice-url"
+          readOnly
+          value={manualUrl}
+          aria-label="Enlace de tu pedido"
+          onFocus={(event) => event.currentTarget.select()}
+        />
+      )}
+    </section>
+  );
+}
+
 /** Estado del pedido, actualizado cada 15 s mientras no termine. */
 export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
   const api = useMemo(() => createApi(apiUrl), [apiUrl]);
   const [order, setOrder] = useState(initialOrder);
 
   useEffect(() => {
-    if (FINAL.has(order.estado)) return;
+    if (isClosed(order.estado)) return;
     const timer = window.setInterval(async () => {
       const result = await api.tracking(token);
       if (result.ok) setOrder(result.data);
@@ -66,11 +125,13 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
           <span className={`badge ${cancelled ? "closed" : "open"}`}>
             {ORDER_STATUS_LABEL[order.estado] ?? order.estado}
           </span>
-          {order.tiempoEstimado && !FINAL.has(order.estado) && (
+          {order.tiempoEstimado && !isClosed(order.estado) && (
             <span className="muted">Tiempo estimado: {order.tiempoEstimado}</span>
           )}
         </p>
       </header>
+
+      {!isClosed(order.estado) && <KeepOpenNotice />}
 
       {!cancelled && (
         <ol className="steps">
