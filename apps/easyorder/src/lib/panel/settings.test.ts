@@ -5,6 +5,8 @@ import {
   dayLabel,
   parseMinuteList,
   parseMinutes,
+  parsePhoneLimit,
+  parsePolicyUrl,
   settingsErrorMessage,
 } from "./settings";
 
@@ -70,5 +72,25 @@ describe("reparto", () => {
         3000,
       ),
     ).toBe("1,50 € + 0,50 €/km (máx. 4 €) · gratis desde 30 €");
+  });
+});
+
+describe("privacidad y antifraude", () => {
+  it("valida la URL de la política", () => {
+    expect(parsePolicyUrl("")).toBeNull();
+    expect(parsePolicyUrl("  https://rest.example/privacidad ")).toBe(
+      "https://rest.example/privacidad",
+    );
+    expect(parsePolicyUrl("http://rest.example")).toBe("http://rest.example");
+    expect(parsePolicyUrl("javascript:alert(1)")).toBeUndefined();
+    expect(parsePolicyUrl("rest.example/privacidad")).toBeUndefined();
+  });
+
+  it("valida los límites por teléfono", () => {
+    expect(parsePhoneLimit("")).toBeNull();
+    expect(parsePhoneLimit("3")).toBe(3);
+    expect(parsePhoneLimit("0")).toBeUndefined();
+    expect(parsePhoneLimit("2.5")).toBeUndefined();
+    expect(parsePhoneLimit("1001")).toBeUndefined();
   });
 });

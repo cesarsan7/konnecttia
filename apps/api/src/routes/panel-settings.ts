@@ -18,8 +18,16 @@ import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { type Sql, UNIQUE_VIOLATION } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
+import {
+  isValidPhoneLimit,
+  isValidPolicyUrl,
+  PHONE_LIMIT_MAX,
+  PRIVACY_URL_MAX,
+  PRIVACY_VERSION_MAX,
+} from "../lib/settings-validation";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
+import { phoneLimits } from "../repositories/antifraud";
 import { loadBranches } from "../repositories/branches";
 import { CONFIG_KEY, loadConfig, surchargeRules } from "../repositories/restaurants";
 
@@ -91,6 +99,25 @@ const restaurantSchema = z
     reparto_minutos_max: minutes,
     modo_ocupado_opciones: z.array(z.number().int().min(1).max(240)).max(6),
     modo_ocupado_duracion_minutos: z.number().int().min(5).max(720).nullable(),
+    /** Política de privacidad propia (http/https); vacío = página plantilla /[slug]/privacidad. */
+    privacidad_url: text(PRIVACY_URL_MAX).refine(isValidPolicyUrl),
+    /** Versión vigente de la política: los pedidos web nuevos guardan esta. */
+    privacidad_version: text(PRIVACY_VERSION_MAX),
+    /** Límites antifraude por teléfono; vacío = sin límite. */
+    antifraude_abiertos: z
+      .number()
+      .int()
+      .min(1)
+      .max(PHONE_LIMIT_MAX)
+      .nullable()
+      .refine(isValidPhoneLimit),
+    antifraude_por_hora: z
+      .number()
+      .int()
+      .min(1)
+      .max(PHONE_LIMIT_MAX)
+      .nullable()
+      .refine(isValidPhoneLimit),
     /** Suplementos por pedido pequeño (envases…): se guardan en surcharge_rules. */
     suplementos: z
       .array(
@@ -370,6 +397,10 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         reparto_minutos_max: positiveInt(config.get(CONFIG_KEY.DeliveryEtaMax)),
         modo_ocupado_opciones: busyOptions(config.get(CONFIG_KEY.BusyModeOptions)),
         modo_ocupado_duracion_minutos: positiveInt(config.get(CONFIG_KEY.BusyModeDuration)),
+        privacidad_url: config.get(CONFIG_KEY.PrivacyUrl)?.trim() || null,
+        privacidad_version: config.get(CONFIG_KEY.PrivacyVersion)?.trim() || null,
+        antifraude_abiertos: phoneLimits(config).open,
+        antifraude_por_hora: phoneLimits(config).perHour,
         suplementos: surchargeRules(config).map((rule) => ({
           concepto: rule.label,
           por_debajo_centimos: rule.thresholdCents,
@@ -548,6 +579,30 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
             CONFIG_KEY.BusyModeDuration,
             body.modo_ocupado_duracion_minutos?.toString() ?? null,
             "Duración del modo ocupado (minutos)",
+          ],
+          [
+            "privacidad_url",
+            CONFIG_KEY.PrivacyUrl,
+            body.privacidad_url ?? null,
+            "URL de la política de privacidad (panel)",
+          ],
+          [
+            "privacidad_version",
+            CONFIG_KEY.PrivacyVersion,
+            body.privacidad_version ?? null,
+            "Versión de la política de privacidad (panel)",
+          ],
+          [
+            "antifraude_abiertos",
+            CONFIG_KEY.AntifraudOpenPerPhone,
+            body.antifraude_abiertos?.toString() ?? null,
+            "Máximo de pedidos web abiertos por teléfono (panel)",
+          ],
+          [
+            "antifraude_por_hora",
+            CONFIG_KEY.AntifraudPerPhoneHour,
+            body.antifraude_por_hora?.toString() ?? null,
+            "Máximo de pedidos web por teléfono en la última hora (panel)",
           ],
           [
             "suplementos",
