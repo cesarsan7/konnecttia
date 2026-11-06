@@ -29,7 +29,7 @@ function lastRestaurant(): string | null {
 type Mode = "login" | "recover" | "recover-sent";
 
 /** Mensajes de Supabase Auth traducidos (los que puede ver el equipo de un restaurante). */
-function authMessage(message: string): string {
+export function authMessage(message: string): string {
   if (/invalid login credentials/i.test(message)) return "Email o contraseña incorrectos.";
   if (/email not confirmed/i.test(message)) return "Confirma tu email antes de entrar.";
   if (/rate limit|too many/i.test(message))

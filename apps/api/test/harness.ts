@@ -20,6 +20,16 @@ export const USERS = {
   cashierPlaya: { userId: "00000000-0000-0000-0000-0000000000c2", email: "cajero-c@test.local" },
   newcomer: { userId: "00000000-0000-0000-0000-0000000000d1", email: "nuevo@test.local" },
   otherPerson: { userId: "00000000-0000-0000-0000-0000000000d2", email: "otra@test.local" },
+  /** Equipo de Konnecttia: sus filas de plataforma_miembro las inserta plataforma.test.ts. */
+  platformAdmin: { userId: "00000000-0000-0000-0000-0000000000e1", email: "admin@konnecttia.test" },
+  platformSupport: {
+    userId: "00000000-0000-0000-0000-0000000000e2",
+    email: "soporte@konnecttia.test",
+  },
+  platformInactive: {
+    userId: "00000000-0000-0000-0000-0000000000e3",
+    email: "baja@konnecttia.test",
+  },
   managerPlaya: {
     userId: "00000000-0000-0000-0000-0000000000c3",
     email: "encargado-c@test.local",

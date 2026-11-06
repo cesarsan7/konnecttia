@@ -52,8 +52,9 @@ export async function loadAccessContext(
 }
 
 export type AuditEntry = {
-  readonly restauranteId: number;
-  readonly actorTipo: "usuario" | "cliente" | "agente" | "sistema" | "konnecttia";
+  /** null en acciones de plataforma sin restaurante (p. ej. un acceso denegado al panel interno). */
+  readonly restauranteId: number | null;
+  readonly actorTipo: "usuario" | "cliente" | "agente" | "sistema" | "konnecttia" | "plataforma";
   readonly actorId: string | null;
   readonly accion: string;
   readonly recursoTipo: string;

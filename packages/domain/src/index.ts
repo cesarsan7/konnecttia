@@ -6,5 +6,6 @@ export * from "./menu";
 export * from "./money";
 export * from "./order-status";
 export * from "./payment-methods";
+export * from "./platform";
 export * from "./pricing";
 export * from "./schedule";

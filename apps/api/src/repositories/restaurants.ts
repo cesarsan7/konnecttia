@@ -75,6 +75,19 @@ export const CONFIG_KEY = {
   AntifraudPerPhoneHour: "antifraude_pedidos_por_telefono_hora",
 } as const;
 
+/**
+ * Métodos de pago que ve el cliente en la carta y el checkout: los que el restaurante tiene
+ * activos, y si Konnecttia le fijó una lista de permitidos (`metodos_pago_permitidos`), solo los
+ * que estén en ella. Aunque se cargue un método no permitido por SQL, nunca se ofrece.
+ */
+export function publicPaymentMethods(active: unknown, allowed: unknown): string[] {
+  const list = Array.isArray(active)
+    ? active.filter((value): value is string => typeof value === "string")
+    : [];
+  if (!Array.isArray(allowed)) return list;
+  return list.filter((method) => allowed.includes(method));
+}
+
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {
   if (!SLUG_PATTERN.test(slug) || slug.length > 100) {
     return null;
@@ -86,11 +99,13 @@ export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Rest
       slug: string;
       zona_horaria: string | null;
       payment_methods: unknown;
+      metodos_pago_permitidos: unknown;
       delivery_enabled: boolean;
       pickup_enabled: boolean;
     }[]
   >`
-    SELECT id, nombre, slug, zona_horaria, payment_methods, delivery_enabled, pickup_enabled
+    SELECT id, nombre, slug, zona_horaria, payment_methods, metodos_pago_permitidos,
+           delivery_enabled, pickup_enabled
     FROM   public.restaurante
     WHERE  slug = ${slug}
     LIMIT  1
@@ -102,9 +117,7 @@ export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Rest
     nombre: row.nombre,
     slug: row.slug,
     zonaHoraria: row.zona_horaria ?? "Atlantic/Canary",
-    paymentMethods: Array.isArray(row.payment_methods)
-      ? row.payment_methods.filter((value): value is string => typeof value === "string")
-      : [],
+    paymentMethods: publicPaymentMethods(row.payment_methods, row.metodos_pago_permitidos),
     deliveryEnabled: row.delivery_enabled,
     pickupEnabled: row.pickup_enabled,
   };

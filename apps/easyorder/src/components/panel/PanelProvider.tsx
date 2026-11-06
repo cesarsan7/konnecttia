@@ -3,6 +3,7 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { type Api, createApi } from "@/lib/api";
+import { createPlatformApi, type PlatformApi } from "@/lib/interno/api";
 import { createPanelApi, type PanelApi } from "@/lib/panel/api";
 import type { PanelConfig } from "@/lib/panel/types";
 
@@ -11,6 +12,8 @@ type PanelContextValue = {
   readonly api: PanelApi;
   /** API pública (carta, locales, zonas): la usa el pedido manual. */
   readonly publicApi: Api;
+  /** API del panel interno de Konnecttia (`/plataforma/*`); misma sesión que el panel. */
+  readonly platformApi: PlatformApi;
   /** undefined mientras se lee la sesión guardada; null si no hay sesión. */
   readonly session: Session | null | undefined;
   readonly configured: boolean;
@@ -72,10 +75,20 @@ export function PanelProvider({
     [config.apiUrl, supabase],
   );
 
+  const platformApi = useMemo(
+    () =>
+      createPlatformApi(config.apiUrl, async () => {
+        if (!supabase) return null;
+        const { data } = await supabase.auth.getSession();
+        return data.session?.access_token ?? null;
+      }),
+    [config.apiUrl, supabase],
+  );
+
   const publicApi = useMemo(() => createApi(config.apiUrl), [config.apiUrl]);
   const value = useMemo(
-    () => ({ supabase, api, publicApi, session, configured: supabase !== null }),
-    [supabase, api, publicApi, session],
+    () => ({ supabase, api, platformApi, publicApi, session, configured: supabase !== null }),
+    [supabase, api, platformApi, publicApi, session],
   );
   return <PanelContext.Provider value={value}>{children}</PanelContext.Provider>;
 }

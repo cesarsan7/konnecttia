@@ -1,0 +1,28 @@
+.k-il {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-il-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  font: 400 16px / 1.4 var(--f-body);
+  color: var(--ink);
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+}
+
+.k-il-copy {
+  flex: none;
+}
+
+.k-il-state {
+  flex-basis: 100%;
+  margin: 0;
+  min-height: 1.2em;
+  color: var(--danger);
+}

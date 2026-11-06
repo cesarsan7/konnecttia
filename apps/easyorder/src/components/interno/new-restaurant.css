@@ -1,0 +1,66 @@
+.k-nr {
+  max-width: 760px;
+}
+
+.k-nr-form {
+  display: grid;
+  gap: 20px;
+}
+
+.k-nr-group {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.k-nr-group legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.k-nr-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.k-nr-form select {
+  font: 400 16px / 1.4 var(--f-body);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  width: 100%;
+}
+
+.k-nr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.k-nr-actions .k-btn {
+  text-decoration: none;
+}
+
+.k-nr-done {
+  display: grid;
+  gap: 12px;
+}
+
+.k-nr-done .k-heading,
+.k-nr-done p,
+.k-nr-done .k-subtitle {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .k-nr-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
