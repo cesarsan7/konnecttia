@@ -15,8 +15,13 @@ import {
   holidayDate,
   type OpenMode,
   PAYMENT_HINT,
+  PHONE_LIMIT_MAX,
+  PRIVACY_URL_MAX,
+  PRIVACY_VERSION_MAX,
   parseMinuteList,
   parseMinutes,
+  parsePhoneLimit,
+  parsePolicyUrl,
   type RestaurantSettings,
   type Settings,
   settingsErrorMessage,
@@ -31,6 +36,7 @@ import { PeakTimes } from "./PeakTimes";
 const TAB = {
   General: "general",
   Orders: "pedidos",
+  Privacy: "privacidad",
   Schedule: "horario",
   Delivery: "reparto",
   Branches: "locales",
@@ -147,6 +153,7 @@ export function SettingsView() {
     ? [
         { id: TAB.General, label: "General" },
         { id: TAB.Orders, label: "Pedidos y pago" },
+        { id: TAB.Privacy, label: "Privacidad y antifraude" },
         { id: TAB.Schedule, label: "Horario" },
         ...(canDelivery ? [{ id: TAB.Delivery, label: "Reparto" }] : []),
         { id: TAB.Branches, label: data.locales.length > 1 ? "Locales" : "Local" },
@@ -193,6 +200,9 @@ export function SettingsView() {
       ) : null}
       {current === TAB.Orders ? (
         <OrdersSection data={data} editable={editRestaurant} save={save} patch={patch} />
+      ) : null}
+      {current === TAB.Privacy ? (
+        <PrivacySection data={data} editable={editRestaurant} save={save} patch={patch} />
       ) : null}
       {current === TAB.Schedule ? (
         <>
@@ -489,6 +499,97 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
           optional
           multiline
         />
+      </Section>
+      <SaveBar busy={form.busy} editable={editable} error={form.error} />
+    </form>
+  );
+}
+
+// ------------------------------------------------------------------ privacidad y antifraude
+
+function PrivacySection({ data, editable, save, patch }: SectionProps) {
+  const r = data.restaurante;
+  const [url, setUrl] = useState(r.privacidad_url ?? "");
+  const [version, setVersion] = useState(r.privacidad_version ?? "");
+  const [open, setOpen] = useState(r.antifraude_abiertos?.toString() ?? "");
+  const [perHour, setPerHour] = useState(r.antifraude_por_hora?.toString() ?? "");
+
+  const form = useSubmit(async () => {
+    const policyUrl = parsePolicyUrl(url);
+    if (policyUrl === undefined)
+      return "La URL de la política debe empezar por http:// o https://.";
+    const openLimit = parsePhoneLimit(open);
+    const hourLimit = parsePhoneLimit(perHour);
+    if (openLimit === undefined || hourLimit === undefined) {
+      return `Los límites son números enteros de 1 a ${PHONE_LIMIT_MAX}, o vacío para no limitar.`;
+    }
+    return save(
+      patch({
+        privacidad_url: policyUrl,
+        privacidad_version: nullIfEmpty(version),
+        antifraude_abiertos: openLimit,
+        antifraude_por_hora: hourLimit,
+      }),
+      "Privacidad y límites guardados",
+    );
+  });
+
+  return (
+    <form onSubmit={form.submit} noValidate className="k-settings-stack">
+      <Section
+        title="Privacidad"
+        lead="El cliente acepta la política al pedir por la web. Si no indicas la tuya, se enlaza la página plantilla de tu carta."
+      >
+        <div className="k-form-grid">
+          <TextField
+            label="URL de tu política de privacidad"
+            value={url}
+            onChange={setUrl}
+            disabled={!editable}
+            max={PRIVACY_URL_MAX}
+            optional
+            inputMode="text"
+            placeholder="https://mirestaurante.es/privacidad"
+            hint="Vacío: se usa la página plantilla de tu carta (/privacidad)."
+          />
+          <TextField
+            label="Versión de la política"
+            value={version}
+            onChange={setVersion}
+            disabled={!editable}
+            max={PRIVACY_VERSION_MAX}
+            optional
+            placeholder="2026-11"
+            hint="Cámbiala cuando actualices el texto: los pedidos nuevos guardan esta versión."
+          />
+        </div>
+      </Section>
+      <Section
+        title="Pedidos sospechosos"
+        lead="Límites por teléfono en los pedidos de la web. Vacío: sin límite."
+      >
+        <div className="k-form-grid">
+          <TextField
+            label="Pedidos abiertos a la vez"
+            value={open}
+            onChange={setOpen}
+            disabled={!editable}
+            max={4}
+            optional
+            inputMode="numeric"
+            hint="Máximo de pedidos sin cerrar (ni entregados, cancelados ni caducados) de un mismo teléfono."
+          />
+          <TextField
+            label="Pedidos por hora"
+            value={perHour}
+            onChange={setPerHour}
+            disabled={!editable}
+            max={4}
+            optional
+            inputMode="numeric"
+            hint="Máximo de pedidos de un mismo teléfono en la última hora, incluidos los cancelados."
+          />
+        </div>
       </Section>
       <SaveBar busy={form.busy} editable={editable} error={form.error} />
     </form>
