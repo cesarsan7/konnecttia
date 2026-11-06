@@ -21,6 +21,7 @@ import { pendingProofs } from "@/lib/panel/proofs";
 import { personLabel } from "@/lib/panel/team";
 import type { PanelOrder } from "@/lib/panel/types";
 import { Icon } from "../Icon";
+import { DeliveryPhotoViewer } from "./DeliveryPhotoViewer";
 import { ProofViewer } from "./ProofViewer";
 
 export type CardProps = {
@@ -211,6 +212,8 @@ export function OrderCard({
       {permissions.confirmPayment && !closed ? (
         <ProofViewer orderId={order.id} count={pendingProofs(order)} />
       ) : null}
+
+      <DeliveryPhotoViewer orderId={order.id} count={order.fotos_entrega ?? 0} />
 
       {(!closed && (action || permissions.changeStatus)) || onPrint ? (
         <footer className="k-order-actions">

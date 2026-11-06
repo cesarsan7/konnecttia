@@ -21,6 +21,7 @@ import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { loadBranches } from "../repositories/branches";
+import { deliveryPhotoMode } from "../repositories/delivery-photos";
 import { CONFIG_KEY, loadConfig, surchargeRules } from "../repositories/restaurants";
 
 /**
@@ -91,6 +92,8 @@ const restaurantSchema = z
     reparto_minutos_max: minutes,
     modo_ocupado_opciones: z.array(z.number().int().min(1).max(240)).max(6),
     modo_ocupado_duracion_minutos: z.number().int().min(5).max(720).nullable(),
+    /** Foto de entrega del repartidor: no | opcional | obligatoria. */
+    reparto_foto_entrega: z.enum(["no", "opcional", "obligatoria"]),
     /** Suplementos por pedido pequeño (envases…): se guardan en surcharge_rules. */
     suplementos: z
       .array(
@@ -370,6 +373,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         reparto_minutos_max: positiveInt(config.get(CONFIG_KEY.DeliveryEtaMax)),
         modo_ocupado_opciones: busyOptions(config.get(CONFIG_KEY.BusyModeOptions)),
         modo_ocupado_duracion_minutos: positiveInt(config.get(CONFIG_KEY.BusyModeDuration)),
+        reparto_foto_entrega: deliveryPhotoMode(config),
         suplementos: surchargeRules(config).map((rule) => ({
           concepto: rule.label,
           por_debajo_centimos: rule.thresholdCents,
@@ -548,6 +552,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
             CONFIG_KEY.BusyModeDuration,
             body.modo_ocupado_duracion_minutos?.toString() ?? null,
             "Duración del modo ocupado (minutos)",
+          ],
+          [
+            "reparto_foto_entrega",
+            CONFIG_KEY.DeliveryPhoto,
+            body.reparto_foto_entrega ?? null,
+            "Foto de entrega del repartidor (panel)",
           ],
           [
             "suplementos",

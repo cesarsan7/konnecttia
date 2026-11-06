@@ -1,0 +1,5 @@
+/* Ajuste de la foto de entrega (Ajustes → Reparto). Se carga con el componente (DeliveryPhotoSetting.tsx); variables de panel.css. */
+
+.k-settings .k-fieldset-flat .k-small {
+  margin: 8px 0 0;
+}

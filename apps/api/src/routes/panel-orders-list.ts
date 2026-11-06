@@ -146,7 +146,9 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                p.total, p.metodo_pago, p.tiempo_estimado, p.notas,
                p.created_at AT TIME ZONE 'UTC' AS created_at,
                p.updated_at AT TIME ZONE 'UTC' AS updated_at,
-               p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre, mw.nombre AS mesero_nombre
+               p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre, mw.nombre AS mesero_nombre,
+               (SELECT count(*)::int FROM public.pedido_foto_entrega f WHERE f.pedido_id = p.id)
+                 AS fotos_entrega
         FROM   public.pedidos p
         LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
         LEFT   JOIN public.mesa me    ON me.id = p.mesa_id

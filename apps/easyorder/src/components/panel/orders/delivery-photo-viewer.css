@@ -1,0 +1,44 @@
+/* Foto de entrega en la tarjeta y el detalle del pedido. Se carga con el componente (DeliveryPhotoViewer.tsx); variables de panel.css. */
+
+.k-delivery-photo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  min-width: 0;
+}
+
+.k-delivery-photo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--teal-tint);
+  color: var(--teal-text);
+}
+
+.k-delivery-photo-links {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.k-delivery-photo-links ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.k-delivery-photo-links a {
+  font-weight: 700;
+  color: var(--teal-text);
+}
+
+.k-delivery-photo-links p {
+  margin: 4px 0 0;
+}
+
+.k-delivery-photo-error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
