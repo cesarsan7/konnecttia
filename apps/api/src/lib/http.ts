@@ -28,6 +28,9 @@ export const API_ERROR = {
   ProofLimitReached: "proof_limit_reached",
   PaymentNotPending: "payment_not_pending",
   PrivacyRequired: "privacy_required",
+  CaptchaFailed: "captcha_failed",
+  /** Rechazo neutro de un pedido web: no dice si el teléfono está bloqueado. */
+  OrderNotAccepted: "order_not_accepted",
 } as const;
 
 export type ApiError = (typeof API_ERROR)[keyof typeof API_ERROR];

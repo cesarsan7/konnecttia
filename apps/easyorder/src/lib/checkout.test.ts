@@ -4,6 +4,7 @@ import {
   describeApiError,
   describeZoneFee,
   normalizePhone,
+  PHONE_LIMIT_MESSAGE,
   PRIVACY_REQUIRED_MESSAGE,
   privacyHref,
   privacyProblem,
@@ -40,6 +41,31 @@ describe("errores de la API", () => {
     expect(describeApiError(422, { error: "local_closed" })).toContain("cerrado");
     expect(describeApiError(422, { error: "algo_nuevo" })).not.toContain("algo_nuevo");
     expect(describeApiError(502, null)).toContain("Inténtalo de nuevo");
+  });
+});
+
+describe("mensajes de antifraude", () => {
+  it("el límite por teléfono invita a llamar al local", () => {
+    const message = describeApiError(429, { error: "rate_limited", reason: "phone_limit" });
+    expect(message).toBe(PHONE_LIMIT_MESSAGE);
+    expect(message).toContain("llama al local");
+    // Sin motivo, el 429 sigue siendo el aviso genérico de pedidos seguidos.
+    expect(describeApiError(429, { error: "rate_limited" })).toContain("Espera unos minutos");
+  });
+
+  it("un teléfono bloqueado recibe un mensaje neutro", () => {
+    const message = describeApiError(422, {
+      error: "order_not_accepted",
+      reason: "order_not_accepted",
+    });
+    expect(message).not.toMatch(/bloquead|fraude|sospech/i);
+    expect(message).toContain("llama");
+  });
+
+  it("un captcha fallido pide recargar", () => {
+    expect(describeApiError(422, { error: "captcha_failed", reason: "captcha_failed" })).toContain(
+      "Recarga la página",
+    );
   });
 });
 

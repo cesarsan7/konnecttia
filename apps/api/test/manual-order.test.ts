@@ -131,7 +131,7 @@ describe.skipIf(!TEST_DATABASE_URL)("pedido manual desde el panel", () => {
     `;
     const result = await lookup("ownerA", "prueba-a", "612 000 000");
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ cliente: null, pedidos: [] });
+    expect(result.body).toEqual({ cliente: null, bloqueado: false, pedidos: [] });
 
     const rosa = await lookup("ownerA", "prueba-a", "+34 600 000 123");
     expect(rosa.body.cliente).toMatchObject({ nombre: "Rosa" });

@@ -13,7 +13,14 @@ import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
 import { createRateLimiter } from "../lib/rate-limit";
+import { TURNSTILE_MAX_TOKEN_LENGTH } from "../lib/turnstile";
 import { resolveRestaurant } from "../middleware/tenant";
+import {
+  checkPhoneLimits,
+  isPhoneBlocked,
+  orderExistsForKey,
+  phoneLimits,
+} from "../repositories/antifraud";
 import { loadBranches, openChecker, unavailableItems } from "../repositories/branches";
 import { loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
@@ -48,6 +55,9 @@ const QUOTES_PER_IP_PER_MIN = 300;
 const IDEMPOTENCY_HEADER = "Idempotency-Key";
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 const PRIVACY_REQUIRED_REASON = "privacy_required";
+const CAPTCHA_FAILED_REASON = "captcha_failed";
+const PHONE_LIMIT_REASON = "phone_limit";
+const ORDER_NOT_ACCEPTED_REASON = "order_not_accepted";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Estado HTTP de cada motivo por el que no se admite un justificante. */
@@ -104,6 +114,8 @@ export const orderBodySchema = z
      */
     privacidad_aceptada: z.boolean().optional(),
     acepta_promociones: z.boolean().optional(),
+    /** Token del captcha (Turnstile) del checkout web. El pedido manual lo ignora. */
+    captcha_token: z.string().max(TURNSTILE_MAX_TOKEN_LENGTH).optional(),
     items: z
       .array(
         z.object({
@@ -555,6 +567,26 @@ export function publicRoutes(deps: AppDeps) {
     // Sin aceptar la política de privacidad no se pide por la web (el panel y n8n no la exigen).
     if (body.privacidad_aceptada !== true) {
       return fail(c, 422, API_ERROR.PrivacyRequired, { reason: PRIVACY_REQUIRED_REASON });
+    }
+
+    // Antifraude (pieza Q). Un reintento de un pedido ya creado (misma clave de idempotencia) no
+    // se vuelve a juzgar: el token del captcha es de un solo uso y el pedido ya cuenta en los límites.
+    const replay = await orderExistsForKey(deps.sql, restaurant.id, idempotencyKey);
+    if (!replay) {
+      if (deps.verifyCaptcha) {
+        const human = await deps.verifyCaptcha(
+          body.captcha_token,
+          c.req.header(deps.clientIpHeader) ?? null,
+        );
+        if (!human) return fail(c, 422, API_ERROR.CaptchaFailed, { reason: CAPTCHA_FAILED_REASON });
+      }
+      // Mensaje neutro: la web no revela que el teléfono está bloqueado.
+      if (await isPhoneBlocked(deps.sql, restaurant.id, body.telefono)) {
+        return fail(c, 422, API_ERROR.OrderNotAccepted, { reason: ORDER_NOT_ACCEPTED_REASON });
+      }
+      const limits = phoneLimits(await loadConfig(deps.sql, restaurant.id));
+      const hit = await checkPhoneLimits(deps.sql, restaurant.id, body.telefono, limits);
+      if (hit) return fail(c, 429, API_ERROR.RateLimited, { reason: PHONE_LIMIT_REASON });
     }
 
     const placed = await placeOrder(

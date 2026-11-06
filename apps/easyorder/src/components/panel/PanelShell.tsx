@@ -31,6 +31,7 @@ export const PERMISSION = {
   CustomersView: "customers.view",
   CustomersExport: "customers.export",
   CustomersDelete: "customers.delete",
+  CustomersBlock: "customers.block",
   TablesView: "tables.view",
   TablesManage: "tables.manage",
   DeliveryAssign: "delivery.assign",

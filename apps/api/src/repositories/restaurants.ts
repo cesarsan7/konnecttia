@@ -69,6 +69,10 @@ export const CONFIG_KEY = {
   PrivacyUrl: "privacidad_url",
   /** Texto que identifica la versión vigente de esa política. */
   PrivacyVersion: "privacidad_version",
+  /** Máximo de pedidos web sin cerrar por teléfono. Sin clave: sin límite. */
+  AntifraudOpenPerPhone: "antifraude_pedidos_abiertos_por_telefono",
+  /** Máximo de pedidos web por teléfono en la última hora. Sin clave: sin límite. */
+  AntifraudPerPhoneHour: "antifraude_pedidos_por_telefono_hora",
 } as const;
 
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {

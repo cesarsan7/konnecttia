@@ -41,6 +41,17 @@ export function paymentLabel(method: string): string {
   return PAYMENT_LABEL[method] ?? method;
 }
 
+/** Mensajes por `reason` (antifraude): tienen prioridad sobre el mensaje del `error`. */
+export const PHONE_LIMIT_MESSAGE = "Ya tienes pedidos en curso; llama al local si necesitas otro.";
+const REASON_MESSAGE: Readonly<Record<string, string>> = {
+  phone_limit: PHONE_LIMIT_MESSAGE,
+  // Neutro a propósito: no se dice si el teléfono está bloqueado.
+  order_not_accepted:
+    "No podemos tramitar este pedido por la web. Si quieres pedir, llama directamente al local.",
+  captcha_failed:
+    "No hemos podido comprobar que eres una persona. Recarga la página e inténtalo de nuevo.",
+};
+
 const ERROR_MESSAGE: Readonly<Record<string, string>> = {
   local_closed: "El local está cerrado ahora mismo. Prueba con otro local o más tarde.",
   branch_required: "Elige en qué local quieres recoger el pedido.",
@@ -85,6 +96,8 @@ export function describeApiError(status: number, body: ApiErrorBody | null): str
     const first = body.errors[0];
     return (first && LINE_ERROR_MESSAGE[first.code]) ?? "Revisa los productos del carrito.";
   }
+  const byReason = body.reason ? REASON_MESSAGE[body.reason] : undefined;
+  if (byReason) return byReason;
   return ERROR_MESSAGE[body.error] ?? "No hemos podido enviar el pedido. Inténtalo de nuevo.";
 }
 

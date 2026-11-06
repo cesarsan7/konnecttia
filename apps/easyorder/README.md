@@ -27,6 +27,11 @@ cada permiso en cada petición. `panel` es una ruta reservada: ningún restauran
 
 Todas se leen en tiempo de ejecución (no hacen falta en el build).
 
+Opcional: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (clave pública de Cloudflare Turnstile) activa el captcha
+invisible del checkout; la API debe tener `TURNSTILE_SECRET_KEY`. Sin la variable, el checkout
+funciona como siempre. Si se añade una CSP, hay que permitir `https://challenges.cloudflare.com`
+(script, frame y connect).
+
 ```bash
 pnpm --filter @konnecttia/easyorder dev   # http://localhost:3020/<slug>
 ```

@@ -5,6 +5,7 @@ import type { ImageStorage, ProofStorage } from "./context";
 import { createSql } from "./lib/db";
 import { loadEnv } from "./lib/env";
 import { createResendMailer } from "./lib/mailer";
+import { createTurnstileVerifier } from "./lib/turnstile";
 
 const env = loadEnv();
 const sql = createSql(env.DATABASE_URL);
@@ -60,6 +61,9 @@ const app = createApp({
   proofStorage: proofStorage(),
   mailer: env.RESEND_API_KEY ? createResendMailer(env.RESEND_API_KEY, env.RESEND_FROM) : null,
   panelUrl: env.PANEL_PUBLIC_URL ?? null,
+  verifyCaptcha: env.TURNSTILE_SECRET_KEY
+    ? createTurnstileVerifier(env.TURNSTILE_SECRET_KEY)
+    : null,
   sql,
   now: () => new Date(),
   clientIpHeader: env.CLIENT_IP_HEADER,

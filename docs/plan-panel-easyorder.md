@@ -304,6 +304,14 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
      o importe alto. Se envía por WhatsApp (plantilla de autenticación) o SMS; el proveedor y su
      coste están por decidir.
 - Los clientes que ya pidieron y recibieron su pedido no vuelven a pasar por el código.
+- **Capas 1 y 2: en curso** (rama `feat/antifraude`, migración 0021). Límite de pedidos web por
+  teléfono (claves `antifraude_pedidos_abiertos_por_telefono` y
+  `antifraude_pedidos_por_telefono_hora`; sin clave, sin límite), captcha Turnstile opcional
+  (`TURNSTILE_SECRET_KEY` en la API y `NEXT_PUBLIC_TURNSTILE_SITE_KEY` en la web) y teléfonos
+  bloqueados por restaurante (permiso `customers.block`; «Bloquear» en la ficha del cliente y
+  filtro «Solo bloqueados»). El pedido manual del panel avisa, pero deja continuar.
+- Pendiente en n8n: llamar a `fn_telefono_bloqueado(restaurante_id, telefono)` antes de abrir un
+  pedido por WhatsApp. La capa 3 (código por SMS/WhatsApp) sigue pendiente de presupuesto.
 
 ### R · Tratamiento de datos (MVP, revisar con un abogado)
 

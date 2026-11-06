@@ -14,6 +14,8 @@ export type PreviousOrder = {
 };
 
 export type PreviousOrders = {
+  /** El teléfono está bloqueado para pedir por la web: el pedido manual puede seguir adelante. */
+  readonly bloqueado: boolean;
   readonly cliente: {
     readonly nombre: string | null;
     readonly direccion_frecuente: string | null;

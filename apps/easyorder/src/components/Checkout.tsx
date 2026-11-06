@@ -14,7 +14,9 @@ import {
   privacyProblem,
 } from "@/lib/checkout";
 import { eurosFromCents } from "@/lib/format";
+import { captchaFields, captchaProblem } from "@/lib/turnstile";
 import type { Branch, CreatedOrder, DeliveryZone, Fulfillment, Menu } from "@/lib/types";
+import { TurnstileWidget } from "./TurnstileWidget";
 import "./checkout-consent.css";
 
 type Point = { readonly lat: number; readonly lng: number };
@@ -22,6 +24,8 @@ type Point = { readonly lat: number; readonly lng: number };
 type Props = {
   readonly api: Api;
   readonly slug: string;
+  /** Clave pública de Turnstile (la página la lee en el servidor); null = sin captcha. */
+  readonly captchaSiteKey: string | null;
   readonly restaurant: Menu["restaurante"];
   readonly branches: readonly Branch[];
   readonly branchId: number | null;
@@ -62,6 +66,11 @@ export function Checkout(props: Props) {
   const [promotions, setPromotions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  // Captcha invisible (opcional): sin clave del sitio no se carga nada.
+  const { captchaSiteKey } = props;
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaLoadFailed, setCaptchaLoadFailed] = useState(false);
+  const [captchaReset, setCaptchaReset] = useState(0);
   // Misma clave en los reintentos: si la red falla tras crear el pedido, no se duplica.
   const idempotencyKey = useRef(newKey());
 
@@ -104,7 +113,10 @@ export function Checkout(props: Props) {
       }
     }
     if (!payment) return "Elige cómo vas a pagar.";
-    return privacyProblem(privacyAccepted);
+    return (
+      privacyProblem(privacyAccepted) ??
+      captchaProblem(captchaSiteKey !== null, captchaToken, captchaLoadFailed)
+    );
   }, [
     lines.length,
     name,
@@ -119,6 +131,9 @@ export function Checkout(props: Props) {
     missing,
     payment,
     privacyAccepted,
+    captchaSiteKey,
+    captchaToken,
+    captchaLoadFailed,
   ]);
 
   async function submit() {
@@ -143,6 +158,7 @@ export function Checkout(props: Props) {
           }
         : {}),
       ...consentFields(privacyAccepted, promotions),
+      ...captchaFields(captchaToken),
       items: toOrderItems(lines),
     };
     const result = await props.api.createOrder(props.slug, body, idempotencyKey.current);
@@ -151,6 +167,8 @@ export function Checkout(props: Props) {
       props.onCreated(result.data);
       return;
     }
+    // El token del captcha es de un solo uso: el siguiente intento necesita uno nuevo.
+    if (captchaSiteKey) setCaptchaReset((count) => count + 1);
     if (result.body?.error === "branch_required" && result.body.locales?.[0]) {
       setError("Elige en qué local quieres recoger el pedido.");
       return;
@@ -448,6 +466,15 @@ export function Checkout(props: Props) {
             retirarlas cuando quieras.
           </p>
         </fieldset>
+
+        {captchaSiteKey && (
+          <TurnstileWidget
+            siteKey={captchaSiteKey}
+            resetKey={captchaReset}
+            onToken={setCaptchaToken}
+            onLoadError={() => setCaptchaLoadFailed(true)}
+          />
+        )}
 
         {(error || problem) && (
           <p className={error ? "error" : "hint"} role={error ? "alert" : "status"}>

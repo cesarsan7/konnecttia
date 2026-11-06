@@ -1,5 +1,16 @@
 /* Estilos de el pedido manual. Se cargan con el componente (ManualOrder.tsx); variables de panel.css. */
 
+/* Aviso de teléfono bloqueado (antifraude): informa, no impide continuar. */
+.k-manual-blocked {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 /* Pedidos anteriores del cliente en el pedido manual («Repetir»). */
 .k-previous {
   display: grid;
