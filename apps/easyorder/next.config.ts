@@ -6,6 +6,13 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   // La ubicación solo se pide si el cliente pulsa «Usar mi ubicación».
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+  // Solo HTTPS durante un año (sin subdominios: no todos los servicios del dominio lo tienen).
+  { key: "Strict-Transport-Security", value: "max-age=31536000" },
+  // Restricciones que no afectan a los scripts de Next: nadie la incrusta, sin plugins ni <base>.
+  {
+    key: "Content-Security-Policy",
+    value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
+  },
 ];
 
 const nextConfig: NextConfig = {
