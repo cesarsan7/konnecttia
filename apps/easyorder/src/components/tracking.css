@@ -1,0 +1,57 @@
+/* Aviso «no cierres esta página» del seguimiento del pedido. */
+.track-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.track-notice-title {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.track-notice-hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.track-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.track-notice .btn {
+  padding: 10px 14px;
+  background: var(--ink);
+  color: var(--card);
+}
+
+.track-notice-done {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ok);
+}
+
+.track-notice-url {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
