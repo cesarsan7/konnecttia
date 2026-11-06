@@ -53,6 +53,13 @@ describe("comanda", () => {
     expect(html).toContain("size: 80mm auto");
   });
 
+  it("imprime «Atiende» con el mesero, escapado, y nada si no hay", () => {
+    const con = comandaHtml(order({ mesero_nombre: "Luis <i>" }), { ...base, copia: "cocina" });
+    expect(con).toContain("Atiende: Luis &lt;i&gt;");
+    const sin = comandaHtml(order({ mesero_nombre: null }), { ...base, copia: "cocina" });
+    expect(sin).not.toContain("Atiende");
+  });
+
   it("copia de cliente con envío y total; aviso de cobro pendiente", () => {
     const html = comandaHtml(order({ estado_pago: "pendiente", metodo_pago: "transferencia" }), {
       ...base,

@@ -92,6 +92,7 @@ export function comandaHtml(order: PanelOrder, options: ComandaOptions): string 
   <div class="center small">${esc(date)}${order.tiempo_estimado ? ` · ${esc(order.tiempo_estimado)}` : ""}</div>
   <hr class="sep">
   <div class="row"><strong>${esc(order.nombre_pedido ?? "Cliente")}</strong><span>${esc(order.telefono)}</span></div>
+  ${order.mesero_nombre ? `<div class="small">Atiende: ${esc(order.mesero_nombre)}</div>` : ""}
   ${delivery && order.direccion ? `<div>${esc(order.direccion)}</div>` : ""}
   ${delivery && (order.repartidor_nombre || order.repartidor_email) ? `<div class="small">Reparte: ${esc(order.repartidor_nombre || order.repartidor_email || "")}</div>` : ""}
   <hr class="sep">

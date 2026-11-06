@@ -107,12 +107,14 @@ export function panelRoutes(deps: AppDeps) {
              p.created_at AT TIME ZONE 'UTC' AS created_at,
              p.updated_at AT TIME ZONE 'UTC' AS updated_at,
              p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre,
+             mw.nombre AS mesero_nombre,
              pr.membership_id::int AS repartidor_id, pr.repartidor_email,
              COALESCE(dm.apodo, dm.nombre) AS repartidor_nombre,
              pr.salida_at, pr.entregado_at
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
       LEFT   JOIN public.mesa me    ON me.id = p.mesa_id
+      LEFT   JOIN public.meseros mw ON mw.id = p.mesero_id AND mw.restaurante_id = p.restaurante_id
       LEFT   JOIN public.pedido_reparto pr ON pr.pedido_id = p.id
       LEFT   JOIN public.local_memberships dm ON dm.id = pr.membership_id
       WHERE  p.restaurante_id = ${restaurant.id}

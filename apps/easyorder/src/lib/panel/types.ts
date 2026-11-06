@@ -61,6 +61,8 @@ export type PanelOrder = {
   readonly local_nombre: string | null;
   readonly mesa_id?: number | null;
   readonly mesa_nombre?: string | null;
+  /** Mesero que atiende el pedido (meseros.nombre). */
+  readonly mesero_nombre?: string | null;
   /** Reparto asignado (pedido_reparto). */
   readonly repartidor_id?: number | null;
   readonly repartidor_email?: string | null;

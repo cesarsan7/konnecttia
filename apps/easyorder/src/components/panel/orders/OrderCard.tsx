@@ -121,6 +121,7 @@ export function OrderCard({
           {delivery ? "Reparto" : dineIn ? (order.mesa_nombre ?? "Mesa") : "Recogida"}
           {showBranch && order.local_nombre ? ` · ${order.local_nombre}` : ""}
           {order.tiempo_estimado ? ` · ${order.tiempo_estimado}` : ""}
+          {order.mesero_nombre ? ` · Atiende ${order.mesero_nombre}` : ""}
           {delivery && (order.repartidor_nombre || order.repartidor_email)
             ? ` · ${order.salida_at ? "sale con" : "reparte"} ${personLabel({ name: order.repartidor_nombre, email: order.repartidor_email }, "repartidor")}`
             : ""}
