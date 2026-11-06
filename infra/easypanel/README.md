@@ -1,9 +1,10 @@
 # Despliegue en EasyPanel
 
-| Servicio                       | Origen                         | Rama   | Puerto |
-| ------------------------------ | ------------------------------ | ------ | ------ |
-| `konnecttia-site` (staging)    | `infra/docker/site.Dockerfile` | `main` | 3000   |
-| `konnecttia-site` (producción) | `infra/docker/site.Dockerfile` | `main` | 3000   |
+| Servicio                       | Origen                           | Rama   | Puerto |
+| ------------------------------ | -------------------------------- | ------ | ------ |
+| `konnecttia-site` (staging)    | `infra/docker/site.Dockerfile`   | `main` | 3000   |
+| `konnecttia-site` (producción) | `infra/docker/site.Dockerfile`   | `main` | 3000   |
+| `konnecttia-worker`            | `infra/docker/worker.Dockerfile` | `main` | —      |
 
 Siempre se despliega primero en staging (ADR 0008). Producción solo con aprobación del promotor.
 
@@ -48,3 +49,8 @@ Memoria: un servicio más en el VPS de 8 GB, que va por el
 
 Mismo servicio en el proyecto `prod`, dominio `konnecttia.com`, y
 `EASYORDER_PANEL_URL` apuntando al panel de producción.
+
+## `konnecttia-worker` (avisos por email)
+
+Servicio aparte sin dominio ni puerto: `infra/docker/worker.Dockerfile`, mismo repositorio y rama.
+Variables, pasos y comprobación en [`apps/worker/README.md`](../../apps/worker/README.md).

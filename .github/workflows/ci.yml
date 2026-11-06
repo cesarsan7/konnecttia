@@ -52,3 +52,5 @@ jobs:
         run: bash infra/scripts/test-migrations.sh
       - name: Pruebas de integración de la API
         run: pnpm --filter @konnecttia/api test
+      - name: Pruebas de integración del worker
+        run: pnpm --filter @konnecttia/worker test
