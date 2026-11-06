@@ -169,6 +169,29 @@ describe.skipIf(!TEST_DATABASE_URL)("panel del restaurante", () => {
       );
     });
 
+    it("devuelve el mesero que atiende el pedido (tablero e historial)", async () => {
+      const id = await createOrder("prueba-a", transferOrder);
+      const [waiter] = await ctx.sql<{ id: number }[]>`
+        INSERT INTO public.meseros (restaurante_id, nombre)
+        SELECT restaurante_id, 'Marta' FROM public.pedidos WHERE id = ${id}
+        RETURNING id
+      `;
+      await ctx.sql`UPDATE public.pedidos SET mesero_id = ${waiter?.id ?? 0} WHERE id = ${id}`;
+      const plain = await createOrder("prueba-a", transferOrder);
+
+      for (const path of ["orders?vista=tablero", "orders/historial"]) {
+        const response = await ctx.app.request(`/panel/prueba-a/${path}`, {
+          headers: auth("ownerA"),
+        });
+        expect(response.status).toBe(200);
+        const { pedidos } = (await response.json()) as {
+          pedidos: { id: number; mesero_nombre: string | null }[];
+        };
+        expect(pedidos.find((pedido) => pedido.id === id)?.mesero_nombre).toBe("Marta");
+        expect(pedidos.find((pedido) => pedido.id === plain)?.mesero_nombre).toBeNull();
+      }
+    });
+
     it("el modo ocupado usa las opciones y la duración del restaurante", async () => {
       const access = await ctx.app.request("/panel/prueba-c/acceso", { headers: auth("ownerC") });
       const body = (await access.json()) as { ajustes: { modo_ocupado: unknown } };
