@@ -1,4 +1,5 @@
-import { MODULE_KIND } from "@konnecttia/access";
+import { MODULE_KIND, ROLE_TEMPLATE } from "@konnecttia/access";
+import { DEFERRED_PAYMENT_METHODS, PAYMENT_METHODS } from "@konnecttia/domain";
 import type { TransactionSql } from "postgres";
 import type { Sql } from "../lib/db";
 
@@ -22,6 +23,113 @@ export type ModuleOrigin = (typeof MODULE_ORIGIN)[keyof typeof MODULE_ORIGIN];
 
 /** Origen que Konnecttia puede dar a mano (el de plan lo pone la asignación del plan). */
 export const MANUAL_ORIGINS = [MODULE_ORIGIN.Addon, MODULE_ORIGIN.Courtesy] as const;
+
+/** El slug ya lo usa otro restaurante (se comprueba dentro de la transacción de alta). */
+export class SlugTaken extends Error {}
+
+/**
+ * Métodos de cobro de un restaurante recién creado: solo los que no necesitan datos
+ * (transferencia y Bizum piden IBAN o teléfono); el dueño añade los demás en Ajustes.
+ */
+export const INITIAL_PAYMENT_METHODS: readonly string[] = PAYMENT_METHODS.filter(
+  (method) => !DEFERRED_PAYMENT_METHODS.has(method),
+);
+
+export type NewRestaurant = {
+  readonly nombre: string;
+  readonly slug: string;
+  readonly zonaHoraria: string;
+  readonly plan: string;
+  readonly local: {
+    readonly nombre: string;
+    readonly direccion?: string | undefined;
+    readonly telefono?: string | undefined;
+  };
+  /** Si el restaurante ofrece recogida / reparto. Sin indicar: el valor por defecto de la tabla. */
+  readonly recogida?: boolean | undefined;
+  readonly reparto?: boolean | undefined;
+};
+
+/**
+ * Alta de un restaurante (compartida por el panel interno y el alta autoservicio): restaurante
+ * (solo lo pedido; el resto con el valor por defecto de la tabla), su local principal (lo crea el
+ * trigger de 0003 con los datos del restaurante y aquí se le pone nombre), plan y copia de los
+ * módulos del plan con origen `plan`. Lanza `SlugTaken` si el slug ya existe. Debe ejecutarse
+ * dentro de una transacción.
+ */
+export async function createRestaurant(
+  tx: Tx,
+  input: NewRestaurant,
+  now: Date,
+): Promise<{ id: number; branchId: number; modules: string[] }> {
+  const taken = await tx`SELECT 1 FROM public.restaurante WHERE slug = ${input.slug}`;
+  if (taken.length > 0) throw new SlugTaken();
+  const [restaurant] = await tx<{ id: number }[]>`
+    INSERT INTO public.restaurante
+      (nombre, slug, zona_horaria, direccion, telefono, payment_methods, pickup_enabled, delivery_enabled)
+    VALUES (${input.nombre}, ${input.slug}, ${input.zonaHoraria},
+            ${input.local.direccion || null}, ${input.local.telefono || null},
+            ${tx.json([...INITIAL_PAYMENT_METHODS])},
+            COALESCE(${input.recogida ?? null}::boolean, true),
+            COALESCE(${input.reparto ?? null}::boolean, true))
+    RETURNING id
+  `;
+  if (!restaurant) throw new Error("No se pudo crear el restaurante");
+  const [branch] = await tx<{ id: number }[]>`
+    UPDATE public.sucursal SET nombre = ${input.local.nombre}
+    WHERE  restaurante_id = ${restaurant.id} AND es_principal
+    RETURNING id
+  `;
+  if (!branch) throw new Error("No se creó el local principal");
+  await applyPlan(tx, restaurant.id, input.plan, now);
+  const modules = await tx<{ modulo_code: string }[]>`
+    SELECT modulo_code FROM public.restaurante_modulo
+    WHERE  restaurante_id = ${restaurant.id} ORDER BY modulo_code
+  `;
+  return { id: restaurant.id, branchId: branch.id, modules: modules.map((row) => row.modulo_code) };
+}
+
+/** Rol de la columna antigua `local_memberships.rol` (la lee el dashboard antiguo). */
+export function legacyRoleOf(templateCode: string | null): "owner" | "manager" | "viewer" {
+  if (templateCode === ROLE_TEMPLATE.Owner) return "owner";
+  if (templateCode === ROLE_TEMPLATE.Manager) return "manager";
+  return "viewer";
+}
+
+/**
+ * Hace propietario de un restaurante a un usuario sin pasar por una invitación: membresía con la
+ * plantilla de rol Propietario y acceso a todos los locales (igual que al aceptar una invitación).
+ */
+export async function addOwner(
+  tx: Tx,
+  input: {
+    readonly restauranteId: number;
+    readonly userId: string;
+    readonly email: string | null;
+    readonly nombre: string | null;
+    readonly apodo: string | null;
+  },
+): Promise<number> {
+  const [role] = await tx<{ id: number }[]>`
+    SELECT id FROM public.rol WHERE code = ${ROLE_TEMPLATE.Owner} AND restaurante_id IS NULL
+  `;
+  if (!role) throw new Error("Falta la plantilla de rol Propietario");
+  const [membership] = await tx<{ id: number }[]>`
+    INSERT INTO public.local_memberships (user_id, restaurante_id, rol, email, nombre, apodo)
+    VALUES (${input.userId}::uuid, ${input.restauranteId}, ${legacyRoleOf(ROLE_TEMPLATE.Owner)},
+            ${input.email}, ${input.nombre}, ${input.apodo})
+    RETURNING id
+  `;
+  if (!membership) throw new Error("No se pudo crear la membresía");
+  await tx`INSERT INTO public.membresia_rol (membership_id, rol_id) VALUES (${membership.id}, ${role.id})`;
+  return membership.id;
+}
+
+/** ¿Existe esa zona horaria en PostgreSQL? (la validación de formato va en el dominio). */
+export async function knownTimeZone(sql: Sql | Tx, name: string): Promise<boolean> {
+  const rows = await sql`SELECT 1 FROM pg_timezone_names WHERE name = ${name}`;
+  return rows.length > 0;
+}
 
 export async function planExists(sql: Sql | Tx, planCode: string): Promise<boolean> {
   const rows = await sql`SELECT 1 FROM public.plan WHERE code = ${planCode}`;

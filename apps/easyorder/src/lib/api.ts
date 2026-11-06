@@ -1,3 +1,4 @@
+import type { AltaConfig, SlugCheck } from "./alta/types";
 import type {
   ApiErrorBody,
   Branch,
@@ -30,7 +31,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>
 const segment = (value: string) => encodeURIComponent(value);
 
 export function createApi(baseUrl: string) {
-  const base = `${baseUrl.replace(/\/$/, "")}/public`;
+  const root = baseUrl.replace(/\/$/, "");
+  const base = `${root}/public`;
   return {
     menu: (slug: string, branchId?: number | null) =>
       request<Menu>(`${base}/${segment(slug)}/menu${branchId ? `?local=${branchId}` : ""}`),
@@ -38,6 +40,11 @@ export function createApi(baseUrl: string) {
       request<{ locales: Branch[] }>(
         `${base}/${segment(slug)}/locales${point ? `?lat=${point.lat}&lng=${point.lng}` : ""}`,
       ),
+    /** Alta autoservicio: si está abierta y los límites de la prueba (para la landing). */
+    altaConfig: () => request<AltaConfig>(`${root}/alta/config`),
+    /** Alta autoservicio: ¿está libre esa dirección web? */
+    altaSlug: (valor: string) =>
+      request<SlugCheck>(`${root}/alta/slug?${new URLSearchParams({ valor })}`),
     privacy: (slug: string) => request<PrivacyInfo>(`${base}/${segment(slug)}/privacidad`),
     zones: (slug: string) => request<{ zonas: DeliveryZone[] }>(`${base}/${segment(slug)}/zonas`),
     createOrder: (slug: string, body: unknown, idempotencyKey: string) =>

@@ -196,6 +196,15 @@ a {
   border-color: #cfc6b8;
 }
 
+/* Local que no acepta pedidos online: la carta se ve pero no se pide. */
+.item:disabled {
+  cursor: default;
+}
+
+.item:disabled:hover {
+  border-color: var(--line);
+}
+
 .item:focus-visible,
 .btn:focus-visible,
 .link-btn:focus-visible {

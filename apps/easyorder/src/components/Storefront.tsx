@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createApi } from "@/lib/api";
 import { addLine, type CartLine, itemCount, parseStoredCart, subtotalCents } from "@/lib/cart";
+import { acceptsOnlineOrders, RESTAURANT_UNAVAILABLE_MESSAGE } from "@/lib/checkout";
 import { eurosFromCents } from "@/lib/format";
 import type { Branch, DeliveryZone, Menu, MenuItem } from "@/lib/types";
 import { Checkout } from "./Checkout";
@@ -120,6 +121,7 @@ export function Storefront({
     );
   }
 
+  const accepting = acceptsOnlineOrders(menu.restaurante);
   const count = itemCount(lines);
   const subtotal = subtotalCents(lines);
   const restaurant = menu.restaurante;
@@ -184,7 +186,12 @@ export function Storefront({
             </select>
           </label>
         )}
-        {!menu.abierto && (
+        {!accepting && (
+          <p className="notice" role="status">
+            {RESTAURANT_UNAVAILABLE_MESSAGE} Puedes ver la carta.
+          </p>
+        )}
+        {accepting && !menu.abierto && (
           <p className="notice">
             Ahora mismo no aceptamos pedidos{branchName ? ` en ${branchName}` : ""}. Puedes ver la
             carta y volver más tarde.
@@ -221,7 +228,12 @@ export function Storefront({
           <ul className="items">
             {category.items.map((item) => (
               <li key={item.id}>
-                <button type="button" className="item" onClick={() => setSelected(item)}>
+                <button
+                  type="button"
+                  className="item"
+                  disabled={!accepting}
+                  onClick={() => setSelected(item)}
+                >
                   <span className="item-text">
                     <strong>{item.name}</strong>
                     {item.description && <span className="muted small">{item.description}</span>}
@@ -243,7 +255,7 @@ export function Storefront({
 
       <footer className="powered">Pedidos con EasyOrder · Konnecttia</footer>
 
-      {count > 0 && (
+      {accepting && count > 0 && (
         <div className="cart-bar">
           <button type="button" className="btn primary block" onClick={() => setView("checkout")}>
             Ver pedido · {count} {count === 1 ? "producto" : "productos"} ·{" "}

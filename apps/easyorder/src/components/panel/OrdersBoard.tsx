@@ -27,6 +27,7 @@ import { type StreamState, subscribeBoard } from "@/lib/panel/stream";
 import type { PanelBranch, PanelOrder } from "@/lib/panel/types";
 import { BusyModeControl, BusyModeHelp } from "./BusyModeControl";
 import { Icon } from "./Icon";
+import { FirstSteps } from "./orders/FirstSteps";
 import { ManualOrder } from "./orders/ManualOrder";
 import { OrderCard } from "./orders/OrderCard";
 import { OrdersTable } from "./orders/OrdersTable";
@@ -376,6 +377,8 @@ export function OrdersBoard() {
           ) : null}
         </div>
       </header>
+
+      <FirstSteps />
 
       {showBranches ? (
         <fieldset className="k-segment">

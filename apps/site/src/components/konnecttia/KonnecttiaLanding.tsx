@@ -37,7 +37,7 @@ async function sendLead(data: Record<string, FormDataEntryValue>): Promise<LeadR
   };
 }
 
-export default function KonnecttiaLanding() {
+export default function KonnecttiaLanding({ trial = false }: { trial?: boolean }) {
   const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   useReveal(root);
@@ -101,6 +101,11 @@ export default function KonnecttiaLanding() {
                       <use href="#i-arrow" />
                     </svg>
                   </a>
+                  {trial ? (
+                    <a className="btn btn-ghost" href={ROUTE.FreeTrial}>
+                      Prueba gratis
+                    </a>
+                  ) : null}
                   <a className="btn btn-ghost" href="#como-funciona">
                     Cómo funciona
                   </a>

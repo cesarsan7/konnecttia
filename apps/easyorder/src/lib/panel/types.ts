@@ -1,5 +1,7 @@
 /** Respuestas de la API del panel (apps/api/src/routes/panel.ts y routes/me.ts). */
 
+import type { Trial } from "./trial";
+
 /** Los importes NUMERIC llegan como texto desde la base ("28.00"). */
 export type Amount = string | number;
 
@@ -18,6 +20,8 @@ export type BusyModeSettings = {
 };
 
 export type PanelAccess = {
+  /** Prueba gratuita del restaurante; null si no está en prueba (o ya se convirtió). */
+  readonly prueba: Trial | null;
   /** Ajustes del restaurante que usa el panel (restaurante_config). null = no configurado. */
   readonly ajustes: { readonly modo_ocupado: BusyModeSettings | null };
   /** `mostrar` = apodo o nombre; null en los miembros antiguos que aún no lo han puesto. */

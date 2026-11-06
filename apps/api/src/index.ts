@@ -73,7 +73,11 @@ const app = createApp({
   verifyToken: async (token) => {
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data.user) return null;
-    return { userId: data.user.id, email: data.user.email ?? null };
+    return {
+      userId: data.user.id,
+      email: data.user.email ?? null,
+      emailVerified: Boolean(data.user.email_confirmed_at),
+    };
   },
 });
 

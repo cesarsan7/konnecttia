@@ -23,6 +23,7 @@ import {
   type Restaurant,
   surchargeRules,
 } from "./restaurants";
+import { restaurantAcceptsOrders } from "./trial";
 
 type WebOrderBody = import("zod").infer<typeof orderBodySchema>;
 
@@ -59,6 +60,14 @@ export async function placeOrder(
   /** Consentimiento del checkout web; el pedido manual y n8n no lo piden. */
   consent?: { readonly promotions: boolean },
 ): Promise<PlaceOrderResult> {
+  // Prueba pendiente, rechazada o vencida: no se toman pedidos (ni por la web ni desde el panel).
+  if (!(await restaurantAcceptsOrders(deps.sql, restaurant.id, deps.now()))) {
+    return {
+      ok: false,
+      error: API_ERROR.RestaurantUnavailable,
+      extra: { reason: API_ERROR.RestaurantUnavailable },
+    };
+  }
   if (!fulfillmentEnabled(restaurant, body.tipo_despacho)) {
     return {
       ok: false,

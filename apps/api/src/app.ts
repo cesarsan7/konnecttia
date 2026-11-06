@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import type { AppDeps, AppEnv } from "./context";
 import { API_ERROR, fail } from "./lib/http";
+import { altaRoutes } from "./routes/alta";
 import { meRoutes } from "./routes/me";
 import { panelRoutes } from "./routes/panel";
 import { plataformaRoutes } from "./routes/plataforma";
@@ -29,6 +30,7 @@ export function createApp(deps: AppDeps) {
 
   app.get("/health", (c) => c.json({ ok: true }));
   app.route("/public", publicRoutes(deps));
+  app.route("/alta", altaRoutes(deps));
   app.route("/me", meRoutes(deps));
   app.route("/panel", panelRoutes(deps));
   app.route("/plataforma", plataformaRoutes(deps));

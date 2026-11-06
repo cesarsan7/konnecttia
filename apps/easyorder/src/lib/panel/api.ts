@@ -1,9 +1,11 @@
+import type { SignupBody, SignupResult } from "../alta/types";
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { CustomerDetail, CustomerList } from "./customers";
 import type { Delivery, Driver } from "./drivers";
 import type { OrderHistory } from "./history";
 import type { AdminMenu } from "./menu";
+import type { FirstSteps } from "./onboarding";
 import type { OrderProofs } from "./proofs";
 import type { PreviousOrders } from "./reorder";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
@@ -191,6 +193,11 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       );
     },
     myRestaurants: () => request<MyRestaurants>("/me/restaurantes"),
+    /** Alta autoservicio: crea el restaurante de prueba de quien tiene la sesión abierta. */
+    signup: (body: SignupBody) =>
+      request<SignupResult>("/alta", { method: "POST", body: JSON.stringify(body) }),
+    /** Checklist de primeros pasos del restaurante. */
+    firstSteps: (slug: string) => request<FirstSteps>(panel(slug, "/primeros-pasos")),
     access: (slug: string) => request<PanelAccess>(panel(slug, "/acceso")),
     board: (slug: string, branchId: number | null) =>
       request<{ pedidos: PanelOrder[]; ahora: string }>(

@@ -33,6 +33,8 @@ export const API_ERROR = {
   CaptchaFailed: "captcha_failed",
   /** Rechazo neutro de un pedido web: no dice si el teléfono está bloqueado. */
   OrderNotAccepted: "order_not_accepted",
+  /** El restaurante no acepta pedidos ahora (prueba pendiente, rechazada o vencida). */
+  RestaurantUnavailable: "restaurant_unavailable",
 } as const;
 
 export type ApiError = (typeof API_ERROR)[keyof typeof API_ERROR];

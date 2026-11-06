@@ -44,6 +44,7 @@ import {
   openOverride,
   pickupEta,
 } from "../repositories/restaurants";
+import { restaurantAcceptsOrders } from "../repositories/trial";
 
 const MAX_LINES = 50;
 const ORDERS_PER_IP_PER_10_MIN = 20;
@@ -408,6 +409,8 @@ export function publicRoutes(deps: AppDeps) {
         recogida: restaurant.pickupEnabled && active.some((b) => b.acceptsPickup),
         reparto: restaurant.deliveryEnabled && active.some((b) => b.acceptsDelivery),
         metodos_pago: restaurant.paymentMethods,
+        // false con una prueba pendiente, rechazada o vencida: la carta se ve pero no se pide.
+        acepta_pedidos: await restaurantAcceptsOrders(deps.sql, restaurant.id, deps.now()),
         // Política propia del restaurante; null = la web enlaza a /<slug>/privacidad.
         privacidad_url: privacyPolicy(config).url,
       },
