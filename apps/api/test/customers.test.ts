@@ -37,6 +37,7 @@ async function placeOrder(
       telefono: phone,
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
+      privacidad_aceptada: true,
       items,
       ...extra,
     }),

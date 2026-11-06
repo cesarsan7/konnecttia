@@ -14,7 +14,7 @@ async function createOrder(slug: string, body: Record<string, unknown>) {
       "x-real-ip": "203.0.113.20",
       "Idempotency-Key": crypto.randomUUID(),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ privacidad_aceptada: true, ...body }),
   });
   if (response.status !== 201) throw new Error(await response.text());
   const created = (await response.json()) as { tracking_token: string };

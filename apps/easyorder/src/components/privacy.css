@@ -1,0 +1,28 @@
+/* Página genérica de privacidad (/[slug]/privacidad). */
+.privacy {
+  padding-bottom: 48px;
+}
+
+.privacy h2 {
+  font-size: 1.1rem;
+  margin: 24px 0 6px;
+}
+
+.privacy p,
+.privacy li {
+  overflow-wrap: anywhere;
+}
+
+.privacy ul {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+.privacy-draft {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: #fff6e0;
+  border: 1px solid #e8c874;
+  border-radius: var(--radius);
+  font-size: 0.92rem;
+}

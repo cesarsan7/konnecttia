@@ -1,7 +1,8 @@
-import { ALL_BRANCHES, PERMISSION } from "@konnecttia/access";
+import { ALL_BRANCHES, canAccessBranch, PERMISSION } from "@konnecttia/access";
 import { ORDER_STATUS } from "@konnecttia/domain";
 import type { Context, Hono } from "hono";
 import type { AppDeps, AppEnv } from "../context";
+import type { Sql } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
@@ -12,6 +13,8 @@ import { audit } from "../repositories/access";
  * `pedidos` (mismo restaurante y teléfono), sin contar carritos, cancelados ni caducados.
  * Un usuario limitado a unos locales solo ve clientes con pedidos en ellos y solo esos pedidos.
  * No se expone `usuarios.contexto` (memoria del agente).
+ * Borrar los datos de un cliente (customers.delete) anonimiza su perfil y sus pedidos; ver
+ * `anonymizeCustomer`.
  */
 
 type Ctx = Context<AppEnv>;
@@ -19,6 +22,10 @@ type Ctx = Context<AppEnv>;
 const PAGE_SIZE = 50;
 const HISTORY_SIZE = 50;
 const NOT_A_SALE = [ORDER_STATUS.InCart, ORDER_STATUS.Cancelled, ORDER_STATUS.Expired];
+/** Estados en los que el pedido ya no se toca: solo con todos así se pueden borrar los datos. */
+const CLOSED_ORDER = [ORDER_STATUS.Delivered, ORDER_STATUS.Cancelled, ORDER_STATUS.Expired];
+/** Marcador del teléfono de un perfil anonimizado (`usuarios.telefono` es NOT NULL y único). */
+const ANONYMIZED_PHONE_PREFIX = "anonimizado-";
 const SORT = { Recent: "recientes", Orders: "pedidos", Spent: "gasto" } as const;
 type Sort = (typeof SORT)[keyof typeof SORT];
 
@@ -83,6 +90,7 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           ${branchClause(c)}
       ) s ON true
       WHERE  u.restaurante_id = ${restauranteId}
+        AND  u.anonimizado_at IS NULL
         AND  (${pattern}::text IS NULL OR u.nombre ILIKE ${pattern} OR u.telefono ILIKE ${pattern})
         ${limited(c) ? sql`AND COALESCE(s.pedidos, 0) > 0` : sql``}
       ORDER  BY ${order}
@@ -172,11 +180,14 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         telefono: string;
         direccion_frecuente: string | null;
         creado: string | null;
+        acepta_promociones: boolean | null;
+        acepta_promociones_at: string | null;
       }[]
     >`
-      SELECT id, nombre, telefono, direccion_frecuente, created_at AS creado
+      SELECT id, nombre, telefono, direccion_frecuente, created_at AS creado,
+             acepta_promociones, acepta_promociones_at
       FROM   public.usuarios
-      WHERE  id = ${id} AND restaurante_id = ${restauranteId}
+      WHERE  id = ${id} AND restaurante_id = ${restauranteId} AND anonimizado_at IS NULL
     `;
     if (!customer) return fail(c, 404, API_ERROR.NotFound);
     const orders = await sql<
@@ -251,4 +262,148 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       pedidos: orders.map(({ items: _, total, ...order }) => ({ ...order, total: Number(total) })),
     });
   });
+  // Borrar los datos del cliente que lo pide: anonimiza el perfil y sus pedidos (no los elimina).
+  app.delete(
+    "/:slug/clientes/:id",
+    requirePermission(deps, PERMISSION.CustomersDelete),
+    async (c) => {
+      const id = Number(c.req.param("id"));
+      if (!Number.isSafeInteger(id) || id < 1) return fail(c, 400, API_ERROR.InvalidBody);
+      const access = c.get("access");
+      const restauranteId = c.get("restaurant").id;
+      const result = await sql.begin(async (tx) => {
+        const [customer] = await tx<{ telefono: string }[]>`
+          SELECT telefono FROM public.usuarios
+          WHERE  id = ${id} AND restaurante_id = ${restauranteId} AND anonimizado_at IS NULL
+          FOR UPDATE
+        `;
+        if (!customer) return { ok: false, status: 404, reason: null } as const;
+        const orders = await tx<
+          {
+            id: number;
+            estado: string | null;
+            sucursal_id: number | null;
+            chatwoot_conversation_id: string | null;
+          }[]
+        >`
+          SELECT id, estado, sucursal_id, chatwoot_conversation_id
+          FROM   public.pedidos
+          WHERE  restaurante_id = ${restauranteId}
+            AND  (usuario_id = ${id} OR telefono = ${customer.telefono})
+          FOR UPDATE
+        `;
+        if (limited(c)) {
+          const inScope = (order: { sucursal_id: number | null }) =>
+            order.sucursal_id !== null && canAccessBranch(access, order.sucursal_id);
+          // Igual que en la ficha: sin pedidos en sus locales, el cliente no existe para él.
+          if (!orders.some(inScope)) return { ok: false, status: 404, reason: null } as const;
+          // Borrar el perfil afectaría a pedidos de locales que no gestiona.
+          if (!orders.every(inScope)) {
+            return { ok: false, status: 403, reason: "customer_out_of_scope" } as const;
+          }
+        }
+        // Un pedido vivo lo sigue usando el local (o el agente): se borra cuando termine.
+        if (orders.some((order) => !CLOSED_ORDER.some((state) => state === order.estado))) {
+          return { ok: false, status: 409, reason: "open_orders" } as const;
+        }
+        const anonymized = await anonymizeCustomer(tx, {
+          restauranteId,
+          usuarioId: id,
+          telefono: customer.telefono,
+          pedidoIds: orders.map((order) => order.id),
+          conversationIds: orders.flatMap((order) =>
+            order.chatwoot_conversation_id ? [order.chatwoot_conversation_id] : [],
+          ),
+        });
+        // Sin datos personales en el detalle: la auditoría es inmutable.
+        await audit(tx as unknown as Sql, {
+          restauranteId,
+          actorTipo: "usuario",
+          actorId: c.get("user").userId,
+          accion: PERMISSION.CustomersDelete,
+          recursoTipo: "cliente",
+          recursoId: String(id),
+          resultado: "ok",
+          detalle: { pedidos: anonymized.pedidos },
+          requestId: c.get("requestId"),
+        });
+        return { ok: true, pedidos: anonymized.pedidos } as const;
+      });
+      if (!result.ok) {
+        const status = result.status;
+        return status === 404
+          ? fail(c, 404, API_ERROR.NotFound)
+          : status === 403
+            ? fail(c, 403, API_ERROR.Forbidden, { reason: result.reason })
+            : fail(c, 409, API_ERROR.Conflict, { reason: result.reason });
+      }
+      return c.json({ ok: true, pedidos_anonimizados: result.pedidos });
+    },
+  );
+}
+
+type Tx = Parameters<Parameters<Sql["begin"]>[1]>[0];
+
+/**
+ * Anonimiza a un cliente sin romper lo que lee n8n ni los importes del restaurante:
+ * - `usuarios`: sin nombre, direcciones ni contexto; el teléfono (NOT NULL y único) pasa a un
+ *   marcador y se registra que ya no acepta promociones. Queda `anonimizado_at`.
+ * - `pedidos`: conservan importes, estado y fechas; pierden nombre, teléfono (cadena vacía, como
+ *   en mesa), dirección, coordenadas, notas y las notas de cada línea. `session_id` pasa a un
+ *   marcador por pedido (la unicidad con `pedido_numero` se mantiene).
+ * - Memoria del agente de ese teléfono (`contexto`, historial de chat, escalaciones).
+ */
+async function anonymizeCustomer(
+  tx: Tx,
+  input: {
+    readonly restauranteId: number;
+    readonly usuarioId: number;
+    readonly telefono: string;
+    readonly pedidoIds: readonly number[];
+    readonly conversationIds: readonly string[];
+  },
+): Promise<{ pedidos: number }> {
+  const { restauranteId, usuarioId, telefono, pedidoIds, conversationIds } = input;
+  if (pedidoIds.length > 0) {
+    await tx`
+      UPDATE public.pedidos
+      SET    telefono = '', nombre_pedido = NULL, direccion = NULL, lat = NULL, lng = NULL,
+             notas = NULL, chatwoot_conversation_id = NULL,
+             session_id = ${ANONYMIZED_PHONE_PREFIX} || id::text,
+             items = CASE WHEN jsonb_typeof(items) = 'array' THEN COALESCE((
+                 SELECT jsonb_agg(CASE WHEN jsonb_typeof(line) = 'object' THEN line - 'nota' ELSE line END)
+                 FROM   jsonb_array_elements(items) AS line
+               ), '[]'::jsonb) ELSE items END
+      WHERE  restaurante_id = ${restauranteId} AND id IN ${tx([...pedidoIds])}
+    `;
+  }
+  await tx`
+    UPDATE public.usuarios
+    SET    nombre = NULL, direccion_frecuente = NULL, lat_frecuente = NULL, long_frecuente = NULL,
+           contexto = NULL, telefono = ${ANONYMIZED_PHONE_PREFIX} || id::text,
+           acepta_promociones = false, acepta_promociones_at = now(),
+           anonimizado_at = now(), updated_at = now()
+    WHERE  id = ${usuarioId} AND restaurante_id = ${restauranteId}
+  `;
+  await tx`
+    DELETE FROM public.contexto WHERE restaurante_id = ${restauranteId} AND telefono = ${telefono}
+  `;
+  await tx`
+    UPDATE public.escalaciones
+    SET    telefono = '', problema = NULL, contexto = NULL, conversation_id = NULL,
+           contact_id = NULL, account_id = NULL
+    WHERE  restaurante_id = ${restauranteId} AND telefono = ${telefono}
+  `;
+  if (conversationIds.length > 0) {
+    // El historial del agente usa el id de conversación de Chatwoot, con o sin prefijo de tenant.
+    const sessions = conversationIds.flatMap((conversation) => [
+      conversation,
+      `${restauranteId}_${conversation}`,
+    ]);
+    await tx`
+      DELETE FROM public.n8n_chat_histories
+      WHERE  restaurante_id = ${restauranteId} AND session_id IN ${tx(sessions)}
+    `;
+  }
+  return { pedidos: pedidoIds.length };
 }

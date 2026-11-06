@@ -63,6 +63,10 @@ export const CONFIG_KEY = {
   TableWaitAlert: "mesa_aviso_espera_minutos",
   /** Minutos de ocupación a partir de los que una mesa se marca en el plano. */
   TableStayAlert: "mesa_aviso_estancia_minutos",
+  /** URL de la política de privacidad del restaurante (checkout web). */
+  PrivacyUrl: "privacidad_url",
+  /** Texto que identifica la versión vigente de esa política. */
+  PrivacyVersion: "privacidad_version",
 } as const;
 
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {

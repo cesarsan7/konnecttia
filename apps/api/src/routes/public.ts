@@ -19,6 +19,7 @@ import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
 import { findOrderByTrackingToken, ORDER_CHANNEL } from "../repositories/orders";
 import { placeOrder } from "../repositories/place-order";
+import { loadRestaurantContact, privacyPolicy } from "../repositories/privacy";
 import {
   deliveryEta,
   fulfillmentEnabled,
@@ -34,6 +35,7 @@ const TRACKING_PER_IP_PER_MIN = 60;
 const QUOTES_PER_IP_PER_MIN = 300;
 const IDEMPOTENCY_HEADER = "Idempotency-Key";
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
+const PRIVACY_REQUIRED_REASON = "privacy_required";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const positiveInt = z.number().int().positive();
@@ -77,6 +79,12 @@ export const orderBodySchema = z
     lat: latitude.optional(),
     lng: longitude.optional(),
     notas: z.string().trim().max(500).optional(),
+    /**
+     * Consentimiento del checkout web. Solo `POST /public/:slug/orders` lo exige y lo guarda;
+     * el pedido manual del panel recibe el mismo esquema pero ignora estos campos.
+     */
+    privacidad_aceptada: z.boolean().optional(),
+    acepta_promociones: z.boolean().optional(),
     items: z
       .array(
         z.object({
@@ -313,6 +321,8 @@ export function publicRoutes(deps: AppDeps) {
         recogida: restaurant.pickupEnabled && active.some((b) => b.acceptsPickup),
         reparto: restaurant.deliveryEnabled && active.some((b) => b.acceptsDelivery),
         metodos_pago: restaurant.paymentMethods,
+        // Política propia del restaurante; null = la web enlaza a /<slug>/privacidad.
+        privacidad_url: privacyPolicy(config).url,
       },
       local: branch ? { id: branch.id, nombre: branch.name } : null,
       abierto,
@@ -322,6 +332,33 @@ export function publicRoutes(deps: AppDeps) {
           items: category.items.filter((item) => !hidden.has(item.id)),
         }))
         .filter((category) => category.items.length > 0),
+    });
+  });
+
+  // Datos que muestra la página genérica de privacidad (/[slug]/privacidad). Solo lo que existe.
+  app.get("/:slug/privacidad", async (c) => {
+    const restaurant = c.get("restaurant");
+    const [config, contact, branches] = await Promise.all([
+      loadConfig(deps.sql, restaurant.id),
+      loadRestaurantContact(deps.sql, restaurant.id),
+      loadBranches(deps.sql, restaurant.id),
+    ]);
+    const policy = privacyPolicy(config);
+    return c.json({
+      restaurante: {
+        nombre: restaurant.nombre,
+        direccion: contact.direccion,
+        telefono: contact.telefono,
+      },
+      locales: branches
+        .filter((branch) => branch.active)
+        .map((branch) => ({
+          nombre: branch.name,
+          direccion: branch.address?.trim() || null,
+          telefono: branch.phone?.trim() || null,
+        })),
+      privacidad_url: policy.url,
+      version: policy.version,
     });
   });
 
@@ -440,8 +477,20 @@ export function publicRoutes(deps: AppDeps) {
       });
     }
     const body = parsed.data;
+    // Sin aceptar la política de privacidad no se pide por la web (el panel y n8n no la exigen).
+    if (body.privacidad_aceptada !== true) {
+      return fail(c, 422, API_ERROR.PrivacyRequired, { reason: PRIVACY_REQUIRED_REASON });
+    }
 
-    const placed = await placeOrder(deps, restaurant, body, idempotencyKey, ORDER_CHANNEL.Web);
+    const placed = await placeOrder(
+      deps,
+      restaurant,
+      body,
+      idempotencyKey,
+      ORDER_CHANNEL.Web,
+      undefined,
+      { promotions: body.acepta_promociones === true },
+    );
     if (!placed.ok) return fail(c, 422, placed.error, placed.extra);
     const { order, branch, eta, priced } = placed;
 
