@@ -25,6 +25,9 @@ export type CustomerDetail = {
     readonly telefono: string;
     readonly direccion_frecuente: string | null;
     readonly creado: string | null;
+    /** true dado, false retirado o rechazado, null nunca preguntado (p. ej. solo WhatsApp). */
+    readonly acepta_promociones: boolean | null;
+    readonly acepta_promociones_at: string | null;
   };
   readonly resumen: {
     readonly pedidos: number;
@@ -81,4 +84,28 @@ export function sinceLabel(iso: string | null, now: Date = new Date()): string {
 
 export function pageCount(total: number, perPage: number): number {
   return Math.max(1, Math.ceil(total / perPage));
+}
+
+/** Estado de las promociones en la ficha: «Acepta (desde …)», «No acepta», «Sin preguntar». */
+export function promotionsLabel(
+  accepts: boolean | null,
+  at: string | null,
+  format: (date: Date) => string,
+): string {
+  if (accepts === null) return "Sin preguntar";
+  if (!accepts) return at ? `No acepta (desde ${format(new Date(at))})` : "No acepta";
+  return at ? `Acepta (desde ${format(new Date(at))})` : "Acepta";
+}
+
+/** Mensaje al fallar «Borrar datos del cliente» a partir del estado y el motivo de la API. */
+export function deleteCustomerError(status: number, reason: string | undefined): string {
+  if (status === 409 && reason === "open_orders") {
+    return "Tiene pedidos sin cerrar. Cuando se entreguen o cancelen podrás borrar sus datos.";
+  }
+  if (status === 403 && reason === "customer_out_of_scope") {
+    return "Tiene pedidos en locales a los que no tienes acceso: pídele a un propietario que borre sus datos.";
+  }
+  if (status === 403) return "Tu usuario no tiene permiso para borrar datos de clientes.";
+  if (status === 404) return "Este cliente ya no está disponible.";
+  return "No se pudieron borrar los datos. Inténtalo de nuevo.";
 }

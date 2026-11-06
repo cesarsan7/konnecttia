@@ -15,6 +15,7 @@ import { loadCatalogForItems } from "./catalog";
 import { loadEtaContext } from "./eta";
 import { resolveFulfillment } from "./fulfillment";
 import { type CreatedOrder, createOrder, type OrderChannel } from "./orders";
+import { privacyPolicy } from "./privacy";
 import {
   fulfillmentEnabled,
   loadConfig,
@@ -55,6 +56,8 @@ export async function placeOrder(
   idempotencyKey: string,
   channel: OrderChannel,
   branchAllowed: (branchId: number) => boolean = () => true,
+  /** Consentimiento del checkout web; el pedido manual y n8n no lo piden. */
+  consent?: { readonly promotions: boolean },
 ): Promise<PlaceOrderResult> {
   if (!fulfillmentEnabled(restaurant, body.tipo_despacho)) {
     return {
@@ -167,6 +170,14 @@ export async function placeOrder(
     notas: body.notas ?? null,
     quote: priced.quote,
     mesaId: body.mesa_id ?? null,
+    ...(consent
+      ? {
+          consent: {
+            privacyVersion: privacyPolicy(config).version,
+            promotions: consent.promotions,
+          },
+        }
+      : {}),
   });
   return { ok: true, order, branch, eta, priced };
 }

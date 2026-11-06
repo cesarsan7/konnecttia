@@ -138,6 +138,9 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         ),
       ),
     customer: (slug: string, id: number) => request<CustomerDetail>(panel(slug, `/clientes/${id}`)),
+    /** Borra (anonimiza) los datos personales del cliente y de sus pedidos. */
+    deleteCustomer: (slug: string, id: number) =>
+      send<{ ok: true; pedidos_anonimizados: number }>(slug, `/clientes/${id}`, "DELETE"),
     /** Descarga el CSV de clientes (con el token de la sesión). */
     exportCustomers: async (slug: string): Promise<Blob | null> => {
       const token = await getToken();

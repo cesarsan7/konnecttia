@@ -1,0 +1,28 @@
+/* Confirmación de «Borrar datos del cliente» y bloque de privacidad de la ficha. */
+.delete-customer-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.delete-customer-keep {
+  margin: 0;
+  color: var(--muted);
+}
+
+.customer-privacy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0;
+  min-width: 0;
+}
+
+.customer-privacy > span {
+  overflow-wrap: anywhere;
+}

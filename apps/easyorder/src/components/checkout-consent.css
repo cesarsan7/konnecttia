@@ -1,0 +1,25 @@
+/* Casillas de privacidad y promociones del checkout. */
+.consent-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 4px 0;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.consent-row input {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.consent-row span {
+  overflow-wrap: anywhere;
+}
+
+.consent-row a {
+  font-weight: 700;
+}

@@ -4,9 +4,18 @@ import { addCents, type Cents, centsFromDecimal } from "@konnecttia/domain";
 import { useId, useMemo, useRef, useState } from "react";
 import type { Api } from "@/lib/api";
 import { type CartLine, lineCents, setQuantity, toOrderItems } from "@/lib/cart";
-import { describeApiError, describeZoneFee, normalizePhone, paymentLabel } from "@/lib/checkout";
+import {
+  consentFields,
+  describeApiError,
+  describeZoneFee,
+  normalizePhone,
+  paymentLabel,
+  privacyHref,
+  privacyProblem,
+} from "@/lib/checkout";
 import { eurosFromCents } from "@/lib/format";
 import type { Branch, CreatedOrder, DeliveryZone, Fulfillment, Menu } from "@/lib/types";
+import "./checkout-consent.css";
 
 type Point = { readonly lat: number; readonly lng: number };
 
@@ -48,6 +57,9 @@ export function Checkout(props: Props) {
   const [zoneId, setZoneId] = useState<number | null>(null);
   const [payment, setPayment] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  // Sin marcar de salida: la política es obligatoria y las promociones, voluntarias.
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [promotions, setPromotions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   // Misma clave en los reintentos: si la red falla tras crear el pedido, no se duplica.
@@ -92,7 +104,7 @@ export function Checkout(props: Props) {
       }
     }
     if (!payment) return "Elige cómo vas a pagar.";
-    return null;
+    return privacyProblem(privacyAccepted);
   }, [
     lines.length,
     name,
@@ -106,6 +118,7 @@ export function Checkout(props: Props) {
     props.point,
     missing,
     payment,
+    privacyAccepted,
   ]);
 
   async function submit() {
@@ -129,6 +142,7 @@ export function Checkout(props: Props) {
             ...(props.point ? { lat: props.point.lat, lng: props.point.lng } : {}),
           }
         : {}),
+      ...consentFields(privacyAccepted, promotions),
       items: toOrderItems(lines),
     };
     const result = await props.api.createOrder(props.slug, body, idempotencyKey.current);
@@ -398,8 +412,42 @@ export function Checkout(props: Props) {
         </dl>
         <p className="muted small">
           El total final lo calcula el local al confirmar (puede incluir suplementos como envases).
-          Usaremos tus datos solo para gestionar este pedido.
         </p>
+
+        <fieldset className="group consent">
+          <legend>Privacidad</legend>
+          <label className="consent-row">
+            <input
+              type="checkbox"
+              checked={privacyAccepted}
+              onChange={(event) => setPrivacyAccepted(event.target.checked)}
+              aria-required="true"
+            />
+            <span>
+              He leído y acepto la{" "}
+              <a
+                href={privacyHref(props.slug, restaurant.privacidad_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                política de privacidad
+              </a>
+              .
+            </span>
+          </label>
+          <label className="consent-row">
+            <input
+              type="checkbox"
+              checked={promotions}
+              onChange={(event) => setPromotions(event.target.checked)}
+            />
+            <span>Quiero recibir promociones de {restaurant.nombre}.</span>
+          </label>
+          <p className="muted small">
+            Usaremos tus datos para gestionar este pedido. Las promociones son opcionales y puedes
+            retirarlas cuando quieras.
+          </p>
+        </fieldset>
 
         {(error || problem) && (
           <p className={error ? "error" : "hint"} role={error ? "alert" : "status"}>

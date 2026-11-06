@@ -12,6 +12,23 @@ export function normalizePhone(raw: string): string | null {
   return null;
 }
 
+/** Aviso mientras falta aceptar la política de privacidad (casilla obligatoria del checkout). */
+export const PRIVACY_REQUIRED_MESSAGE = "Acepta la política de privacidad para enviar el pedido.";
+
+export function privacyProblem(accepted: boolean): string | null {
+  return accepted ? null : PRIVACY_REQUIRED_MESSAGE;
+}
+
+/** Dónde se lee la política: la propia del restaurante o la página genérica de la web. */
+export function privacyHref(slug: string, url: string | null | undefined): string {
+  return url?.trim() ? url.trim() : `/${encodeURIComponent(slug)}/privacidad`;
+}
+
+/** Campos de consentimiento del cuerpo del pedido (la API los exige solo en el canal web). */
+export function consentFields(privacyAccepted: boolean, promotions: boolean) {
+  return { privacidad_aceptada: privacyAccepted, acepta_promociones: promotions };
+}
+
 export const PAYMENT_LABEL: Readonly<Record<string, string>> = {
   efectivo: "Efectivo",
   tarjeta: "Tarjeta",
@@ -37,6 +54,7 @@ const ERROR_MESSAGE: Readonly<Record<string, string>> = {
   rate_limited: "Has enviado varios pedidos seguidos. Espera unos minutos e inténtalo de nuevo.",
   invalid_body: "Revisa los datos del formulario.",
   restaurant_not_found: "No encontramos este restaurante.",
+  privacy_required: "Para pedir debes aceptar la política de privacidad.",
 };
 
 const LINE_ERROR_MESSAGE: Readonly<Record<string, string>> = {

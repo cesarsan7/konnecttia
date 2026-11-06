@@ -12,12 +12,15 @@ import {
   type CustomerSort,
   formatPhone,
   pageCount,
+  promotionsLabel,
   sinceLabel,
 } from "@/lib/panel/customers";
 import { Icon } from "../Icon";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { DeleteCustomerDialog } from "./DeleteCustomerDialog";
+import "./delete-customer.css";
 
 type Load =
   | { readonly kind: "loading" }
@@ -239,7 +242,15 @@ export function CustomersView() {
       ) : null}
 
       {openId !== null ? (
-        <CustomerDialog id={openId} dateFormat={dateFormat} onClose={() => setOpenId(null)} />
+        <CustomerDialog
+          id={openId}
+          dateFormat={dateFormat}
+          onClose={() => setOpenId(null)}
+          onDeleted={() => {
+            setOpenId(null);
+            void load();
+          }}
+        />
       ) : null}
     </div>
   );
@@ -249,15 +260,18 @@ function CustomerDialog({
   id,
   dateFormat,
   onClose,
+  onDeleted,
 }: {
   readonly id: number;
   readonly dateFormat: Intl.DateTimeFormat;
   readonly onClose: () => void;
+  readonly onDeleted: () => void;
 }) {
   const { api } = usePanel();
-  const { slug } = useAccess();
+  const { slug, can } = useAccess();
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     void api.customer(slug, id).then((result) => {
@@ -292,6 +306,25 @@ function CustomerDialog({
               {detail.cliente.direccion_frecuente}
             </p>
           ) : null}
+          <p className="k-small customer-privacy">
+            <span>
+              <span className="k-muted">Promociones: </span>
+              {promotionsLabel(
+                detail.cliente.acepta_promociones,
+                detail.cliente.acepta_promociones_at,
+                (date) => dateFormat.format(date),
+              )}
+            </span>
+            {can(PERMISSION.CustomersDelete) ? (
+              <button
+                type="button"
+                className="k-link k-link-danger"
+                onClick={() => setDeleting(true)}
+              >
+                Borrar datos del cliente
+              </button>
+            ) : null}
+          </p>
           <dl className="k-customer-summary">
             <div>
               <dt>Pedidos</dt>
@@ -353,6 +386,14 @@ function CustomerDialog({
             )}
           </section>
         </div>
+      ) : null}
+      {deleting ? (
+        <DeleteCustomerDialog
+          customerId={id}
+          name={name}
+          onClose={() => setDeleting(false)}
+          onDeleted={onDeleted}
+        />
       ) : null}
     </Modal>
   );

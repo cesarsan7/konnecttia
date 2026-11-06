@@ -27,6 +27,7 @@ export const API_ERROR = {
   InvalidProof: "invalid_proof",
   ProofLimitReached: "proof_limit_reached",
   PaymentNotPending: "payment_not_pending",
+  PrivacyRequired: "privacy_required",
 } as const;
 
 export type ApiError = (typeof API_ERROR)[keyof typeof API_ERROR];

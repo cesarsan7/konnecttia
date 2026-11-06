@@ -65,6 +65,10 @@ export const CONFIG_KEY = {
   TableStayAlert: "mesa_aviso_estancia_minutos",
   /** Justificantes de pago que el cliente puede subir por pedido. */
   ProofsMaxPerOrder: "justificantes_max_por_pedido",
+  /** URL de la política de privacidad del restaurante (checkout web). */
+  PrivacyUrl: "privacidad_url",
+  /** Texto que identifica la versión vigente de esa política. */
+  PrivacyVersion: "privacidad_version",
 } as const;
 
 export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {

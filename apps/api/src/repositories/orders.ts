@@ -44,6 +44,15 @@ export type NewOrder = {
   readonly quote: Quote;
   /** Pedido en mesa (servicio de mesa). */
   readonly mesaId?: number | null;
+  /** Consentimiento dado en el checkout web. Los demás canales no lo piden. */
+  readonly consent?: OrderConsent;
+};
+
+export type OrderConsent = {
+  /** Versión de la política de privacidad aceptada (`null` si el restaurante no la define). */
+  readonly privacyVersion: string | null;
+  /** Estado de la casilla de promociones en ese pedido. */
+  readonly promotions: boolean;
 };
 
 export type CreatedOrder = {
@@ -159,7 +168,8 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           restaurante_id, telefono, usuario_id, items, subtotal, costo_envio, total,
           tipo_despacho, direccion, postal_code, tiempo_estimado, metodo_pago,
           estado, estado_pago, notas, canal, nombre_pedido, idempotency_key,
-          sucursal_id, lat, lng, distancia_km, mesa_id
+          sucursal_id, lat, lng, distancia_km, mesa_id,
+          privacidad_aceptada_at, privacidad_version
         ) VALUES (
           ${order.restauranteId}, ${order.telefono}, ${usuario[0]?.id ?? null},
           ${tx.json(legacyItemsSnapshot(quote))}, ${subtotal},
@@ -170,13 +180,23 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           ${order.idempotencyKey}, ${order.sucursalId}, ${order.customerPoint?.lat ?? null},
           ${order.customerPoint?.lng ?? null},
           ${order.distanciaKm === null ? null : Math.round(order.distanciaKm * 100) / 100},
-          ${order.mesaId ?? null}
+          ${order.mesaId ?? null},
+          ${order.consent ? tx`now()` : null}, ${order.consent?.privacyVersion ?? null}
         )
         RETURNING id, pedido_codigo, tracking_token, estado
       `;
       const pedido = inserted[0];
       if (!pedido) {
         throw new Error("El INSERT del pedido no devolvió filas");
+      }
+      // Última decisión sobre promociones (dada o retirada); solo se toca si cambia.
+      if (order.consent && usuario[0]) {
+        await tx`
+          UPDATE public.usuarios
+          SET    acepta_promociones = ${order.consent.promotions}, acepta_promociones_at = now()
+          WHERE  id = ${usuario[0].id}
+            AND  acepta_promociones IS DISTINCT FROM ${order.consent.promotions}
+        `;
       }
       await tx`
         INSERT INTO public.outbox_evento
