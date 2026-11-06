@@ -36,6 +36,8 @@ export type Menu = {
     readonly recogida: boolean;
     readonly reparto: boolean;
     readonly metodos_pago: readonly string[];
+    /** false con una prueba pendiente, rechazada o terminada. Ausente en respuestas antiguas. */
+    readonly acepta_pedidos?: boolean;
     /** Política propia del restaurante; null = se enlaza a la página genérica /<slug>/privacidad. */
     readonly privacidad_url: string | null;
   };

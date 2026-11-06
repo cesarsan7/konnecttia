@@ -134,3 +134,53 @@ export type ModuleSaved = {
 export type ModuleChangeBody =
   | { readonly estado: "activo"; readonly origen?: "complemento" | "cortesia" }
   | { readonly estado: "suspendido" | "cancelado" };
+
+export type TrialState = "pendiente" | "activa" | "convertida" | "rechazada";
+
+/** Una prueba gratuita (`GET /plataforma/pruebas`). null = sin límite. */
+export type TrialRow = {
+  readonly restaurante_id: number;
+  readonly nombre: string;
+  readonly slug: string | null;
+  readonly plan: string | null;
+  readonly email: string | null;
+  readonly estado: TrialState;
+  readonly inicio: string;
+  readonly fin: string | null;
+  readonly max_pedidos: number | null;
+  readonly pedidos_usados: number;
+  readonly dias_restantes: number | null;
+  readonly pedidos_restantes: number | null;
+  readonly acepta_pedidos: boolean;
+};
+
+export type TrialList = {
+  readonly pruebas: readonly TrialRow[];
+  /** Planes de pago a los que se puede convertir una prueba. */
+  readonly planes: readonly { readonly code: string; readonly nombre: string }[];
+};
+
+export type TrialAction =
+  | { readonly accion: "aprobar" | "rechazar" }
+  | { readonly accion: "ampliar"; readonly dias?: number; readonly pedidos?: number };
+
+export type TrialConverted = {
+  readonly estado: "convertida";
+  readonly plan: string;
+  readonly modulos_anadidos: readonly string[];
+  readonly modulos_quitados: readonly string[];
+};
+
+/** Configuración global del alta (`plataforma_config`). null = sin límite / sin dato. */
+export type SignupSettings = {
+  readonly alta_autoservicio_activa: boolean;
+  readonly alta_requiere_aprobacion: boolean;
+  readonly prueba_dias: number | null;
+  readonly prueba_max_pedidos: number | null;
+  readonly alta_contacto_email: string | null;
+};
+
+export type PlatformSettings = {
+  readonly config: SignupSettings;
+  readonly descripciones: Readonly<Record<string, string>>;
+};

@@ -82,6 +82,12 @@ export function PlanModulesSection({ detail, onChanged }: Props) {
             }}
           >
             {detail.plan ? null : <option value="">Sin plan</option>}
+            {/* «Prueba» no se elige a mano: solo se muestra si es el plan actual (se sale de él en Pruebas). */}
+            {detail.plan && !detail.planes.some((option) => option.code === detail.plan?.code) ? (
+              <option value={detail.plan.code} disabled>
+                {detail.plan.nombre}
+              </option>
+            ) : null}
             {detail.planes.map((option) => (
               <option key={option.code} value={option.code}>
                 {option.nombre}

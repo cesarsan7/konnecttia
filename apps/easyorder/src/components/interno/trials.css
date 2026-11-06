@@ -1,0 +1,121 @@
+/* Panel interno · Pruebas gratuitas. */
+.k-tr-link {
+  text-decoration: none;
+}
+
+.k-tr-filters {
+  flex-wrap: wrap;
+}
+
+.k-tr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.k-tr-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.k-tr-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.k-tr-who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.k-tr-name {
+  font: 800 1.0625rem / 1.3 var(--f-display);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.k-tr-state {
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.k-tr-state.is-ok {
+  background: var(--teal-tint);
+  color: var(--teal-text);
+}
+
+.k-tr-state.is-warn {
+  background: var(--coral-tint);
+  color: var(--coral-text);
+}
+
+.k-tr-state.is-off {
+  background: var(--bg-alt);
+  color: var(--muted);
+}
+
+.k-tr-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 8px 16px;
+}
+
+.k-tr-facts dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.k-tr-facts dd {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.k-tr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.k-tr-form {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--bg-alt);
+  justify-items: start;
+}
+
+.k-tr-form p {
+  margin: 0;
+}
+
+.k-tr-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.k-tr-form .k-field {
+  margin: 0;
+}
+
+.k-tr-form select {
+  font: 400 16px / 1.4 var(--f-body);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+}

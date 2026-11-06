@@ -10,6 +10,7 @@ import { Icon, type IconName } from "./Icon";
 import { rememberRestaurant } from "./LoginScreen";
 import { usePanel } from "./PanelProvider";
 import { ProfileDialog } from "./ProfileDialog";
+import { TrialBanner } from "./TrialBanner";
 import "./profile-dialog.css";
 
 export const PERMISSION = {
@@ -294,6 +295,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
           </div>
         </aside>
         <main id="contenido" className="k-main">
+          <TrialBanner trial={access.prueba} />
           {children}
         </main>
         <nav className="k-tabbar" aria-label="Secciones del panel">

@@ -58,7 +58,7 @@ function PanelButton({ className }: { readonly className: string }) {
   );
 }
 
-export default function EasyOrderPage() {
+export default function EasyOrderPage({ trial = false }: { trial?: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   useReveal(root);
 
@@ -88,6 +88,11 @@ export default function EasyOrderPage() {
                   <a className="btn btn-primary" href={DEMO_HREF}>
                     Solicitar una demo
                   </a>
+                  {trial ? (
+                    <a className="btn btn-ghost" href={ROUTE.FreeTrial}>
+                      Prueba gratis
+                    </a>
+                  ) : null}
                   <PanelButton className="btn btn-ghost" />
                 </div>
                 <p className="eo-hint">¿Ya usas EasyOrder? Entra en el panel con tu cuenta.</p>

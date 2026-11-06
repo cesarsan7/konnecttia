@@ -8,8 +8,14 @@ import type {
   PaymentSaved,
   PlanSaved,
   PlatformMe,
+  PlatformSettings,
   RestaurantDetail,
   RestaurantRow,
+  SignupSettings,
+  TrialAction,
+  TrialConverted,
+  TrialList,
+  TrialRow,
 } from "./types";
 
 /** Cliente de la API `/plataforma/*`. Cada llamada lleva el token de la sesión de Supabase. */
@@ -57,6 +63,17 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
       put<ModuleSaved>(`/restaurantes/${id}/modulos/${encodeURIComponent(code)}`, change),
     changePaymentMethods: (id: number, metodos: readonly string[] | null) =>
       put<PaymentSaved>(`/restaurantes/${id}/metodos-pago`, { metodos }),
+    trials: () => request<TrialList>("/pruebas"),
+    trialAction: (id: number, action: TrialAction) =>
+      put<{ prueba: TrialRow | null }>(`/pruebas/${id}`, action),
+    convertTrial: (id: number, plan: string) =>
+      request<TrialConverted>(`/pruebas/${id}/convertir`, {
+        method: "POST",
+        body: JSON.stringify({ plan }),
+      }),
+    signupSettings: () => request<PlatformSettings>("/config"),
+    saveSignupSettings: (values: Partial<SignupSettings>) =>
+      put<PlatformSettings>("/config", values),
   };
 }
 

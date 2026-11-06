@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  acceptsOnlineOrders,
   consentFields,
   describeApiError,
   describeZoneFee,
@@ -66,6 +67,22 @@ describe("mensajes de antifraude", () => {
     expect(describeApiError(422, { error: "captcha_failed", reason: "captcha_failed" })).toContain(
       "Recarga la página",
     );
+  });
+});
+
+describe("restaurante que no acepta pedidos", () => {
+  it("la API responde restaurant_unavailable y el cliente ve un texto claro", () => {
+    const message = describeApiError(422, {
+      error: "restaurant_unavailable",
+      reason: "restaurant_unavailable",
+    });
+    expect(message).toBe("Este local no acepta pedidos online ahora mismo.");
+  });
+
+  it("solo un false explícito bloquea (las respuestas antiguas no traen el dato)", () => {
+    expect(acceptsOnlineOrders({ acepta_pedidos: false })).toBe(false);
+    expect(acceptsOnlineOrders({ acepta_pedidos: true })).toBe(true);
+    expect(acceptsOnlineOrders({})).toBe(true);
   });
 });
 

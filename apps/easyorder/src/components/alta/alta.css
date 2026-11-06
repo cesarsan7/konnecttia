@@ -1,0 +1,169 @@
+/* Alta autoservicio con prueba (/alta): landing, cuenta y asistente de tres pasos. */
+.k-alta {
+  width: min(100%, 560px);
+  padding: 28px;
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.k-alta-title {
+  margin: 0 0 8px;
+}
+
+.k-alta-points {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.k-alta-form,
+.k-alta-wizard {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.k-alta-wizard .k-field {
+  margin: 0;
+}
+
+.k-alta-wizard input:not([type="checkbox"]) {
+  width: 100%;
+}
+
+.k-alta-steps {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.k-alta-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.k-alta-step-n {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  font-weight: 800;
+}
+
+.k-alta-step-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.k-alta-steps .is-current {
+  color: var(--ink);
+}
+
+.k-alta-steps .is-current .k-alta-step-n {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: var(--on-night);
+}
+
+.k-alta-steps .is-done .k-alta-step-n {
+  border-color: var(--teal);
+  color: var(--teal-text);
+}
+
+.k-alta-error {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.k-alta-ok {
+  color: var(--teal-text);
+  font-weight: 700;
+}
+
+.k-alta-wizard small {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.k-alta-service {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.k-alta-service legend {
+  padding: 0;
+  margin: 0 0 4px;
+}
+
+.k-alta-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.k-alta-check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--teal);
+}
+
+.k-alta-check span {
+  display: grid;
+  min-width: 0;
+}
+
+.k-alta-alert-text {
+  margin: 0 0 4px;
+}
+
+.k-alta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.k-alta-actions .k-btn-primary {
+  flex: 1 1 auto;
+}
+
+.k-alta-other {
+  justify-self: start;
+}
+
+@media (max-width: 480px) {
+  .k-alta {
+    padding: 20px 16px;
+  }
+
+  .k-alta-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .k-alta-actions .k-btn {
+    flex: 1 1 100%;
+  }
+}

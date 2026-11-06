@@ -41,6 +41,17 @@ export function paymentLabel(method: string): string {
   return PAYMENT_LABEL[method] ?? method;
 }
 
+/**
+ * Texto cuando el restaurante no acepta pedidos online (prueba pendiente, rechazada o terminada).
+ * La carta se sigue viendo.
+ */
+export const RESTAURANT_UNAVAILABLE_MESSAGE = "Este local no acepta pedidos online ahora mismo.";
+
+/** ¿Acepta pedidos la carta? Las respuestas antiguas de la API no traen el dato: sí acepta. */
+export function acceptsOnlineOrders(restaurant: { readonly acepta_pedidos?: boolean }): boolean {
+  return restaurant.acepta_pedidos !== false;
+}
+
 /** Mensajes por `reason` (antifraude): tienen prioridad sobre el mensaje del `error`. */
 export const PHONE_LIMIT_MESSAGE = "Ya tienes pedidos en curso; llama al local si necesitas otro.";
 const REASON_MESSAGE: Readonly<Record<string, string>> = {
@@ -50,6 +61,7 @@ const REASON_MESSAGE: Readonly<Record<string, string>> = {
     "No podemos tramitar este pedido por la web. Si quieres pedir, llama directamente al local.",
   captcha_failed:
     "No hemos podido comprobar que eres una persona. Recarga la página e inténtalo de nuevo.",
+  restaurant_unavailable: RESTAURANT_UNAVAILABLE_MESSAGE,
 };
 
 const ERROR_MESSAGE: Readonly<Record<string, string>> = {

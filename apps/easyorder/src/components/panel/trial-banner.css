@@ -1,0 +1,29 @@
+/* Aviso de la prueba gratuita en la cabecera del panel. */
+.k-trial {
+  margin: 0 0 16px;
+  padding: 10px 16px;
+  border-radius: var(--r-sm);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.k-trial-info {
+  background: var(--teal-tint);
+  color: var(--teal-text);
+}
+
+.k-trial-warn {
+  background: var(--coral-tint);
+  color: var(--coral-text);
+}
+
+.k-trial-danger {
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+
+.k-trial-contact {
+  color: inherit;
+  text-decoration: underline;
+}

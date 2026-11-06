@@ -143,6 +143,8 @@ export function InternalShell({ children }: { readonly children: ReactNode }) {
 
   const onList = pathname === "/interno";
   const onNew = pathname === "/interno/nuevo";
+  const onTrials = pathname === "/interno/pruebas";
+  const onSignup = pathname === "/interno/alta";
   return (
     <PlatformContext.Provider value={value}>
       <div className="k-internal">
@@ -158,6 +160,20 @@ export function InternalShell({ children }: { readonly children: ReactNode }) {
               aria-current={onList ? "page" : undefined}
             >
               Restaurantes
+            </Link>
+            <Link
+              href="/interno/pruebas"
+              className={`k-internal-link${onTrials ? " is-current" : ""}`}
+              aria-current={onTrials ? "page" : undefined}
+            >
+              Pruebas
+            </Link>
+            <Link
+              href="/interno/alta"
+              className={`k-internal-link${onSignup ? " is-current" : ""}`}
+              aria-current={onSignup ? "page" : undefined}
+            >
+              Configuración del alta
             </Link>
             {value.canWrite ? (
               <Link
