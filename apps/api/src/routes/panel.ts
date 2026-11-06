@@ -1,4 +1,4 @@
-import { authorize, branchFilter, canAccessBranch, PERMISSION } from "@konnecttia/access";
+import { authorize, branchFilter, can, canAccessBranch, PERMISSION } from "@konnecttia/access";
 import { isOrderStatus, ORDER_STATUS, PAYMENT_STATUS, TRIAL_STATE } from "@konnecttia/domain";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -565,7 +565,14 @@ export function panelRoutes(deps: AppDeps) {
       if (branches !== null && branches.length === 0) {
         return fail(c, 403, API_ERROR.Forbidden, { reason: "branch_out_of_scope" });
       }
-      return c.json(await loadSalesOverview(deps.sql, restaurant, range, branches));
+      // «Por mesero» y «Por repartidor» solo se calculan para quien puede ver mesas / asignar repartos.
+      const access = c.get("access");
+      const sections = {
+        meseros: can(access, PERMISSION.TablesView),
+        repartidores: can(access, PERMISSION.DeliveryAssign),
+        emails: canSeeMemberEmails(access),
+      };
+      return c.json(await loadSalesOverview(deps.sql, restaurant, range, branches, sections));
     },
   );
 

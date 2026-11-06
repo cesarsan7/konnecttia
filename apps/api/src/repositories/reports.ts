@@ -10,6 +10,18 @@ const TOP_PRODUCTS = 10;
 /** Estados que no cuentan como venta. */
 const NOT_A_SALE = [ORDER_STATUS.InCart, ORDER_STATUS.Cancelled, ORDER_STATUS.Expired];
 
+/** Bloques opcionales del resumen: dependen de lo que el usuario puede ver. */
+export type ReportSections = {
+  /** «Por mesero»: módulo de mesas + permiso para ver mesas. */
+  readonly meseros: boolean;
+  /** «Por repartidor»: módulo de reparto + permiso para asignar repartos. */
+  readonly repartidores: boolean;
+  /** Mostrar el email del repartidor como último recurso (solo quien ve el equipo). */
+  readonly emails: boolean;
+};
+
+const NO_SECTIONS: ReportSections = { meseros: false, repartidores: false, emails: false };
+
 export type ReportRange = {
   readonly desde: string;
   readonly hasta: string;
@@ -61,6 +73,7 @@ export async function loadSalesOverview(
   restaurant: Restaurant,
   range: ReportRange,
   branches: readonly number[] | null,
+  sections: ReportSections = NO_SECTIONS,
 ) {
   const tz = restaurant.zonaHoraria;
   // Límites del periodo en UTC, para que la consulta use el índice por fecha.
@@ -95,10 +108,11 @@ export async function loadSalesOverview(
     WHERE  ${scope(from, to)}
   `;
 
-  const [current, previous, byDay, byHour, products, mix, payments, byBranch] = await Promise.all([
-    totals(range.desde, range.hasta),
-    totals(range.anteriorDesde, range.anteriorHasta),
-    sql<{ fecha: string; ventas: string; pedidos: number }[]>`
+  const [current, previous, byDay, byHour, products, mix, payments, byBranch, byWaiter, byDriver] =
+    await Promise.all([
+      totals(range.desde, range.hasta),
+      totals(range.anteriorDesde, range.anteriorHasta),
+      sql<{ fecha: string; ventas: string; pedidos: number }[]>`
       SELECT to_char(d.dia, 'YYYY-MM-DD') AS fecha,
              COALESCE(sum(p.total), 0)    AS ventas,
              count(p.id)::int             AS pedidos
@@ -109,7 +123,7 @@ export async function loadSalesOverview(
       GROUP  BY d.dia
       ORDER  BY d.dia
     `,
-    sql<{ hora: number; ventas: string; pedidos: number }[]>`
+      sql<{ hora: number; ventas: string; pedidos: number }[]>`
       SELECT h.hora, COALESCE(sum(p.total), 0) AS ventas, count(p.id)::int AS pedidos
       FROM   generate_series(0, 23) AS h(hora)
       LEFT   JOIN public.pedidos p
@@ -118,8 +132,8 @@ export async function loadSalesOverview(
       GROUP  BY h.hora
       ORDER  BY h.hora
     `,
-    // Los pedidos de la web y los de n8n guardan las líneas con nombres de campo distintos.
-    sql<{ nombre: string; cantidad: string; ventas: string }[]>`
+      // Los pedidos de la web y los de n8n guardan las líneas con nombres de campo distintos.
+      sql<{ nombre: string; cantidad: string; ventas: string }[]>`
       SELECT COALESCE(NULLIF(i->>'item_name', ''), NULLIF(i->>'nombre', ''), NULLIF(i->>'name', ''),
                       'Sin nombre')                                                    AS nombre,
              sum(q.cantidad)                                                           AS cantidad,
@@ -144,7 +158,7 @@ export async function loadSalesOverview(
       ORDER  BY cantidad DESC, ventas DESC, nombre
       LIMIT  ${TOP_PRODUCTS}
     `,
-    sql<{ recogida: number; reparto: number; web: number; whatsapp: number; otros: number }[]>`
+      sql<{ recogida: number; reparto: number; web: number; whatsapp: number; otros: number }[]>`
       SELECT count(*) FILTER (WHERE p.tipo_despacho = 'retiro')::int                AS recogida,
              count(*) FILTER (WHERE p.tipo_despacho = 'delivery')::int              AS reparto,
              count(*) FILTER (WHERE p.canal = 'web')::int                           AS web,
@@ -153,7 +167,7 @@ export async function loadSalesOverview(
       FROM   public.pedidos p
       WHERE  ${scope(range.desde, range.hasta)} AND ${sale}
     `,
-    sql<{ metodo: string; pedidos: number; ventas: string }[]>`
+      sql<{ metodo: string; pedidos: number; ventas: string }[]>`
       SELECT COALESCE(NULLIF(p.metodo_pago, ''), 'sin_indicar') AS metodo,
              count(*)::int AS pedidos, sum(p.total) AS ventas
       FROM   public.pedidos p
@@ -161,7 +175,7 @@ export async function loadSalesOverview(
       GROUP  BY 1
       ORDER  BY pedidos DESC
     `,
-    sql<{ sucursal_id: number; local: string; pedidos: number; ventas: string }[]>`
+      sql<{ sucursal_id: number; local: string; pedidos: number; ventas: string }[]>`
       SELECT s.id AS sucursal_id, s.nombre AS local,
              count(p.id)::int AS pedidos, COALESCE(sum(p.total), 0) AS ventas
       FROM   public.sucursal s
@@ -172,7 +186,47 @@ export async function loadSalesOverview(
       GROUP  BY s.id, s.nombre, s.es_principal
       ORDER  BY s.es_principal DESC, s.nombre
     `,
-  ]);
+      // Pedidos que atiende cada mesero (base para propinas): solo ventas con mesero asignado.
+      sections.meseros
+        ? sql<{ mesero_id: number; mesero: string; pedidos: number; ventas: string }[]>`
+          SELECT w.id::int AS mesero_id, w.nombre AS mesero,
+                 count(p.id)::int AS pedidos, sum(p.total) AS ventas
+          FROM   public.pedidos p
+          JOIN   public.meseros w ON w.id = p.mesero_id AND w.restaurante_id = p.restaurante_id
+          WHERE  ${scope(range.desde, range.hasta)} AND ${sale}
+          GROUP  BY w.id, w.nombre
+          ORDER  BY ventas DESC, w.nombre
+        `
+        : Promise.resolve([]),
+      // Repartos entregados por repartidor y tiempo medio desde la salida hasta la entrega.
+      sections.repartidores
+        ? sql<
+            {
+              membership_id: number | null;
+              nombre: string | null;
+              email: string | null;
+              repartos: number;
+              ventas: string;
+              minutos_medios: string | null;
+            }[]
+          >`
+          SELECT pr.membership_id::int AS membership_id,
+                 COALESCE(m.apodo, m.nombre) AS nombre,
+                 COALESCE(m.email, pr.repartidor_email) AS email,
+                 count(p.id)::int AS repartos, sum(p.total) AS ventas,
+                 avg(extract(epoch FROM (pr.entregado_at - pr.salida_at)) / 60.0)
+                   FILTER (WHERE pr.salida_at IS NOT NULL AND pr.entregado_at >= pr.salida_at)
+                   AS minutos_medios
+          FROM   public.pedido_reparto pr
+          JOIN   public.pedidos p ON p.id = pr.pedido_id AND p.restaurante_id = pr.restaurante_id
+          LEFT   JOIN public.local_memberships m ON m.id = pr.membership_id
+          WHERE  ${scope(range.desde, range.hasta)}
+            AND  p.estado = ${ORDER_STATUS.Delivered} AND pr.entregado_at IS NOT NULL
+          GROUP  BY pr.membership_id, COALESCE(m.apodo, m.nombre), COALESCE(m.email, pr.repartidor_email)
+          ORDER  BY repartos DESC, nombre NULLS LAST
+        `
+        : Promise.resolve([]),
+    ]);
 
   const money = (value: string | number) => Math.round(Number(value) * 100) / 100;
   const summarize = (row: (typeof current)[number] | undefined): Totals => {
@@ -222,6 +276,22 @@ export async function loadSalesOverview(
       local: row.local,
       pedidos: row.pedidos,
       ventas: money(row.ventas),
+    })),
+    meseros: byWaiter.map((row) => ({
+      mesero_id: row.mesero_id,
+      mesero: row.mesero,
+      pedidos: row.pedidos,
+      ventas: money(row.ventas),
+      ticket_medio: row.pedidos > 0 ? money(Number(row.ventas) / row.pedidos) : 0,
+    })),
+    repartidores: byDriver.map((row) => ({
+      membership_id: row.membership_id,
+      nombre: row.nombre,
+      // El email solo llega a quien ve el equipo.
+      email: sections.emails ? row.email : null,
+      repartos: row.repartos,
+      ventas: money(row.ventas),
+      minutos_medios: row.minutos_medios === null ? null : Math.round(Number(row.minutos_medios)),
     })),
   };
 }
