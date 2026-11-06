@@ -79,11 +79,13 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         gastado: string;
         ultimo_pedido: string | null;
         bloqueado: boolean;
+        acepta_promociones: boolean | null;
         total_filas: number;
       }[]
     >`
       SELECT u.id, u.nombre, u.telefono, u.direccion_frecuente,
              u.created_at AS creado, (b.id IS NOT NULL) AS bloqueado,
+             u.acepta_promociones,
              COALESCE(s.pedidos, 0)::int AS pedidos,
              COALESCE(s.gastado, 0) AS gastado,
              s.ultimo_pedido,
@@ -147,6 +149,8 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         "pedidos",
         "gastado_eur",
         "ultimo_pedido",
+        "acepta_promociones",
+        "bloqueado",
       ];
       const lines = rows.map((row) =>
         [
@@ -156,6 +160,8 @@ export function registerCustomerRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           row.pedidos,
           Number(row.gastado).toFixed(2),
           row.ultimo_pedido,
+          row.acepta_promociones ? "Sí" : "No",
+          row.bloqueado ? "Sí" : "No",
         ]
           .map(csvCell)
           .join(";"),

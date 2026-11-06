@@ -116,11 +116,31 @@ describe.skipIf(!TEST_DATABASE_URL)("clientes del restaurante", () => {
     expect(csv.status).toBe(200);
     expect(csv.headers.get("content-type")).toContain("text/csv");
     expect(csv.body).toContain(
-      "nombre;telefono;direccion_frecuente;pedidos;gastado_eur;ultimo_pedido",
+      "nombre;telefono;direccion_frecuente;pedidos;gastado_eur;ultimo_pedido;acepta_promociones;bloqueado",
     );
     expect(csv.body).toContain("'=Pedro");
+    // Sin consentimiento ni bloqueo: «No;No». Neutralización de fórmulas intacta.
+    const pedro = String(csv.body)
+      .split("\r\n")
+      .find((line) => line.includes("'=Pedro"));
+    expect(pedro?.endsWith(";No;No")).toBe(true);
     const trail =
       await ctx.sql`SELECT 1 FROM public.auditoria WHERE accion = 'customers.export' AND restaurante_id = 101`;
     expect(trail.length).toBe(1);
+  });
+
+  it("el CSV marca «Sí» en acepta_promociones y bloqueado", async () => {
+    await ctx.sql`
+      UPDATE public.usuarios SET acepta_promociones = true
+      WHERE  restaurante_id = 101 AND telefono = '+34600000201'
+    `;
+    await ctx.sql`
+      INSERT INTO public.cliente_bloqueado (restaurante_id, telefono)
+      VALUES (101, public.fn_telefono_normalizado('+34600000202'))
+    `;
+    const csv = await call("ownerA", "/panel/prueba-a/clientes/exportar");
+    const lines = String(csv.body).split("\r\n");
+    expect(lines.find((line) => line.includes("+34600000201"))?.endsWith(";Sí;No")).toBe(true);
+    expect(lines.find((line) => line.includes("+34600000202"))?.endsWith(";No;Sí")).toBe(true);
   });
 });
