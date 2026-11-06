@@ -1,0 +1,17 @@
+/* Bloques «Por mesero» y «Por repartidor» de Estadísticas (StatsView.tsx). Variables de panel.css. */
+.k-team-stats {
+  display: grid;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.k-team-stats .k-table th[scope="row"] {
+  text-align: left;
+  font-weight: 600;
+}
+
+.k-team-stats .k-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

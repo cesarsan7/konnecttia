@@ -1,5 +1,6 @@
 "use client";
 
+import "./stats-team.css";
 import { useEffect, useState } from "react";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
@@ -9,12 +10,14 @@ import {
   compactEuros,
   formatChange,
   formatLongDate,
+  formatMinutes,
   formatShortDate,
   peakHour,
   presetRange,
   RANGE_PRESETS,
   type RangePreset,
 } from "@/lib/panel/stats";
+import { personLabel } from "@/lib/panel/team";
 import type { PanelBranch, SalesOverview } from "@/lib/panel/types";
 import { BarList, ColumnChart, SegmentedBar } from "./charts";
 import { usePanel } from "./PanelProvider";
@@ -390,6 +393,76 @@ function StatsBody({
           </table>
         </section>
       </div>
+
+      {data.meseros.length > 0 ? (
+        <section className="k-card k-team-stats">
+          <h2 className="k-title">Por mesero</h2>
+          <table className="k-table">
+            <thead>
+              <tr>
+                <th scope="col">Mesero</th>
+                <th scope="col" className="k-num">
+                  Pedidos
+                </th>
+                <th scope="col" className="k-num">
+                  Importe
+                </th>
+                <th scope="col" className="k-num">
+                  Ticket medio
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.meseros.map((row) => (
+                <tr key={row.mesero_id}>
+                  <th scope="row">{row.mesero}</th>
+                  <td className="k-num">{row.pedidos}</td>
+                  <td className="k-num">{euros(row.ventas)}</td>
+                  <td className="k-num">{euros(row.ticket_medio)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="k-small k-muted">Solo pedidos con mesero asignado.</p>
+        </section>
+      ) : null}
+
+      {data.repartidores.length > 0 ? (
+        <section className="k-card k-team-stats">
+          <h2 className="k-title">Por repartidor</h2>
+          <table className="k-table">
+            <thead>
+              <tr>
+                <th scope="col">Repartidor</th>
+                <th scope="col" className="k-num">
+                  Repartos entregados
+                </th>
+                <th scope="col" className="k-num">
+                  Importe
+                </th>
+                <th scope="col" className="k-num">
+                  Tiempo medio
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.repartidores.map((row) => (
+                <tr key={row.membership_id ?? `sin-${row.email ?? row.nombre ?? "repartidor"}`}>
+                  <th scope="row">
+                    {personLabel({ name: row.nombre, email: row.email }, "Repartidor")}
+                  </th>
+                  <td className="k-num">{row.repartos}</td>
+                  <td className="k-num">{euros(row.ventas)}</td>
+                  <td className="k-num">{formatMinutes(row.minutos_medios)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="k-small k-muted">
+            El tiempo medio va desde que sale el repartidor hasta que entrega el pedido.
+          </p>
+        </section>
+      ) : null}
 
       {showBranches ? (
         <section className="k-card">

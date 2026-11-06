@@ -54,6 +54,14 @@ export function formatChange(value: number | null): string {
   return `${sign}${Math.abs(value).toLocaleString("es-ES", { maximumFractionDigits: 1 })} %`;
 }
 
+/** Duración en minutos como «12 min» o «1 h 05 min»; «—» si no hay dato. */
+export function formatMinutes(minutes: number | null): string {
+  if (minutes === null || !Number.isFinite(minutes) || minutes < 0) return "—";
+  const total = Math.round(minutes);
+  if (total < 60) return `${total} min`;
+  return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, "0")} min`;
+}
+
 /** Hora (0–23) con más pedidos; null si no hubo pedidos. */
 export function peakHour(rows: readonly { hora: number; pedidos: number }[]): number | null {
   let best: { hora: number; pedidos: number } | null = null;

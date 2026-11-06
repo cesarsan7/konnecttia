@@ -4,17 +4,20 @@ import "./orders-table.css";
 import { useEffect, useMemo, useState } from "react";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
+import type { Driver } from "@/lib/panel/drivers";
 import {
   activeFilterCount,
   CHANNEL_OPTIONS,
   DAY_PRESETS,
   DEFAULT_FILTERS,
+  driverLabel,
   type HistoryFilters,
   type HistorySort,
   historyQuery,
   type OrderHistory,
   PAYMENT_STATUS_OPTIONS,
   toggleSort,
+  waiterLabel,
 } from "@/lib/panel/history";
 import {
   formatElapsed,
@@ -27,11 +30,13 @@ import {
   STATUS_LABEL,
 } from "@/lib/panel/orders";
 import { todayIn } from "@/lib/panel/stats";
+import { personLabel } from "@/lib/panel/team";
 import type { PanelBranch, PanelOrder } from "@/lib/panel/types";
+import type { Waiter } from "@/lib/panel/waiters";
 import { Icon } from "../Icon";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
-import { useAccess } from "../PanelShell";
+import { PERMISSION, useAccess } from "../PanelShell";
 import { OrderCard } from "./OrderCard";
 
 type Permissions = {
@@ -87,7 +92,7 @@ export function OrdersTable({
   readonly onPrint?: (order: PanelOrder) => void;
 }) {
   const { api } = usePanel();
-  const { slug, access } = useAccess();
+  const { slug, access, can } = useAccess();
   const tz = access.restaurante.zona_horaria;
   const [filters, setFilters] = useState<HistoryFilters>(DEFAULT_FILTERS);
   const [search, setSearch] = useState("");
@@ -97,6 +102,25 @@ export function OrdersTable({
   const [showFilters, setShowFilters] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const showBranch = branches.length > 1;
+  // Filtros por mesero (módulo de mesas) y por repartidor (permiso de asignar repartos).
+  const canWaiters = can(PERMISSION.TablesView);
+  const canDrivers = can(PERMISSION.DeliveryAssign);
+  const [waiters, setWaiters] = useState<readonly Waiter[]>([]);
+  const [drivers, setDrivers] = useState<readonly Driver[]>([]);
+
+  useEffect(() => {
+    if (!canWaiters) return;
+    void api.waiters(slug).then((result) => {
+      if (result.ok) setWaiters(result.data.meseros);
+    });
+  }, [api, slug, canWaiters]);
+
+  useEffect(() => {
+    if (!canDrivers) return;
+    void api.drivers(slug).then((result) => {
+      if (result.ok) setDrivers(result.data.repartidores);
+    });
+  }, [api, slug, canDrivers]);
 
   // La búsqueda se aplica al dejar de escribir.
   useEffect(() => {
@@ -147,6 +171,10 @@ export function OrdersTable({
     timeZone: tz,
   });
   const filtersOn = activeFilterCount(filters);
+  // Las columnas salen si el usuario puede filtrar por ellas o si algún pedido de la página las tiene.
+  const showWaiter = canWaiters || (data?.pedidos.some((order) => order.mesero_nombre) ?? false);
+  const showDriver =
+    canDrivers || (data?.pedidos.some((order) => order.repartidor_id != null) ?? false);
 
   const header = (column: HistorySort, label: string, className = "") => {
     const current = filters.orden === column;
@@ -298,6 +326,35 @@ export function OrdersTable({
             ))}
           </FilterSelect>
         ) : null}
+        {canWaiters && waiters.length > 0 ? (
+          <FilterSelect
+            label="Mesero"
+            value={filters.mesero === null ? "" : String(filters.mesero)}
+            onChange={(value) => set({ mesero: value ? Number(value) : null })}
+          >
+            <option value="">Todos los meseros</option>
+            {waiters.map((waiter) => (
+              <option key={waiter.id} value={waiter.id}>
+                {waiter.nombre}
+                {waiter.activo ? "" : " (baja)"}
+              </option>
+            ))}
+          </FilterSelect>
+        ) : null}
+        {canDrivers && drivers.length > 0 ? (
+          <FilterSelect
+            label="Repartidor"
+            value={filters.repartidor === null ? "" : String(filters.repartidor)}
+            onChange={(value) => set({ repartidor: value ? Number(value) : null })}
+          >
+            <option value="">Todos los repartidores</option>
+            {drivers.map((driver) => (
+              <option key={driver.membership_id} value={driver.membership_id}>
+                {personLabel({ name: driver.nombre_mostrar, email: driver.email }, "Repartidor")}
+              </option>
+            ))}
+          </FilterSelect>
+        ) : null}
         {filtersOn > 0 ? (
           <button
             type="button"
@@ -373,6 +430,16 @@ export function OrdersTable({
                     Local
                   </th>
                 ) : null}
+                {showWaiter ? (
+                  <th scope="col" className="k-col-opt">
+                    Mesero
+                  </th>
+                ) : null}
+                {showDriver ? (
+                  <th scope="col" className="k-col-opt">
+                    Repartidor
+                  </th>
+                ) : null}
                 <th scope="col" className="k-col-opt">
                   Canal
                 </th>
@@ -439,6 +506,8 @@ export function OrdersTable({
                       </span>
                     </td>
                     {showBranch ? <td className="k-col-opt">{order.local_nombre ?? "—"}</td> : null}
+                    {showWaiter ? <td className="k-col-opt">{waiterLabel(order)}</td> : null}
+                    {showDriver ? <td className="k-col-opt">{driverLabel(order)}</td> : null}
                     <td className="k-col-opt">{CHANNEL_LABEL[order.canal] ?? order.canal}</td>
                     <td className="k-c-state">
                       <span className={`k-chip k-chip-${order.estado}`}>
