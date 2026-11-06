@@ -199,6 +199,19 @@ Estado (4/11): A y B en el PR #37, C en #38 (0014), D en #39 (0015), E en #40 (0
   Con cobro pendiente (transferencia, Bizum) el repartidor no puede entregar.
 - Pendiente: filtro por repartidor y por mesero en la tabla de pedidos y en estadísticas.
 
+## En espera de respuestas del promotor (6/11)
+
+Se retoman cuando el promotor tenga estos datos:
+
+- **Cancelación por el cliente e incidencias (O, P)** y **estimación de costes (T)**:
+  - importes mensuales de cada servicio (VPS, Resend, WhatsApp de Meta, Chatwoot, IA del agente,
+    otros) y horas que lleva hoy dar de alta un restaurante;
+  - si hay un proveedor de reparto externo en mente (M);
+  - si hay presupuesto para enviar códigos por SMS o WhatsApp (capa 3 de Q).
+- Despliegue: si las migraciones se aplican solas al desplegar o se deja un aviso en `AGENTS.md`.
+
+Hechos el 6/11: H (#47, 0018 aplicada en staging), I (#45), J (#46), documentación comercial (#44).
+
 ## Requerimientos del promotor (6/11), aterrizados
 
 A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) → O + P → Q + R → L → K
