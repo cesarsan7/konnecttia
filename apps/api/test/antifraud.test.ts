@@ -539,17 +539,20 @@ describe.skipIf(!TEST_DATABASE_URL)("antifraude del pedido web", () => {
       expect(seenByManager.body.clientes.map((c: Json) => c.telefono)).toEqual(["+34600002300"]);
     });
 
-    it("borrar los datos de un cliente también quita su bloqueo", async () => {
+    it("borrar los datos de un cliente conserva el bloqueo sin el motivo", async () => {
       const erasable = "+34600002400";
       await webOrder(erasable);
       const id = await customerId(101, erasable);
-      await call("ownerA", "PUT", `/panel/prueba-a/clientes/${id}/bloqueo`, {});
+      await call("ownerA", "PUT", `/panel/prueba-a/clientes/${id}/bloqueo`, {
+        motivo: "Pedidos falsos",
+      });
       await closeOrders(erasable);
       expect((await call("ownerA", "DELETE", `/panel/prueba-a/clientes/${id}`)).status).toBe(200);
-      const rows = await ctx.sql`
-        SELECT 1 FROM public.cliente_bloqueado WHERE restaurante_id = 101 AND telefono = '34600002400'
+      const rows = await ctx.sql<{ motivo: string | null }[]>`
+        SELECT motivo FROM public.cliente_bloqueado
+        WHERE  restaurante_id = 101 AND telefono = '34600002400'
       `;
-      expect(rows).toHaveLength(0);
+      expect(rows).toEqual([{ motivo: null }]);
     });
   });
 });

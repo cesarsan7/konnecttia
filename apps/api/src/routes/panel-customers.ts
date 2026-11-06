@@ -498,9 +498,12 @@ async function anonymizeCustomer(
            anonimizado_at = now(), updated_at = now()
     WHERE  id = ${usuarioId} AND restaurante_id = ${restauranteId}
   `;
-  // Su teléfono no debe sobrevivir al borrado, tampoco en la lista de bloqueados.
+  // El bloqueo antifraude se conserva (interés legítimo: prevenir fraude), con el mínimo de datos:
+  // el teléfono normalizado y la fecha; el motivo, que puede describir a la persona, se borra.
+  // Si vuelve a pedir desde el panel, su nueva ficha aparece como bloqueada y se puede desbloquear.
   await tx`
-    DELETE FROM public.cliente_bloqueado
+    UPDATE public.cliente_bloqueado
+    SET    motivo = NULL
     WHERE  restaurante_id = ${restauranteId}
       AND  telefono = public.fn_telefono_normalizado(${telefono})
   `;
