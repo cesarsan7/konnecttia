@@ -40,6 +40,10 @@ export type RestaurantSettings = {
   readonly modo_ocupado_duracion_minutos: number | null;
   /** Foto de entrega del repartidor (reparto_foto_entrega). */
   readonly reparto_foto_entrega: DeliveryPhotoMode;
+  readonly privacidad_url: string | null;
+  readonly privacidad_version: string | null;
+  readonly antifraude_abiertos: number | null;
+  readonly antifraude_por_hora: number | null;
   readonly suplementos: readonly Surcharge[];
 };
 
@@ -124,6 +128,31 @@ export function parseMinuteList(text: string): number[] | undefined {
   if (values.some((value) => value === undefined || value === null)) return undefined;
   const unique = [...new Set(values as number[])].sort((a, b) => a - b);
   return unique.length <= 6 ? unique : undefined;
+}
+
+// ------------------------------------------------------------- privacidad y antifraude
+
+/** Topes que valida la API (apps/api/src/lib/settings-validation.ts). */
+export const PRIVACY_URL_MAX = 500;
+export const PRIVACY_VERSION_MAX = 40;
+export const PHONE_LIMIT_MAX = 1000;
+
+/** URL de la política: vacío → null (se usa la página plantilla); no http/https → undefined. */
+export function parsePolicyUrl(text: string): string | null | undefined {
+  const value = text.trim();
+  if (!value) return null;
+  if (value.length > PRIVACY_URL_MAX) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Límite por teléfono: vacío → null (sin límite); entero entre 1 y el tope; otra cosa → undefined. */
+export function parsePhoneLimit(text: string): number | null | undefined {
+  return parseMinutes(text, PHONE_LIMIT_MAX);
 }
 
 /** Copia el horario de un día al resto (la tarea más repetida al configurar). */

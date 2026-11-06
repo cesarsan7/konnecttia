@@ -3,6 +3,7 @@ import { FULFILLMENT, isOrderStatus, ORDER_STATUS, PAYMENT_STATUS } from "@konne
 import type { Hono } from "hono";
 import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
+import { canSeeMemberEmails } from "../lib/member-name";
 import { requirePermission } from "../middleware/auth";
 import { parseReportRange } from "../repositories/reports";
 
@@ -18,6 +19,8 @@ import { parseReportRange } from "../repositories/reports";
  *   pago          estado del cobro: no_aplica | pendiente | pagado | rechazado
  *   metodo        efectivo | tarjeta | …
  *   local         id de local (debe ser de los del usuario)
+ *   mesero        id de `meseros` (entero positivo)
+ *   repartidor    membership_id del repartidor asignado en `pedido_reparto` (entero positivo)
  *   q             código, nombre o teléfono
  *   orden, dir    fecha | codigo | cliente | estado | total | tipo ; asc | desc
  *   pagina        desde 1
@@ -49,6 +52,14 @@ export const ORDER_SORT = {
   tipo: "p.tipo_despacho",
 } as const;
 type SortKey = keyof typeof ORDER_SORT;
+
+/** Id entero positivo opcional: undefined si no viene, null si no es válido. */
+export function parsePositiveId(raw: string | undefined): number | null | undefined {
+  if (raw === undefined || raw.trim() === "") return undefined;
+  if (!/^[0-9]{1,15}$/.test(raw.trim())) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= 1 ? value : null;
+}
 
 /** Lista separada por comas, sin vacíos ni repetidos. null si algún valor no es válido. */
 export function parseList(
@@ -104,6 +115,11 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       return fail(c, 403, API_ERROR.Forbidden, { reason: "branch_out_of_scope" });
     }
 
+    const mesero = parsePositiveId(query("mesero"));
+    if (mesero === null) return invalid("mesero");
+    const repartidor = parsePositiveId(query("repartidor"));
+    if (repartidor === null) return invalid("repartidor");
+
     const search = query("q")?.trim().slice(0, 60) || null;
     const pattern = search ? `%${search.replace(/[\\%_]/g, (char) => `\\${char}`)}%` : null;
     const digits = search?.replace(/[^0-9]/g, "") ?? "";
@@ -131,6 +147,13 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       ${pagos.length > 0 ? sql`AND p.estado_pago IN ${sql(pagos)}` : sql``}
       ${metodos.length > 0 ? sql`AND p.metodo_pago IN ${sql(metodos)}` : sql``}
       ${branches === null ? sql`` : sql`AND p.sucursal_id IN ${sql(branches)}`}
+      ${mesero === undefined ? sql`` : sql`AND p.mesero_id = ${mesero}`}
+      ${
+        repartidor === undefined
+          ? sql``
+          : sql`AND EXISTS (SELECT 1 FROM public.pedido_reparto prf
+                            WHERE prf.pedido_id = p.id AND prf.membership_id = ${repartidor})`
+      }
       ${
         pattern
           ? sql`AND (p.pedido_codigo ILIKE ${pattern} OR p.nombre_pedido ILIKE ${pattern}
@@ -146,13 +169,18 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                p.total, p.metodo_pago, p.tiempo_estimado, p.notas,
                p.created_at AT TIME ZONE 'UTC' AS created_at,
                p.updated_at AT TIME ZONE 'UTC' AS updated_at,
-               p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre, mw.nombre AS mesero_nombre,
+               p.sucursal_id, s.nombre AS local_nombre, p.mesa_id, me.nombre AS mesa_nombre, p.mesero_id, mw.nombre AS mesero_nombre,
+               pr.membership_id::int AS repartidor_id, pr.repartidor_email,
+               COALESCE(dm.apodo, dm.nombre) AS repartidor_nombre,
+               pr.salida_at, pr.entregado_at,
                (SELECT count(*)::int FROM public.pedido_foto_entrega f WHERE f.pedido_id = p.id)
                  AS fotos_entrega
         FROM   public.pedidos p
         LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
         LEFT   JOIN public.mesa me    ON me.id = p.mesa_id
         LEFT   JOIN public.meseros mw ON mw.id = p.mesero_id AND mw.restaurante_id = p.restaurante_id
+        LEFT   JOIN public.pedido_reparto pr ON pr.pedido_id = p.id
+        LEFT   JOIN public.local_memberships dm ON dm.id = pr.membership_id
         WHERE  ${where}
         ORDER  BY ${sql.unsafe(ORDER_SORT[orden])} ${dir} NULLS LAST, p.id ${dir}
         LIMIT  ${ORDERS_PAGE_SIZE} OFFSET ${(pagina - 1) * ORDERS_PAGE_SIZE}
@@ -164,8 +192,10 @@ export function registerOrderListRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         WHERE  ${where}
       `,
     ]);
+    // El email del repartidor solo lo ven quienes pueden ver el equipo; el resto ve su nombre.
+    const emails = canSeeMemberEmails(c.get("access"));
     return c.json({
-      pedidos: rows,
+      pedidos: emails ? rows : rows.map((row) => ({ ...row, repartidor_email: null })),
       total: summary?.total ?? 0,
       importe: Number(summary?.importe ?? 0),
       pagina,

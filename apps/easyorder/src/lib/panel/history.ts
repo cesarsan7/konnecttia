@@ -1,3 +1,4 @@
+import { personLabel } from "./team";
 import type { PanelOrder } from "./types";
 
 /** Respuesta de GET /panel/:slug/orders/historial (apps/api/src/routes/panel-orders-list.ts). */
@@ -23,6 +24,10 @@ export type HistoryFilters = {
   readonly pago: string;
   readonly metodo: string;
   readonly local: number | null;
+  /** Id de `meseros`; null = todos. */
+  readonly mesero: number | null;
+  /** membership_id del repartidor; null = todos. */
+  readonly repartidor: number | null;
   readonly q: string;
   readonly orden: HistorySort;
   readonly dir: "asc" | "desc";
@@ -39,6 +44,8 @@ export const DEFAULT_FILTERS: HistoryFilters = {
   pago: "",
   metodo: "",
   local: null,
+  mesero: null,
+  repartidor: null,
   q: "",
   orden: "fecha",
   dir: "desc",
@@ -94,6 +101,8 @@ export function historyQuery(filters: HistoryFilters, today: string): URLSearchP
     if (filters[key]) params.set(key, filters[key]);
   }
   if (filters.local !== null) params.set("local", String(filters.local));
+  if (filters.mesero !== null) params.set("mesero", String(filters.mesero));
+  if (filters.repartidor !== null) params.set("repartidor", String(filters.repartidor));
   if (filters.q.trim()) params.set("q", filters.q.trim());
   params.set("orden", filters.orden);
   params.set("dir", filters.dir);
@@ -115,7 +124,8 @@ export function activeFilterCount(filters: HistoryFilters): number {
   return (
     (["estado", "tipo", "canal", "pago", "metodo", "q"] as const).filter(
       (key) => filters[key].trim() !== "",
-    ).length + (filters.local === null ? 0 : 1)
+    ).length +
+    [filters.local, filters.mesero, filters.repartidor].filter((id) => id !== null).length
   );
 }
 
@@ -132,3 +142,18 @@ export const PAYMENT_STATUS_OPTIONS: readonly { id: string; label: string }[] = 
   { id: "no_aplica", label: "Se cobra al entregar" },
   { id: "rechazado", label: "Cobro rechazado" },
 ];
+
+/** Nombre del mesero del pedido para la columna «Mesero». */
+export function waiterLabel(order: Pick<PanelOrder, "mesero_nombre">): string {
+  return order.mesero_nombre?.trim() || "—";
+}
+
+/**
+ * Repartidor del pedido: apodo o nombre; el email solo como último recurso (la API lo envía
+ * únicamente a quien ve el equipo). «—» si el pedido no tiene repartidor.
+ */
+export function driverLabel(
+  order: Pick<PanelOrder, "repartidor_nombre" | "repartidor_email">,
+): string {
+  return personLabel({ name: order.repartidor_nombre, email: order.repartidor_email }, "—");
+}

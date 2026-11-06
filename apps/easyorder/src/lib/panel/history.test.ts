@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { activeFilterCount, DEFAULT_FILTERS, dayRange, historyQuery, toggleSort } from "./history";
+import {
+  activeFilterCount,
+  DEFAULT_FILTERS,
+  dayRange,
+  driverLabel,
+  historyQuery,
+  toggleSort,
+  waiterLabel,
+} from "./history";
 import { sortLaneOrders } from "./orders";
 
 const today = "2026-11-04";
@@ -78,5 +86,28 @@ describe("orden del tablero", () => {
     expect(ids(sortLaneOrders(list, "recientes", false))).toEqual(["c", "b", "a"]);
     expect(ids(sortLaneOrders(list, "importe", false))).toEqual(["b", "c", "a"]);
     expect(ids(sortLaneOrders(list, "tipo", false))).toEqual(["c", "a", "b"]);
+  });
+});
+
+describe("filtros por mesero y repartidor", () => {
+  it("envía mesero y repartidor solo si se eligen, y los cuenta como filtros", () => {
+    const query = historyQuery({ ...DEFAULT_FILTERS, mesero: 7, repartidor: 12 }, today);
+    expect(query.get("mesero")).toBe("7");
+    expect(query.get("repartidor")).toBe("12");
+    expect(historyQuery(DEFAULT_FILTERS, today).has("mesero")).toBe(false);
+    expect(historyQuery(DEFAULT_FILTERS, today).has("repartidor")).toBe(false);
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, mesero: 7, repartidor: 12 })).toBe(2);
+  });
+
+  it("nombra al mesero y al repartidor; el email solo como último recurso", () => {
+    expect(waiterLabel({ mesero_nombre: " Ana " })).toBe("Ana");
+    expect(waiterLabel({ mesero_nombre: null })).toBe("—");
+    expect(driverLabel({ repartidor_nombre: "Rayo", repartidor_email: "r@test.local" })).toBe(
+      "Rayo",
+    );
+    expect(driverLabel({ repartidor_nombre: null, repartidor_email: "r@test.local" })).toBe(
+      "r@test.local",
+    );
+    expect(driverLabel({ repartidor_nombre: null, repartidor_email: null })).toBe("—");
   });
 });

@@ -1,4 +1,5 @@
 import type { Sql } from "../lib/db";
+import { parseHttpUrl } from "../lib/settings-validation";
 import { CONFIG_KEY } from "./restaurants";
 
 /**
@@ -14,20 +15,9 @@ export type PrivacyPolicy = {
   readonly version: string | null;
 };
 
-function httpUrl(value: string | undefined): string | null {
-  const text = value?.trim();
-  if (!text) return null;
-  try {
-    const url = new URL(text);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
 /** Política de privacidad vigente de un restaurante, a partir de su configuración. */
 export function privacyPolicy(config: ReadonlyMap<string, string>): PrivacyPolicy {
-  const url = httpUrl(config.get(CONFIG_KEY.PrivacyUrl));
+  const url = parseHttpUrl(config.get(CONFIG_KEY.PrivacyUrl));
   const configured = config.get(CONFIG_KEY.PrivacyVersion)?.trim() || null;
   return { url, version: configured ?? (url === null ? GENERIC_PRIVACY_VERSION : null) };
 }

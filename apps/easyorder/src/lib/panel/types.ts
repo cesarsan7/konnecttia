@@ -67,6 +67,7 @@ export type PanelOrder = {
   readonly mesa_nombre?: string | null;
   /** Mesero que atiende el pedido (meseros.nombre). */
   readonly mesero_nombre?: string | null;
+  readonly mesero_id?: number | null;
   /** Reparto asignado (pedido_reparto). */
   readonly repartidor_id?: number | null;
   readonly repartidor_email?: string | null;
@@ -123,6 +124,30 @@ export type SalesOverview = {
     pedidos: number;
     ventas: number;
   }[];
+  /** «Por mesero»: vacío si no hay datos o el usuario no puede verlos. */
+  readonly meseros: readonly WaiterSales[];
+  /** «Por repartidor»: vacío si no hay datos o el usuario no puede verlos. */
+  readonly repartidores: readonly DriverSales[];
+};
+
+export type WaiterSales = {
+  readonly mesero_id: number;
+  readonly mesero: string;
+  readonly pedidos: number;
+  readonly ventas: number;
+  readonly ticket_medio: number;
+};
+
+export type DriverSales = {
+  readonly membership_id: number | null;
+  /** Apodo o nombre del miembro. */
+  readonly nombre: string | null;
+  /** Solo llega a quien ve el equipo. */
+  readonly email: string | null;
+  readonly repartos: number;
+  readonly ventas: number;
+  /** Minutos medios desde la salida hasta la entrega; null si no hay horas registradas. */
+  readonly minutos_medios: number | null;
 };
 
 /** Configuración del panel leída en el servidor (variables de entorno en tiempo de ejecución). */
