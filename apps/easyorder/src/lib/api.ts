@@ -42,6 +42,16 @@ export function createApi(baseUrl: string) {
       ),
     /** Alta autoservicio: si está abierta y los límites de la prueba (para la landing). */
     altaConfig: () => request<AltaConfig>(`${root}/alta/config`),
+    /**
+     * «¿Olvidaste tu contraseña?»: la API envía el enlace con Resend. Si responde `supabase`, el
+     * panel debe pedírselo a Supabase directamente (no hay clave de servicio o Resend).
+     */
+    recoverPassword: (email: string) =>
+      request<{ ok: true; enviado_por: "easyorder" | "supabase" }>(`${root}/auth/recuperar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      }),
     /** Alta autoservicio: ¿está libre esa dirección web? */
     altaSlug: (valor: string) =>
       request<SlugCheck>(`${root}/alta/slug?${new URLSearchParams({ valor })}`),

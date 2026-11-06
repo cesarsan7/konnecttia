@@ -38,6 +38,9 @@ function supabaseFor(config: PanelConfig): SupabaseClient | null {
   return cachedClient.client;
 }
 
+/** Página donde se elige la contraseña nueva tras abrir el enlace de recuperación. */
+const RESET_PATH = "/panel/restablecer";
+
 export function PanelProvider({
   config,
   children,
@@ -57,7 +60,14 @@ export function PanelProvider({
     supabase.auth.getSession().then(({ data }) => {
       if (active) setSession(data.session);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      setSession(next);
+      // Si Supabase devuelve el enlace de recuperación a otra página (Redirect URL no
+      // permitida), se lleva igualmente a elegir la contraseña nueva en lugar de entrar sin más.
+      if (event === "PASSWORD_RECOVERY" && window.location.pathname !== RESET_PATH) {
+        window.location.replace(RESET_PATH);
+      }
+    });
     return () => {
       active = false;
       data.subscription.unsubscribe();

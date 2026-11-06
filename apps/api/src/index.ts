@@ -56,11 +56,29 @@ function proofStorage(): ProofStorage | null {
   };
 }
 
+/** Enlace de recuperación de contraseña (solo con clave de servicio); el email lo envía Resend. */
+function recoveryLinks() {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return async (email: string, redirectTo: string) => {
+    const { data, error } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo },
+    });
+    if (error || !data.properties?.action_link) return null;
+    return data.properties.action_link;
+  };
+}
+
 const app = createApp({
   imageStorage: imageStorage(),
   proofStorage: proofStorage(),
   mailer: env.RESEND_API_KEY ? createResendMailer(env.RESEND_API_KEY, env.RESEND_FROM) : null,
   panelUrl: env.PANEL_PUBLIC_URL ?? null,
+  generateRecoveryLink: recoveryLinks(),
   verifyCaptcha: env.TURNSTILE_SECRET_KEY
     ? createTurnstileVerifier(env.TURNSTILE_SECRET_KEY)
     : null,
