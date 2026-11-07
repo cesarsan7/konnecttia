@@ -73,7 +73,12 @@ export function TeamView() {
       </div>
       {canManage && state.kind === "ready" ? (
         <div className="k-head-tools">
-          <button type="button" className="k-btn k-btn-primary" onClick={() => setInviting(true)}>
+          <button
+            type="button"
+            className="k-btn k-btn-primary"
+            data-tour="equipo-invitar"
+            onClick={() => setInviting(true)}
+          >
             Invitar a alguien
           </button>
         </div>
@@ -137,7 +142,7 @@ export function TeamView() {
   return (
     <div className="k-page">
       {header}
-      <section className="k-card k-cat" aria-labelledby="miembros">
+      <section className="k-card k-cat" aria-labelledby="miembros" data-tour="equipo-miembros">
         <header className="k-cat-head">
           <h2 id="miembros" className="k-title">
             Miembros
@@ -203,7 +208,11 @@ export function TeamView() {
       </section>
 
       {canManage ? (
-        <section className="k-card k-cat" aria-labelledby="invitaciones">
+        <section
+          className="k-card k-cat"
+          aria-labelledby="invitaciones"
+          data-tour="equipo-invitaciones"
+        >
           <header className="k-cat-head">
             <h2 id="invitaciones" className="k-title">
               Invitaciones pendientes

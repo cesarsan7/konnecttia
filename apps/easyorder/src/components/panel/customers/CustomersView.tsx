@@ -105,6 +105,7 @@ export function CustomersView() {
             type="button"
             className="k-btn k-btn-secondary k-btn-sm"
             disabled={exporting}
+            data-tour="clientes-exportar"
             onClick={download}
           >
             <Icon name="download" size={18} />
@@ -131,7 +132,7 @@ export function CustomersView() {
     <div className="k-page">
       {header}
       {exportError ? <p className="k-alert">{exportError}</p> : null}
-      <div className="k-carta-bar">
+      <div className="k-carta-bar" data-tour="clientes-buscar">
         <label className="k-search">
           <span className="k-sr-only">Buscar cliente</span>
           <input
@@ -197,7 +198,11 @@ export function CustomersView() {
             </p>
           </div>
         ) : (
-          <section className="k-card k-cat" aria-label="Lista de clientes">
+          <section
+            className="k-card k-cat"
+            aria-label="Lista de clientes"
+            data-tour="clientes-lista"
+          >
             <header className="k-cat-head">
               <h2 className="k-title">
                 {list.total} {list.total === 1 ? "cliente" : "clientes"}

@@ -335,7 +335,7 @@ export function OrdersBoard() {
                 ? `${stream === "en_directo" ? "En directo" : "Actualizado"} · ${lastSync.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: access.restaurante.zona_horaria })}`
                 : "Conectando…"}
           </span>
-          <fieldset className="k-segment k-segment-sm">
+          <fieldset className="k-segment k-segment-sm" data-tour="pedidos-vista">
             <legend className="k-sr-only">Vista</legend>
             {VIEWS.map((option) => (
               <button
@@ -352,6 +352,7 @@ export function OrdersBoard() {
           <button
             type="button"
             className="k-btn k-btn-secondary k-btn-sm"
+            data-tour="pedidos-comanda"
             onClick={() => setPrintDialog(true)}
           >
             <Icon name="print" size={18} />
@@ -370,6 +371,7 @@ export function OrdersBoard() {
             <button
               type="button"
               className="k-btn k-btn-primary k-btn-sm"
+              data-tour="pedidos-nuevo"
               onClick={() => setCreating(true)}
             >
               Nuevo pedido
@@ -406,7 +408,11 @@ export function OrdersBoard() {
       ) : null}
 
       {permissions.changeStatus && busySettings && visibleBranches.length > 0 ? (
-        <details className="k-busy-panel" open={activeBusy > 0 || visibleBranches.length === 1}>
+        <details
+          className="k-busy-panel"
+          open={activeBusy > 0 || visibleBranches.length === 1}
+          data-tour="pedidos-ocupado"
+        >
           <summary>
             <Icon name="flame" size={18} />
             Modo ocupado
@@ -510,7 +516,7 @@ export function OrdersBoard() {
           </div>
 
           {orders === null ? (
-            <div className="k-board" aria-busy="true">
+            <div className="k-board" aria-busy="true" data-tour="pedidos-tablero">
               {LANES.map((item) => (
                 <section key={item.id} className="k-lane">
                   <div className="k-skeleton" />
@@ -519,7 +525,7 @@ export function OrdersBoard() {
               ))}
             </div>
           ) : (
-            <div className="k-board" data-lane={lane}>
+            <div className="k-board" data-lane={lane} data-tour="pedidos-tablero">
               {LANES.map((item) => (
                 <section
                   key={item.id}

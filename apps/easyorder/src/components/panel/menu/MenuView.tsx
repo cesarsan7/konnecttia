@@ -162,6 +162,7 @@ export function MenuView() {
               <button
                 type="button"
                 className="k-btn k-btn-primary"
+                data-tour="carta-nuevo"
                 disabled={menu.categorias.length === 0}
                 onClick={() => setEditing({ kind: "item", item: null, categoryId: null })}
               >
@@ -235,7 +236,7 @@ export function MenuView() {
       ) : null}
 
       <div className="k-carta-bar">
-        <fieldset className="k-segment" aria-label="Sección de la carta">
+        <fieldset className="k-segment" aria-label="Sección de la carta" data-tour="carta-pestanas">
           <button
             type="button"
             className={tab === TAB.Items ? "is-on" : ""}
@@ -254,7 +255,7 @@ export function MenuView() {
           </button>
         </fieldset>
         {tab === TAB.Items && menu.productos.length > 0 ? (
-          <label className="k-search">
+          <label className="k-search" data-tour="carta-buscar">
             <span className="k-sr-only">Buscar producto</span>
             <input
               type="search"
@@ -305,6 +306,7 @@ export function MenuView() {
                   key={category.id}
                   className={`k-card k-cat${category.activa ? "" : " is-hidden"}`}
                   aria-labelledby={`cat-${category.id}`}
+                  data-tour={index === 0 ? "carta-categoria" : undefined}
                 >
                   <header className="k-cat-head">
                     <h2 id={`cat-${category.id}`} className="k-title">

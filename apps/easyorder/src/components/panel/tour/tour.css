@@ -1,0 +1,202 @@
+/*
+ * Guía del panel: barra con «?» y «Ayuda», foco sobre el elemento y globo con los pasos.
+ * Usa los tokens de .k-root, así que sigue el tema claro/oscuro del panel.
+ */
+
+/* Barra superior ---------------------------------------------------------------- */
+.k-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.k-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 14px 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: 800 0.875rem / 1 var(--f-body);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.k-topbar-btn:hover {
+  border-color: var(--teal);
+}
+
+.k-topbar-link {
+  padding-left: 14px;
+}
+
+.k-topbar-q {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--teal-tint);
+  color: var(--teal-text);
+  font: 800 0.95rem / 1 var(--f-display);
+}
+
+@media (pointer: coarse) {
+  .k-topbar-btn {
+    min-height: 44px;
+  }
+}
+
+/* Foco y globo ------------------------------------------------------------------ */
+.k-tour {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+/* Capa invisible: impide pulsar lo de debajo mientras dura la guía. */
+.k-tour-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.k-tour-spot {
+  position: fixed;
+  border-radius: 14px;
+  box-shadow: 0 0 0 100vmax rgb(7 24 30 / 64%);
+  outline: 3px solid var(--coral);
+  pointer-events: none;
+  transition:
+    top 0.2s ease,
+    left 0.2s ease,
+    width 0.2s ease,
+    height 0.2s ease;
+}
+
+.k-tour-balloon {
+  position: fixed;
+  width: min(22rem, calc(100vw - 24px));
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 35%);
+}
+
+/* La flecha apunta al elemento: el globo del color de la tarjeta lleva un rombo en el borde. */
+.k-tour-balloon.is-bottom::before,
+.k-tour-balloon.is-top::before {
+  content: "";
+  position: absolute;
+  left: var(--tour-arrow, 50%);
+  width: 14px;
+  height: 14px;
+  background: var(--card);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.k-tour-balloon.is-bottom::before {
+  top: -8px;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.k-tour-balloon.is-top::before {
+  bottom: -8px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+/* El texto largo se desplaza dentro de la tarjeta, no fuera de la pantalla. */
+.k-tour-card {
+  position: relative;
+  overflow-y: auto;
+  padding: 18px 18px 14px;
+  border-radius: inherit;
+  background: var(--card);
+}
+
+.k-tour-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+.k-tour-count {
+  margin: 0;
+  color: var(--teal-text);
+  font: 800 0.8125rem / 1 var(--f-body);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.k-tour-dots {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.k-tour-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.k-tour-dots i.is-done {
+  background: var(--teal);
+  opacity: 0.55;
+}
+
+.k-tour-dots i.is-current {
+  background: var(--teal);
+}
+
+.k-tour-title {
+  margin: 0 0 6px;
+  font: 700 1.2rem / 1.25 var(--f-display);
+}
+
+.k-tour-body {
+  margin: 0;
+  font-size: 0.975rem;
+  line-height: 1.5;
+}
+
+.k-tour-help {
+  display: inline-block;
+  margin: 12px 0 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.k-tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.k-tour-actions .k-link {
+  margin: 0;
+}
+
+.k-tour-nav {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-tour-spot {
+    transition: none;
+  }
+}

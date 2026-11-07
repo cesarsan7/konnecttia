@@ -109,7 +109,7 @@ export function TablesView() {
         <h1 className="k-heading">Mesas</h1>
       </div>
       {canManage && state.kind === "ready" && state.plan.locales.length > 0 ? (
-        <div className="k-head-tools">
+        <div className="k-head-tools" data-tour="mesas-editar">
           <Toggle checked={editMode} onChange={setEditMode} label="Editar mesas" />
         </div>
       ) : null}
@@ -157,7 +157,7 @@ export function TablesView() {
     <div className="k-page">
       {header}
       {plan.locales.length > 1 ? (
-        <fieldset className="k-segment">
+        <fieldset className="k-segment" data-tour="mesas-local">
           <legend className="k-sr-only">Local</legend>
           {plan.locales.map((local) => (
             <button
@@ -174,7 +174,7 @@ export function TablesView() {
       ) : null}
 
       {tablesHere.length > 0 && !editMode ? (
-        <div className="k-carta-bar">
+        <div className="k-carta-bar" data-tour="mesas-filtro">
           <fieldset className="k-segment k-segment-sm">
             <legend className="k-sr-only">Mostrar</legend>
             {TABLE_FILTER.map((option) => (
@@ -241,7 +241,7 @@ export function TablesView() {
         </div>
       ) : null}
 
-      {groups.map((group) => (
+      {groups.map((group, groupIndex) => (
         <section
           key={group.zone?.id ?? "sin-zona"}
           className="k-card k-settings"
@@ -264,7 +264,7 @@ export function TablesView() {
           {group.tables.length === 0 ? (
             <p className="k-muted k-small">Sin mesas en esta zona.</p>
           ) : (
-            <ul className="k-tables">
+            <ul className="k-tables" data-tour={groupIndex === 0 ? "mesas-plano" : undefined}>
               {group.tables
                 .filter((table) => editMode || matchesFilter(table, filter))
                 .map((table) => (

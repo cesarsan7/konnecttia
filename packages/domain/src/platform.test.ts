@@ -26,7 +26,16 @@ describe("slug de restaurante", () => {
   });
 
   it("rechaza los slugs reservados", () => {
-    for (const slug of ["panel", "interno", "api", "admin", "www", "plataforma", "privacidad"]) {
+    for (const slug of [
+      "panel",
+      "interno",
+      "api",
+      "admin",
+      "www",
+      "plataforma",
+      "privacidad",
+      "ayuda",
+    ]) {
       expect(RESERVED_SLUGS.has(slug)).toBe(true);
       expect(checkRestaurantSlug(slug), slug).toBe(SLUG_ERROR.Reserved);
     }

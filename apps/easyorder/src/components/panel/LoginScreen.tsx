@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { helpPath } from "@/lib/ayuda/slugs";
 import { parseReturnTarget, rememberReturn } from "@/lib/panel/recovery";
 import { sortByLastUsed } from "@/lib/panel/restaurants";
 import type { MyRestaurants } from "@/lib/panel/types";
@@ -265,6 +266,11 @@ export function LoginScreen() {
               >
                 {mode === "login" ? "¿Olvidaste tu contraseña?" : "Volver a entrar"}
               </button>
+              <p className="k-small">
+                <a className="k-link" href={helpPath()} target="_blank" rel="noreferrer">
+                  ¿Necesitas ayuda? Abre la guía
+                </a>
+              </p>
             </form>
           )}
         </div>
