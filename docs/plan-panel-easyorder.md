@@ -355,6 +355,91 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
   (emails, WhatsApp, IA del agente, SMS) y horas de alta. Necesita los importes reales de los
   servicios contratados.
 
+## Requerimientos del promotor (6/11, noche), sin implementar
+
+Solo planificados; se implementan cuando el promotor lo pida. Letras a continuación de la T.
+
+### U · Historial de actividad de repartidores y meseros (post-MVP)
+
+- Ficha por repartidor y por mesero con su historia: repartos asignados, salida y entrega con
+  horas, fotos de entrega, cobros pendientes que llevaba; pedidos y mesas atendidos, importes,
+  cancelaciones. Filtrable por fechas y local; útil ante una incidencia («¿quién llevó el pedido
+  E-1043 y a qué hora salió?»).
+- Reutiliza `pedido_reparto`, `pedido_foto_entrega`, `pedido_estado_log` (actor y origen),
+  `pedidos.mesero_id` y `auditoria`. Sin tablas nuevas salvo, si hace falta, un índice.
+- Enlace con las incidencias del cliente (pieza P): la incidencia muestra quién repartió o atendió.
+- Permisos: lo ven quien gestiona el equipo y el encargado del local; cada repartidor o mesero ve
+  solo lo suyo.
+
+### V · Editar los permisos de los roles del restaurante (MVP)
+
+- Hoy: los roles propios del restaurante se crean y editan en Equipo → Roles (#39), pero las
+  plantillas (Propietario, Encargado, Personal, Consulta, Mesero, Repartidor) no se pueden tocar
+  (`template_role`).
+- Propuesta: «Personalizar» una plantilla crea una copia propia del restaurante con los mismos
+  permisos, editable, y reasigna (con confirmación) a quienes tenían la plantilla. Las plantillas
+  globales siguen sin cambiar. Sin escalada (`canGrantRole`); Propietario no se puede recortar.
+- Tablas: `rol`, `rol_permiso`, `membresia_rol`.
+
+### W · Escenarios de prueba para el equipo comercial (documento)
+
+- `docs/comercial/escenarios-de-prueba.md` (y su Claude Doc): guiones paso a paso en staging con
+  varios roles a la vez (cliente en el móvil, cajero, encargado, mesero, repartidor, propietario,
+  Konnecttia en `/interno`). Por ejemplo: pedido web a domicilio con Bizum y justificante → asignar
+  repartidor → foto de entrega; mesa con mesero y comanda → cuenta; cliente bloqueado;
+  hora punta con modo ocupado; alta autoservicio y conversión del plan; borrar los datos de un
+  cliente. Cada escenario: preparación, pasos por rol, resultado esperado y qué contar al cliente.
+- Requiere un restaurante de demostración en staging con usuarios de cada rol (nunca La Isla).
+
+### X · QR para pagar por transferencia o Bizum (post-MVP, viable con matices)
+
+- Viable como **QR que abre una página de pago** del pedido (la del seguimiento): importe,
+  concepto (código del pedido), IBAN y titular o teléfono de Bizum —los configurados en Ajustes—,
+  con botones para copiar y subir el justificante (pieza L). El repartidor lo enseña en el móvil o
+  va impreso en la comanda de reparto.
+- Transferencia: existe el estándar europeo de QR de transferencia (EPC/SEPA), pero no todas las
+  apps de bancos españoles lo leen; pendiente de validar con los bancos de los clientes. Se puede
+  ofrecer como extra junto a la página.
+- Bizum: no hay un QR o enlace de pago público para particulares; Bizum como cobro automático va
+  con el TPV del banco (pieza «Cobro online»). Con el QR, el cliente ve el teléfono y el concepto.
+- Sin tablas nuevas; usa `datos_bancarios` y el token de seguimiento. Dependencia: una librería
+  de QR (proponerla en su PR).
+
+### Y · QR de los enlaces del restaurante (MVP)
+
+- En Ajustes, una sección «Enlaces y QR»: carta pública (`/<slug>`), panel (`/panel`) y, para
+  Konnecttia, el alta (`/alta`). Cada uno con su QR para descargar (PNG y SVG, varios tamaños) y
+  compartir (botón compartir del móvil), con el logo y el color del restaurante si los hay.
+- Pensado para redes sociales, mesas, bolsas y el escaparate. Misma librería de QR que X.
+
+### Z · Logo y redes sociales del restaurante (MVP)
+
+- La tabla `restaurante` ya tiene `logo_url` y `redes_sociales` (de la versión anterior), pero el
+  panel nuevo no las edita y la carta pública no las muestra.
+- Ajustes → Marca: subir el logo (como las fotos de la carta, Supabase Storage, bucket público) y
+  verlo en la cabecera del panel y de la carta; redes sociales (Instagram, Facebook, TikTok,
+  Google, web, WhatsApp…) con validación de URL, que la carta muestra como iconos.
+
+### AA · Colores de marca en la carta pública (MVP)
+
+- `restaurante.brand_color` y `theme_id` ya existen. Ajustes → Marca: color principal (y
+  opcionalmente secundario) con vista previa; la carta pública y el seguimiento usan esos colores
+  y el logo.
+- Contraste: el sistema calcula el color del texto sobre el color de marca y avisa si no se lee
+  bien (accesibilidad). El panel mantiene los colores de EasyOrder.
+
+### AB · Promociones en la carta (post-MVP, módulo nuevo)
+
+- El catálogo de módulos ya prevé «Novedades y reseñas» (Premium); las promociones serían un
+  módulo propio (`promotions`) o parte de ese.
+- Promoción = título, texto, imagen opcional, fechas y horas de validez (fechas especiales,
+  «happy hour»), locales, y opcionalmente una regla: % o importe de descuento sobre productos o
+  categorías, 2×1, envío gratis a partir de un importe, o código promocional.
+- La carta pública muestra un banner y marca los productos en promoción; el precio con descuento
+  se calcula SIEMPRE en el servidor (ADR 0004) y queda guardado en el pedido. n8n (WhatsApp) debe
+  aplicar las mismas reglas usando la misma función de precios.
+- Fases: 1) banners informativos con fechas, sin descuento; 2) descuentos automáticos; 3) códigos.
+
 ## Documentación comercial
 
 - `docs/comercial/guia-comercial.md` y `docs/comercial/checklist-alta-restaurante.md` son la copia
