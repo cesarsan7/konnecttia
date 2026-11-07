@@ -1,0 +1,323 @@
+{
+  "name": "[MVP] Contexto",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "Contexto Actual"
+            },
+            {
+              "name": "Mensaje del Cliente"
+            },
+            {
+              "name": "Respuesta del Agente"
+            },
+            {
+              "name": "Telefono"
+            }
+          ]
+        }
+      },
+      "id": "67f86a55-1471-4862-9040-6693d7db333b",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        144
+      ],
+      "id": "cd1ef549-b8e2-4342-9648-69bdb9f3fdee",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "name": "staging OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "value": "public",
+          "mode": "list",
+          "cachedResultName": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "contexto",
+          "mode": "list",
+          "cachedResultName": "contexto"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telefono": "={{ $('When Executed by Another Workflow').item.json.Telefono }}",
+            "contexto": "={{ $json.text }}"
+          },
+          "matchingColumns": [
+            "telefono"
+          ],
+          "schema": [
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "contexto",
+              "displayName": "contexto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "direccion",
+              "displayName": "direccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        560,
+        0
+      ],
+      "id": "c8b69800-a560-4012-ba26-f32acaaa7337",
+      "name": "Actualizar Contexto",
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=CONTEXTO ACTUAL:\n{{ $json['Contexto Actual'] }}\n\nMENSAJE DEL CLIENTE:\n{{ $json['Mensaje del Cliente'] }}\n\nRESPUESTA DEL AGENTE:\n{{ $json['Respuesta del Agente'] }}\n\nFECHA Y HORA ACTUAL (USAR ESTA para ULTIMA_INTERACCION):\n{{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Eres un sistema de actualización de contexto conversacional para un restaurante.\n\n\nDevuelve SOLO un bloque de texto estructurado. No expliques nada.\n\nFormato obligatorio exacto:\nCLIENTE: [nombre si se conoce o no definido]\nESTADO: [nuevo | recurrente | frecuente]\nULTIMA_INTERACCION: [fecha y hora actual]\nPEDIDO_ACTUAL: [sin pedido | en curso (...) | confirmado | entregado]\nFASE_PEDIDO: [sin pedido | armando_items | esperando_nombre | esperando_despacho | esperando_direccion | esperando_pago | esperando_confirmacion | confirmado]\nDESPACHO: [no definido | delivery (...) | retiro]\nMETODO_PAGO: [no definido | efectivo | transferencia | tarjeta | bizum | online]\nDIRECCION_CONOCIDA: [si/no + detalle breve]\nUBICACION_RECIBIDA: [si/no + detalle breve]\nPREFERENCIAS: [resumen breve]\nHISTORIAL_BREVE: [máximo 2 líneas]\nTONO_CLIENTE: [neutral | amigable | apurado | molesto | confundido]\nULTIMA_ACCION: [qué pasó en este turno]\nPENDIENTE: [qué debe hacer o responder el cliente después, o nada]\nSESSION_ID: [usar exactamente el Session ID recibido; si no viene, escribir no definido]\nSESSION_STARTED: [usar exactamente Session Started At recibido; si no viene, escribir no definido]\n\nReglas:\n- Mantén lo importante del contexto anterior.\n- Si el cliente dijo su nombre o el agente confirmó \"a nombre de\", actualiza CLIENTE.\n- Si el cliente confirmó o envió una dirección de delivery, actualiza DIRECCION_CONOCIDA.\n- Si el agente pidió nombre, usa FASE_PEDIDO=esperando_nombre.\n- Si el agente pidió dirección para delivery, usa FASE_PEDIDO=esperando_direccion.\n- Si el agente preguntó retiro o delivery, usa FASE_PEDIDO=esperando_despacho.\n- Si el agente pidió método de pago, usa FASE_PEDIDO=esperando_pago.\n- No inventes datos que no aparezcan en el contexto o en este turno.\n- Nunca devuelvas texto fuera del bloque."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        240,
+        0
+      ],
+      "id": "d9d88031-8034-45fa-8015-1de56759df7b",
+      "name": "Generar contexto",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo de catch global para Contexto\n// Se activa cuando cualquier nodo upstream falla (onError: continueErrorOutput)\nconst err = $input.first();\nconst origen = err?.json?.node || err?.json?.source || 'nodo desconocido';\nconst detalle = err?.json?.message || err?.json?.error || 'sin detalle';\nconst telefono = $('When Executed by Another Workflow').first().json?.telefono || '';\n\nreturn [{\n  json: {\n    success: false,\n    error: true,\n    tipo: 'sistema',\n    subflujo: 'Contexto',\n    mensaje: `Error técnico en Contexto (${origen}): ${detalle}`,\n    puede_continuar: false,\n    mutar_db: false,\n    telefono: telefono,\n    problema_escalacion: `Error técnico en Contexto (${origen}): ${detalle}`\n  }\n}];"
+      },
+      "id": "ee569a33-0672-44ce-8203-6449172b5715",
+      "name": "Respuesta Error Sistema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalaciones\n  (restaurante_id, telefono, problema, contexto, conversation_id, account_id, contact_id, tipo_escalacion, estado)\nVALUES (\n  1,\n  '{{ $input.first().json.telefono.replace(/'/g, \"''\") }}',\n  '{{ $input.first().json.problema_escalacion.replace(/'/g, \"''\") }}',\n  '{\"subflujo\": \"Contexto\", \"tipo\": \"error_sistema\"}'::jsonb,\n  '', '', '', 'error_sistema', 'pendiente'\n)",
+        "options": {}
+      },
+      "id": "21856392-fa6d-4515-8500-54061f7f710a",
+      "name": "Registrar Escalacion Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1104,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reenviar la respuesta de error al Director sin modificar\nreturn [$(\"Respuesta Error Sistema\").first()];"
+      },
+      "id": "0b408ae4-6b2f-41cf-a08d-fe90872d0841",
+      "name": "Devolver Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        400
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Generar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generar contexto",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar contexto": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Contexto": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Error Sistema": {
+      "main": [
+        [
+          {
+            "node": "Registrar Escalacion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Escalacion Error": {
+      "main": [
+        [
+          {
+            "node": "Devolver Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "7a622b6f-cee0-43aa-95f8-7567d67dc747",
+  "meta": {
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "x79s9xuF5q9iayoc",
+  "tags": []
+}

@@ -1,0 +1,3099 @@
+{
+  "name": "[MVP] Pizzeria",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwootnew",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -48,
+        1024
+      ],
+      "id": "d99a5e93-71d4-424c-b4f8-d22c3a29cc02",
+      "name": "Webhook",
+      "webhookId": "4e670c56-c403-465b-9052-a744af040529"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b672ef29-3bce-4bfe-97b4-03279f23bb8a",
+                    "leftValue": "={{ $('Webhook').item.json.body.conversation.messages[0].attachments[0].file_type }}",
+                    "rightValue": "=location",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ubicacion"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "dc6cae79-cec0-4400-9c52-c0c1c6b2a58f",
+                    "leftValue": "={{ $('Webhook').item.json.body.conversation.messages[0].attachments[0].file_type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f020befa-ad2f-443f-982e-9d072db2ab29",
+                    "leftValue": "={{ $('Webhook').item.json.body.conversation.messages[0].attachments[0].file_type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Imagen"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        976
+      ],
+      "id": "adc3a56a-1244-4325-9812-326f632eaa78",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "es"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1344,
+        928
+      ],
+      "id": "0185629e-7815-4f9a-a92f-be3788e92c2e",
+      "name": "OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "name": "staging OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "110ecd26-35c1-4912-9b57-3e35bf3dd30b",
+              "name": "ubicacion",
+              "value": "={{ Number($('Webhook').item.json.body.attachments[0].coordinates_lat) }}\n,{{ Number($('Webhook').item.json.body.attachments[0].coordinates_long) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1264,
+        784
+      ],
+      "id": "1ed9da2e-7a86-4251-85c8-979e3d4763f7",
+      "name": "Ubicación"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2432,
+        816
+      ],
+      "id": "2126010c-f143-4ac6-8ac1-c4ca3c6b9641",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('Variables').item.json.restaurante_id + '_' + $('Input').item.json.telefono + '_buffer' }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2432,
+        992
+      ],
+      "id": "9e0eb7e5-4d29-484d-8b5d-51326ac749b4",
+      "name": "Redis2",
+      "credentials": {
+        "redis": {
+          "name": "staging redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message?.last() || '' }}",
+                    "rightValue": "={{ $('Input').item.json.input }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEquals"
+                    },
+                    "id": "232870fe-40d2-4d7d-8029-162f6ffeca1c"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "No hacer nada"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "70afb62a-8092-41fe-9f1a-913ca0c2a80c",
+                    "leftValue": "={{ DateTime.fromISO($('Webhook').item.json.body.created_at).setZone(\"America/Argentina/Cordoba\").toISO() }}",
+                    "rightValue": "={{ $now.minus({ seconds: 1 }).setZone(\"America/Santiago\").toISO() }}",
+                    "operator": {
+                      "type": "dateTime",
+                      "operation": "before"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Seguir"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Esperar"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2240,
+        976
+      ],
+      "id": "46ee8829-4a49-4691-8e84-d43692914aac",
+      "name": "Switch2"
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2432,
+        1152
+      ],
+      "id": "b7407941-7ac1-434f-a41e-7ad6ad6b00ed",
+      "name": "Wait7",
+      "webhookId": "8838bbfa-9e88-4516-8ad6-49f10c91d0b0"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Webhook').item.json.body.conversation.messages[0].attachments[0].data_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1168,
+        1072
+      ],
+      "id": "d31d2265-5dbd-4170-90f5-8a15614390c3",
+      "name": "Descargar Imagen",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Webhook').item.json.body.attachments[0].data_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1168,
+        928
+      ],
+      "id": "e2ab585a-9943-4c8b-8cf3-d1f73d313d53",
+      "name": "Descargar Audio",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ String($json.bot_status || 'on').trim().toLowerCase() }}",
+                    "rightValue": "on",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7d017a90-f18f-4781-aed2-d731e97fbe0f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "on"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d7df03fb-af2e-4744-aa6c-3579cfa3591e",
+                    "leftValue": "={{ String($json.bot_status || 'on').trim().toLowerCase() }}",
+                    "rightValue": "off",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Off"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        576,
+        1024
+      ],
+      "id": "4054051e-c895-404b-8ef8-c09bb46393ff",
+      "name": "Bot"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "Describe la imagen para enviársela al Agente de Whatsapp",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        1072
+      ],
+      "id": "e959979b-fb89-4e05-b3c9-9c4db8880692",
+      "name": "Analyze an image",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "92988da8-22bf-433c-b1b2-dcf9dc5404d2",
+              "name": "input",
+              "value": "={{ $json.body }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1264,
+        1248
+      ],
+      "id": "3a1a31aa-9ff8-48ed-ae4f-f428890348d3",
+      "name": "Texto"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "10c3ceaf-26e3-4486-bfa8-939a06073d75",
+              "name": "telefono",
+              "value": "={{ $json.body.sender.phone_number }}",
+              "type": "string"
+            },
+            {
+              "id": "afa59e82-7ce2-4415-844c-b526444bb33f",
+              "name": "account_id",
+              "value": "={{ $json.body.account.id }}",
+              "type": "number"
+            },
+            {
+              "id": "8324b390-557b-466d-bb9e-3f09660c6cf6",
+              "name": "contact_id",
+              "value": "={{ $json.body.conversation.contact_inbox.contact_id }}",
+              "type": "number"
+            },
+            {
+              "id": "dc9ef220-7cee-4278-aed7-61ca625c3784",
+              "name": "conversation_id",
+              "value": "={{ $json.body.conversation.id }}",
+              "type": "number"
+            },
+            {
+              "id": "275f0c48-14c4-43e9-b72a-4082ae995979",
+              "name": "bot_status",
+              "value": "={{ $json.body.conversation.messages[0].sender.custom_attributes.bot || 'on' }}",
+              "type": "string"
+            },
+            {
+              "id": "a5328ad7-b177-4ea7-aab8-54ab15a2eece",
+              "name": "message_type",
+              "value": "={{ $json.body.conversation.messages[0].content_type }}",
+              "type": "string"
+            },
+            {
+              "id": "724acd4f-13c4-4a36-891d-7af859fc1a43",
+              "name": "body",
+              "value": "={{ $json.body.conversation.messages[0].content }}",
+              "type": "string"
+            },
+            {
+              "id": "ddc0540a-2a71-4247-bd75-5079f471dba1",
+              "name": "file_type",
+              "value": "={{ $json.body.conversation.messages[0].attachments[0].file_type }}",
+              "type": "string"
+            },
+            {
+              "id": "ebfe4b36-c7df-4b56-b8bb-ae7e52539897",
+              "name": "data_url",
+              "value": "={{ $json.body.conversation.messages[0].attachments[0].data_url }}",
+              "type": "string"
+            },
+            {
+              "id": "ff1c9c43-35d6-4002-8aee-4fadfde95591",
+              "name": "moneda",
+              "value": "={{ $json.moneda || '€' }}",
+              "type": "string"
+            },
+            {
+              "id": "rid-multitenant-001",
+              "name": "restaurante_id",
+              "value": "={{ Number($json.body.conversation.meta.sender.custom_attributes.p_restaurante_id || $json.body.sender.custom_attributes.p_restaurante_id || 11) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        416,
+        1024
+      ],
+      "id": "21476b72-bceb-42fc-b18e-bb84664b6160",
+      "name": "Variables"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "273f7462-4480-40be-ba2d-799176ea44c6",
+              "name": "input",
+              "value": "={{ $json.content }}{{ $json.input }}{{ $json.text }}{{ $json.ubicacion }}",
+              "type": "string"
+            },
+            {
+              "id": "9bf7b58e-333d-4657-b776-5038f2de67de",
+              "name": "telefono",
+              "value": "={{ $('Variables').item.json.telefono }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1616,
+        992
+      ],
+      "id": "5b0b84a4-47b8-4e0b-977d-8066387ae8a6",
+      "name": "Input"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f74eb0c1-fb69-4891-a199-091ffb8be36a",
+              "name": "input",
+              "value": "={{ $json.message.join(\"\\n\") }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        992
+      ],
+      "id": "80a1a7e9-012d-4f51-93df-4aa74c101dc4",
+      "name": "Input Agente"
+    },
+    {
+      "parameters": {
+        "content": "## Validaciones",
+        "height": 240,
+        "width": 416
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        352,
+        960
+      ],
+      "typeVersion": 1,
+      "id": "7f504abf-1273-480a-a35e-0221dbcb4b0b",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## Multi-modal",
+        "height": 672,
+        "width": 976,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        816,
+        768
+      ],
+      "typeVersion": 1,
+      "id": "25bf9a5a-589a-4336-9501-49d223246839",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Buffer de mensajes",
+        "height": 640,
+        "width": 944,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1824,
+        784
+      ],
+      "typeVersion": 1,
+      "id": "3b6b8281-5d7d-475e-b181-58a28a2052bd",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Validación Usuario",
+        "height": 640,
+        "width": 1200,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2832,
+        752
+      ],
+      "typeVersion": 1,
+      "id": "a3e21c9d-298b-4ae4-b0d9-3f29255d5035",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT telefono, contexto, timestamp, session_id, session_started_at, restaurante_id\nFROM public.contexto\nWHERE telefono = '{{ $('Variables').item.json.telefono }}'\n  AND restaurante_id = {{ $('Variables').item.json.restaurante_id }}\nORDER BY timestamp DESC\nLIMIT 1",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2880,
+        992
+      ],
+      "id": "973f88a8-cfc7-4af2-8cba-18d053904fef",
+      "name": "Obtener registros",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "message",
+        "key": "={{ $('Variables').item.json.restaurante_id + '_' + $('Variables').item.json.telefono + '_buffer' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2048,
+        992
+      ],
+      "id": "86a94994-f7b4-4221-be80-63512f11e30a",
+      "name": "Redis1",
+      "credentials": {
+        "redis": {
+          "name": "staging redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Variables').item.json.restaurante_id + '_' + $('Variables').item.json.telefono + '_buffer' }}",
+        "messageData": "={{ $json.input }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1872,
+        992
+      ],
+      "id": "a85b9cb7-f65e-4584-9abb-b89d373200a9",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "name": "staging redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1e834664-7315-4ae4-a273-502be792e250",
+              "leftValue": "={{ $json.telefono }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3056,
+        992
+      ],
+      "id": "d2afa506-b13e-4f27-a59f-adb8f1c432ed",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "contexto",
+          "mode": "list",
+          "cachedResultName": "contexto"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telefono": "={{ $('Variables').item.json.telefono }}",
+            "timestamp": "={{ $now }}",
+            "contexto": "El usuario es un cliente nuevo, no tengo más contexto para entregarte.",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contexto",
+              "displayName": "contexto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3264,
+        1120
+      ],
+      "id": "0a0e1f6a-a772-461f-8987-48ef2a75a79d",
+      "name": "Nuevo usuario",
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3344,
+        880
+      ],
+      "id": "58d88b69-4ba3-4c7e-a6da-20b4c4f59f90",
+      "name": "Preparar contexto"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0ab7f8d6-81a7-4b39-85a2-8ecdca2e5a47",
+              "name": "contexto",
+              "value": "El usuario es un cliente nuevo, no tengo más contexto para entregarte.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3424,
+        1120
+      ],
+      "id": "a0f929cc-464d-49cb-9d59-3ea49a990d52",
+      "name": "Sin contexto"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT p.id, p.pedido_codigo, p.estado\nFROM public.pedidos p\nJOIN public.usuarios u ON u.id = p.usuario_id\nWHERE u.telefono = '{{ $('Variables').first().json.telefono }}'\n  AND p.restaurante_id = {{ $('Variables').first().json.restaurante_id }}\nORDER BY p.created_at DESC\nLIMIT 1",
+        "options": {}
+      },
+      "id": "5e45c4c2-d910-4669-8649-cb2e8d8a15fd",
+      "name": "Consultar Pedido Activo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        3904,
+        992
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "87390451-f8dc-4c4c-a789-05ce8ede6002",
+              "name": "input",
+              "value": "={{ $('Input Agente').item.json.input }}",
+              "type": "string"
+            },
+            {
+              "id": "994c6774-06a0-4a07-90b7-00fe3045bb59",
+              "name": "contexto",
+              "value": "={{ $json.contexto }}",
+              "type": "string"
+            },
+            {
+              "id": "6373f76d-d3ef-4a24-8b33-3ff27d843e2c",
+              "name": "conversation_id",
+              "value": "={{ $('Variables').item.json.conversation_id }}",
+              "type": "number"
+            },
+            {
+              "id": "2b696db1-c6d4-42d4-8e08-57e3a931eff6",
+              "name": "usuario_id",
+              "value": "={{ $('Asegurar Usuario Maestro').first().json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "ec8e815b-a7f9-4c13-a6b5-0a4b5058fea0",
+              "name": "cliente_nombre",
+              "value": "={{ $('Asegurar Usuario Maestro').first().json.nombre || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "6bc29fe1-001f-4d2d-99ec-a160889ec23c",
+              "name": "direccion_frecuente",
+              "value": "={{ $('Asegurar Usuario Maestro').first().json.direccion_frecuente || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "d1e2f3a4-b5c6-7890-def0-123456789abc",
+              "name": "pedido_db_estado",
+              "value": "={{ $('Consultar Pedido Activo').first().json.estado || 'sin_pedido' }}",
+              "type": "string"
+            },
+            {
+              "id": "e2f3a4b5-c6d7-8901-ef01-23456789abcd",
+              "name": "pedido_db_codigo",
+              "value": "={{ $('Consultar Pedido Activo').first().json.pedido_codigo || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4032,
+        976
+      ],
+      "id": "365446cd-86a3-49d9-9bfd-79ebb5185991",
+      "name": "Input Agente1"
+    },
+    {
+      "parameters": {
+        "content": "## Validación Disponibilidad",
+        "height": 512,
+        "width": 756,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4144,
+        752
+      ],
+      "typeVersion": 1,
+      "id": "cf826560-5d32-473b-92bb-6bbf8f16b13a",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Zona horaria dinámica por restaurante — fuente: tabla restaurante.zona_horaria\nconst TZ = (() => {\n  try {\n    return $('Obtener Config Restaurante').first().json.zona_horaria || 'Atlantic/Canary';\n  } catch { return 'Atlantic/Canary'; }\n})();\n\n// ================================\n// 1) Normalización de entrada\n// ================================\nconst horarios = items.map(i => {\n  const j = i.json || {};\n  return {\n    dia: j.dia ?? j.Dia ?? j.day_name ?? j.dayName ?? null,\n    disponible: j.disponible ?? j.Disponible ?? j.is_open ?? j.isOpen ?? null,\n    apertura1: j.apertura_1 ?? j.Apertura1 ?? j.open_time_1 ?? j.openTime1 ?? null,\n    cierre1: j.cierre_1 ?? j.Cierre1 ?? j.close_time_1 ?? j.closeTime1 ?? null,\n    apertura2: j.apertura_2 ?? j.Apertura2 ?? j.open_time_2 ?? j.openTime2 ?? null,\n    cierre2: j.cierre_2 ?? j.Cierre2 ?? j.close_time_2 ?? j.closeTime2 ?? null,\n  };\n});\n\nconst diasSemana = [\n  'domingo',\n  'lunes',\n  'martes',\n  'miercoles',\n  'jueves',\n  'viernes',\n  'sabado',\n];\n\n// ================================\n// 2) Helpers\n// ================================\nfunction normalizar(texto) {\n  if (texto === null || texto === undefined) return '';\n  return texto\n    .toString()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .trim()\n    .toLowerCase();\n}\n\nfunction capitalizar(texto) {\n  if (!texto) return '';\n  return texto.charAt(0).toUpperCase() + texto.slice(1);\n}\n\nfunction formatearHora(hora) {\n  if (!hora) return null;\n  const partes = hora.toString().split(':');\n  if (partes.length < 2) return hora.toString();\n  return `${partes[0].padStart(2, '0')}:${partes[1].padStart(2, '0')}`;\n}\n\nfunction toMinutes(hora) {\n  if (!hora) return null;\n  const partes = hora.toString().split(':');\n  if (partes.length < 2) return null;\n\n  const h = Number(partes[0]);\n  const m = Number(partes[1]);\n\n  if (Number.isNaN(h) || Number.isNaN(m)) return null;\n  return h * 60 + m;\n}\n\nfunction valorBooleano(v) {\n  if (typeof v === 'boolean') return v;\n  const t = normalizar(v);\n  return ['si', 'sí', 'true', '1', 'abierto', 'open'].includes(t);\n}\n\nfunction buscarDia(dia) {\n  return horarios.find(h => normalizar(h.dia) === normalizar(dia));\n}\n\nfunction estaDisponible(config) {\n  return !!config && valorBooleano(config.disponible);\n}\n\nfunction intervaloCruzaMedianoche(aperturaMin, cierreMin) {\n  return aperturaMin !== null && cierreMin !== null && aperturaMin > cierreMin;\n}\n\nfunction estaDentroDelIntervalo(horaActualMin, aperturaMin, cierreMin) {\n  if (aperturaMin === null || cierreMin === null) return false;\n\n  // Caso normal: 12:00 - 15:30\n  if (aperturaMin <= cierreMin) {\n    return horaActualMin >= aperturaMin && horaActualMin < cierreMin;\n  }\n\n  // Caso cruza medianoche: 19:00 - 02:00\n  return horaActualMin >= aperturaMin || horaActualMin < cierreMin;\n}\n\nfunction obtenerAhoraCanarias() {\n  const now = new Date();\n\n  const weekdayEs = new Intl.DateTimeFormat('es-ES', {\n    timeZone: TZ,\n    weekday: 'long',\n  }).format(now);\n\n  const timeParts = new Intl.DateTimeFormat('en-GB', {\n    timeZone: TZ,\n    hour: '2-digit',\n    minute: '2-digit',\n    second: '2-digit',\n    hour12: false,\n  }).formatToParts(now);\n\n  const mapa = {};\n  for (const p of timeParts) {\n    mapa[p.type] = p.value;\n  }\n\n  const hora = Number(mapa.hour);\n  const minuto = Number(mapa.minute);\n\n  return {\n    diaNombre: capitalizar(weekdayEs),\n    diaNormalizado: normalizar(weekdayEs),\n    horaActualMin: hora * 60 + minuto,\n  };\n}\n\nfunction proximaApertura(diaActualIndex, horaActualMin) {\n  for (let offset = 0; offset <= 7; offset++) {\n    const idx = (diaActualIndex + offset) % 7;\n    const diaBuscado = diasSemana[idx];\n    const config = buscarDia(diaBuscado);\n\n    if (!estaDisponible(config)) continue;\n\n    const ventanas = [\n      { hora: config.apertura1, min: toMinutes(config.apertura1) },\n      { hora: config.apertura2, min: toMinutes(config.apertura2) },\n    ]\n      .filter(v => v.min !== null)\n      .sort((a, b) => a.min - b.min);\n\n    if (offset === 0) {\n      const siguienteHoy = ventanas.find(v => v.min > horaActualMin);\n      if (siguienteHoy) {\n        return {\n          dia: config.dia || capitalizar(diaBuscado),\n          hora: formatearHora(siguienteHoy.hora),\n          esHoy: true,\n        };\n      }\n    } else {\n      if (ventanas.length > 0) {\n        return {\n          dia: config.dia || capitalizar(diaBuscado),\n          hora: formatearHora(ventanas[0].hora),\n          esHoy: false,\n        };\n      }\n    }\n  }\n\n  return null;\n}\n\nfunction mensajeProximaApertura(prox) {\n  if (!prox) return 'No estaremos disponibles en los próximos días.';\n  if (prox.esHoy) return `Abrimos hoy a las ${prox.hora}.`;\n  return `La próxima apertura es el ${prox.dia} a las ${prox.hora}.`;\n}\n\nfunction getNodeValue(nodeName, key, fallback = null) {\n  try {\n    const data = $(nodeName).first().json;\n    return data?.[key] ?? fallback;\n  } catch {\n    return fallback;\n  }\n}\n\n// ================================\n// 3) Datos actuales en Canarias\n// ================================\nconst ahora = obtenerAhoraCanarias();\nconst diaActual = ahora.diaNombre;\nconst diaActualNorm = ahora.diaNormalizado;\nconst horaActualMin = ahora.horaActualMin;\nconst diaActualIndex = diasSemana.indexOf(diaActualNorm);\nconst diaAyerIndex = (diaActualIndex + 6) % 7;\n\n// ================================\n// 4) Campos que necesita el agente\n// ================================\nconst conversation_id = getNodeValue('Input Agente1', 'conversation_id');\nconst input = getNodeValue('Input Agente1', 'input');\nconst contexto = getNodeValue('Input Agente1', 'contexto');\nconst telefono = getNodeValue('Variables', 'telefono');\n\n// ================================\n// 5) Buscar configuraciones\n// ================================\nconst configHoy = buscarDia(diaActualNorm);\nconst configAyer = buscarDia(diasSemana[diaAyerIndex]);\n\n// ================================\n// 6) Evaluar abierto/cerrado\n// ================================\nlet abierto = false;\n\n// 6.1 Revisar horario de hoy\nif (estaDisponible(configHoy)) {\n  const apertura1 = toMinutes(configHoy.apertura1);\n  const cierre1 = toMinutes(configHoy.cierre1);\n  const apertura2 = toMinutes(configHoy.apertura2);\n  const cierre2 = toMinutes(configHoy.cierre2);\n\n  if (estaDentroDelIntervalo(horaActualMin, apertura1, cierre1)) {\n    abierto = true;\n  }\n\n  if (!abierto && estaDentroDelIntervalo(horaActualMin, apertura2, cierre2)) {\n    abierto = true;\n  }\n}\n\n// 6.2 Revisar si ayer tenía un turno que cruza medianoche\nif (!abierto && estaDisponible(configAyer)) {\n  const apertura1Ayer = toMinutes(configAyer.apertura1);\n  const cierre1Ayer = toMinutes(configAyer.cierre1);\n  const apertura2Ayer = toMinutes(configAyer.apertura2);\n  const cierre2Ayer = toMinutes(configAyer.cierre2);\n\n  if (\n    intervaloCruzaMedianoche(apertura1Ayer, cierre1Ayer) &&\n    horaActualMin < cierre1Ayer\n  ) {\n    abierto = true;\n  }\n\n  if (\n    !abierto &&\n    intervaloCruzaMedianoche(apertura2Ayer, cierre2Ayer) &&\n    horaActualMin < cierre2Ayer\n  ) {\n    abierto = true;\n  }\n}\n\n// ================================\n// 7) Respuesta si está abierto\n// ================================\nif (abierto) {\n  return [{\n    json: {\n      estado: 'Abierto',\n      tipo: null,\n      mensaje: 'Estamos abiertos y listos para atenderte.',\n      conversation_id,\n      input,\n      contexto,\n      telefono,\n      cliente_nombre: getNodeValue('Input Agente1','cliente_nombre',''),\n      direccion_frecuente: getNodeValue('Input Agente1','direccion_frecuente',''),\n      usuario_id: getNodeValue('Input Agente1','usuario_id',null),\n      pedido_db_estado: getNodeValue('Input Agente1','pedido_db_estado','sin_pedido'),\n      pedido_db_codigo: getNodeValue('Input Agente1','pedido_db_codigo',''),\n    }\n  }];\n}\n\n// ================================\n// 8) Si no existe horario para hoy\n// ================================\nif (!configHoy) {\n  const prox = proximaApertura(diaActualIndex, horaActualMin);\n\n  return [{\n    json: {\n      estado: 'Cerrado',\n      tipo: 'Dia',\n      mensaje: `Hoy ${diaActual} el local está cerrado. ${mensajeProximaApertura(prox)}`,\n      conversation_id,\n      input,\n      contexto,\n      telefono,\n      cliente_nombre: getNodeValue('Input Agente1','cliente_nombre',''),\n      direccion_frecuente: getNodeValue('Input Agente1','direccion_frecuente',''),\n      usuario_id: getNodeValue('Input Agente1','usuario_id',null),\n    }\n  }];\n}\n\n// ================================\n// 9) Si hoy no está disponible\n// ================================\nif (!estaDisponible(configHoy)) {\n  const prox = proximaApertura(diaActualIndex, horaActualMin);\n\n  return [{\n    json: {\n      estado: 'Cerrado',\n      tipo: 'Dia',\n      mensaje: `Hoy ${diaActual} no atendemos. ${mensajeProximaApertura(prox)}`,\n      conversation_id,\n      input,\n      contexto,\n      telefono,\n      cliente_nombre: getNodeValue('Input Agente1','cliente_nombre',''),\n      direccion_frecuente: getNodeValue('Input Agente1','direccion_frecuente',''),\n      usuario_id: getNodeValue('Input Agente1','usuario_id',null),\n    }\n  }];\n}\n\n// ================================\n// 10) Cerrado por horario\n// ================================\nconst prox = proximaApertura(diaActualIndex, horaActualMin);\n\nconst bloquesHorario = [];\nif (configHoy.apertura1 && configHoy.cierre1) {\n  bloquesHorario.push(`${formatearHora(configHoy.apertura1)} - ${formatearHora(configHoy.cierre1)}`);\n}\nif (configHoy.apertura2 && configHoy.cierre2) {\n  bloquesHorario.push(`${formatearHora(configHoy.apertura2)} - ${formatearHora(configHoy.cierre2)}`);\n}\nconst textoHorario = bloquesHorario.length > 0\n  ? bloquesHorario.join(' y ')\n  : 'sin horario definido';\n\nreturn [{\n  json: {\n    estado: 'Cerrado',\n    tipo: 'Hora',\n    mensaje: `En este momento estamos cerrados. Nuestro horario hoy ${diaActual} es ${textoHorario}. ${mensajeProximaApertura(prox)}`,\n    conversation_id,\n    input,\n    contexto,\n    telefono,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4576,
+        944
+      ],
+      "id": "26d10cc7-2e2c-4fcd-a41f-6716aa0fb9cb",
+      "name": "Validacion"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "810613fc-c8d3-4e81-b186-28599d0f5290",
+              "leftValue": "={{ $json.estado }}",
+              "rightValue": "Abierto",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4736,
+        944
+      ],
+      "id": "787fb2f8-1c09-4640-9ed5-d6c386ac7de1",
+      "name": "Disponible"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $input.first().json.input }}",
+        "options": {
+          "systemMessage": "=Eres el asistente virtual de {{ $('Obtener Config Restaurante').isExecuted ? ($('Obtener Config Restaurante').first().json.nombre || 'este restaurante') : 'este restaurante' }} por WhatsApp.\n\nESTADO DEL LOCAL:\n- Estado: {{ $json.estado }}\n- Motivo: {{ $json.tipo }}\n- Detalle: {{ $json.mensaje }}\n\nCONTEXTO DEL CLIENTE:\n{{ $json.contexto }}\n\nOBJETIVO:\n- informar que el local está cerrado\n- decir cuándo abre usando el detalle disponible\n- responder dudas informativas con Preguntas\n- derivar a humano con Derivar Humano si el cliente lo pide, reclama o hay un problema sensible\n- no tomar pedidos mientras esté cerrado\n\nREGLAS:\n1. Español neutro, tuteo, texto plano.\n2. Máximo 2 frases.\n3. No inventes datos.\n4. Si preguntan menú, precios, horarios, delivery, métodos de pago o promociones, usa Preguntas.\n5. Si el cliente quiere pedir, indica que ahora estamos cerrados y cuándo puede escribir.\n6. Si pide humano o reporta cobro incorrecto, reclamo o urgencia, usa Derivar Humano.\n7. No prometas tiempos exactos.\n8. No digas que no puedes derivar si la tool Derivar Humano está disponible; úsala.",
+          "maxIterations": 10
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        4528,
+        1392
+      ],
+      "id": "ebf3b273-f700-4661-81e3-3ffba6b26c85",
+      "name": "Agente Cerrado"
+    },
+    {
+      "parameters": {
+        "content": "## Cerrado",
+        "height": 400,
+        "width": 656,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        4304,
+        1280
+      ],
+      "typeVersion": 1,
+      "id": "c4224ff2-c62a-47b4-a1a4-41ddb1e26f8b",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        5952,
+        1360
+      ],
+      "id": "e05212aa-6f70-43f5-af84-c2ea615808b7",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "let texto = String(items[0].json.output || '').trim();\n\n// Filtro defensivo: descartar tool calls crudos\nif (/^(Calling|Llamando|Using|Usando)\\s+\\w+/i.test(texto) || \n    (texto.startsWith('{') && texto.includes('\"accion\"'))) {\n  texto = '';\n}\n\ntexto = texto\n  .replace(/^[\"']|[\"']$/g, '')\n  .replace(/[¿¡]/g, '')\n  .replace(/\\r/g, '')\n  .replace(/\\n{2,}/g, '\\n')\n  .replace(/[ \\t]+/g, ' ')\n  .trim();\n\n// Detectar preguntas que requieren botones interactivos\nlet interactive = null;\n\nif (/agregar.*(m[aá]s|otro)|algo.*(m[aá]s|otro)|m[aá]s.*productos|seguir.*pidiendo|quieres.*m[aá]s|deseas.*m[aá]s|pasamos.*despacho|ir.*despacho.*agregar|agregar.*ir.*despacho|agregar.*ir.*pago/i.test(texto)) {\n  // Hallazgo 1 fix: detectar \"pasar al pago\", \"confirmar y pasar al pago\", \"ir al pago\", etc.\n  if (/ir al pago|pasar al pago|al pago|confirmar.*pago/i.test(texto)) {\n    interactive = {\n      items: [\n        { title: 'Agregar más', value: 'quiero agregar más productos' },\n        { title: 'Ir al pago', value: 'quiero ir al pago' }\n      ]\n    };\n  } else {\n    interactive = {\n      items: [\n        { title: 'Agregar más', value: 'quiero agregar más productos' },\n        { title: 'Ir al despacho', value: 'quiero ir al despacho' }\n      ]\n    };\n  }\n}\n\nif (/delivery[^?]*retiro|retiro[^?]*delivery|como.*recib|como.*quier.*pedido|para.*delivery.*retiro|modo.*entrega|tipo.*entrega|ir al despacho|quiero ir al despacho/i.test(texto)) {\n  interactive = {\n    items: [\n      { title: 'Delivery', value: 'delivery' },\n      { title: 'Retiro en local', value: 'retiro' }\n    ]\n  };\n}\n\nif (/efectivo[^?]*tarjeta|tarjeta[^?]*efectivo|como.*pag|metodo.*pago|forma.*pago|vas.*pagar/i.test(texto)) {\n  interactive = {\n    items: [\n      { title: 'Efectivo', value: 'efectivo' },\n      { title: 'Tarjeta', value: 'tarjeta' }\n    ]\n  };\n}\n\nif (/extras para |extras disponibles|añadir extras|agregar extras|quieres añadir extras/i.test(texto)) {\n  interactive = {\n    items: [\n      { title: 'Añadir extras', value: 'quiero agregar extras' },\n      { title: 'Otro producto', value: 'quiero agregar otro producto' },\n      { title: 'Ir al despacho', value: 'quiero ir al despacho' }\n    ]\n  };\n}\n\n// Detectar pregunta \"continuar pedido o nuevo\"\nif (/continuar con tu pedido|hacer uno nuevo|continuar.*pedido.*nuevo|pedido.*continuar.*nuevo/i.test(texto)) {\n  interactive = {\n    items: [\n      { title: 'Continuar pedido', value: 'continuar' },\n      { title: 'Nuevo pedido', value: 'quiero hacer un pedido nuevo' }\n    ]\n  };\n}\n\nreturn [{\n  json: {\n    mensaje: texto,\n    outputOriginal: texto,\n    interactive\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6096,
+        1120
+      ],
+      "id": "9c927948-72c8-4153-9cba-0f269426e0e7",
+      "name": "Seteo respuesta"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Input Agente1').item.json.input }}",
+        "options": {
+          "systemMessage": "={{ $('Formatear Zonas').first().json.system_message }}",
+          "maxIterations": 20
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        5232,
+        832
+      ],
+      "id": "1746a2fe-fa65-4c30-8f5f-9ea33873ab62",
+      "name": "Director",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "## Envia mensajes",
+        "height": 480,
+        "width": 1700,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5744,
+        1200
+      ],
+      "typeVersion": 1,
+      "id": "dcd101bd-f4a3-4c7b-a545-369704197e08",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        6880,
+        1472
+      ],
+      "id": "2884892e-4331-4a84-897b-408922257353",
+      "name": "Wait",
+      "webhookId": "81cba418-1963-454e-a027-d04432df3a15"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=__CHATWOOT_URL__/api/v1/accounts/{{ $('Variables').first().json.account_id }}/conversations/{{ $('Variables').first().json.conversation_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $json.mensaje }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6192,
+        1488
+      ],
+      "id": "e5545b1a-e0ef-4c51-95c0-d7936e0d9f51",
+      "name": "Mensaje Chatwoot",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "responsesApiEnabled": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        5120,
+        1504
+      ],
+      "id": "555ffd52-6c8e-4ad4-aaf5-7da52737c61f",
+      "name": "OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "name": "staging OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Variables').first().json.restaurante_id + '_' + String($('Variables').first().json.conversation_id) }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        5248,
+        1504
+      ],
+      "id": "5e476046-793a-4a5f-94c8-ad6560181ddc",
+      "name": "Memory",
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Agente director",
+        "height": 560,
+        "width": 688,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5008,
+        752
+      ],
+      "typeVersion": 1,
+      "id": "3b34a843-e1ca-4714-ad42-b043c8a3b46b",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "keep": "lastItems"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        6512,
+        1568
+      ],
+      "id": "c31a22a2-0540-472a-8df5-07c795a4a16d",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "content": "## Próximos pasos:\n\n#### Tool Despacho\n#### Tool Método de Pago\n\n\n#### Según cliente modificar el tono y detalles de la conversación\n\n\n#### Onboarding y Escalabilidad\n\n\n#### Visualizar la información (a criterio)",
+        "height": 512,
+        "width": 464,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        0,
+        0
+      ],
+      "typeVersion": 1,
+      "id": "07d24700-466b-4123-8cc7-331bbf133310",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "description": "Tool para responder consultas del cliente (FAQs y menú). Úsala cuando el cliente pregunte por productos, precios, ingredientes, promociones, horarios, ubicación, retiro/despacho o cualquier duda operativa. La respuesta debe basarse solo en la información disponible del negocio. Si la pregunta es ambigua, devuelve una sola pregunta aclaratoria. Si no hay información suficiente para responder con certeza, indícalo y sugiere derivación a humano.A",
+        "workflowId": {
+          "__rl": true,
+          "value": "Hj3URuKga2VHC85i",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Hj3URuKga2VHC85i",
+          "cachedResultName": "[MVP] Preguntas"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "pregunta": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('pregunta', `Texto exacto de la consulta del cliente. Incluye el mensaje completo (sin resumir) para que el subworkflow responda FAQs/menú o haga una única pregunta aclaratoria si falta información.`, 'string') }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [
+            "pregunta"
+          ],
+          "schema": [
+            {
+              "id": "pregunta",
+              "displayName": "pregunta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5376,
+        1504
+      ],
+      "id": "c2eb3546-474e-4497-9208-548d6fc5773e",
+      "name": "Preguntas"
+    },
+    {
+      "parameters": {
+        "description": "Deriva la conversación a un humano cuando el cliente lo pide, está confundido/molesto, o la consulta/pedido es riesgoso de resolver automático (posible mala experiencia).\nUsar esta tool para pausar la automatización y dejar contexto claro al operador.\nInputs: problema = motivo + resumen + último mensaje del cliente; telefono/conversation_id/contact_id para ubicar el chat.",
+        "workflowId": {
+          "__rl": true,
+          "value": "07nvtRBmnGVkoS4G",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/07nvtRBmnGVkoS4G",
+          "cachedResultName": "[MVP] Derivar Humano"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "problema": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('problema', `Motivo de derivación + resumen breve del contexto + último mensaje del cliente (copiado tal cual).`, 'string') }}",
+            "telefono": "={{ $('Variables').first().json.telefono }}",
+            "conversation_id": "={{ $('Variables').first().json.conversation_id }}",
+            "account_id": "={{ $('Variables').first().json.account_id }}",
+            "contact_id": "={{ $('Variables').first().json.contact_id }}",
+            "contexto_actual": "={{ $('Obtener registros').first().json.contexto }}",
+            "tipo_escalacion": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('tipo_escalacion', `Tipo de escalación: 'derivacion_cliente' si el cliente pidió hablar con humano, 'ventana_expirada' si el pedido ya no se puede modificar, 'pedido_en_preparacion' si el pedido ya está siendo preparado.`, 'string') }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "problema",
+              "displayName": "problema",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "account_id",
+              "displayName": "account_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "contact_id",
+              "displayName": "contact_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "contexto_actual",
+              "displayName": "contexto_actual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tipo_escalacion",
+              "displayName": "tipo_escalacion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5504,
+        1504
+      ],
+      "id": "f7446949-6c1d-4cb3-89bf-a130ce37bdc9",
+      "name": "Derivar Humano"
+    },
+    {
+      "parameters": {
+        "content": "## Tools generales",
+        "height": 336,
+        "width": 688,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        5008,
+        1344
+      ],
+      "typeVersion": 1,
+      "id": "609d0929-a713-4799-86fe-d7c25a0a9181",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "x79s9xuF5q9iayoc",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/x79s9xuF5q9iayoc",
+          "cachedResultName": "[MVP] Contexto"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Contexto Actual": "={{ $('Obtener registros').first().json.contexto || 'sin datos' }}",
+            "Mensaje del Cliente": "={{ $('Input Agente1').first().json.input }}",
+            "Respuesta del Agente": "={{ $('Seteo respuesta').first().json.outputOriginal }}",
+            "Telefono": "={{ $('Validacion').first().json.telefono }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Contexto Actual",
+              "displayName": "Contexto Actual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "Mensaje del Cliente",
+              "displayName": "Mensaje del Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "Respuesta del Agente",
+              "displayName": "Respuesta del Agente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "Telefono",
+              "displayName": "Telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        6592,
+        1296
+      ],
+      "id": "3706f543-a642-4be0-8dc4-11bd72426f72",
+      "name": "Crear Contexto",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "description": "Úsala cuando el cliente indique el tipo de entrega (delivery o retiro) O una dirección de entrega. Esta tool valida la zona de cobertura, calcula el costo de envío y actualiza tipo_despacho en el pedido. SIEMPRE llama esta tool cuando el cliente mencione 'delivery', 'retiro', una dirección postal o una zona de entrega. NO uses Perfil Cliente para esto.",
+        "workflowId": {
+          "__rl": true,
+          "value": "ITdtFT0IVMVfQG4L",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/ITdtFT0IVMVfQG4L",
+          "cachedResultName": "[MVP] Despacho"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "direccion_texto": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('direccion_texto', `Dirección de entrega en texto. Para retiro: el local donde quiere recoger si el cliente lo dijo (nombre o calle, p. ej. «Siempre Juntos 1» o «el de Carlos V»); si no lo dijo, cadena vacía.`, 'string') }}",
+            "codigo_postal": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('codigo_postal', `Código postal de la dirección de entrega. Extráelo del texto libre si contiene un número de 5 dígitos (ej: de \"Calle Mayor 12, 35500\" extrae \"35500\"). Si no hay CP en la dirección, envía cadena vacía.`, 'string') }}",
+            "telefono": "={{ $('Variables').item.json.telefono }}",
+            "session_id": "={{ $('Session Manager').item.json.session_id }}",
+            "pedido_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('pedido_id', `ID numérico del pedido (campo pedido_id devuelto por Apertura u otra tool). NUNCA uses pedido_codigo (ej: 260430-1007) aquí — usa solo el id numérico. Si no lo tienes todavía, envía cadena vacía. Nunca envíes null. No inventes este valor.`, 'string') }}",
+            "tipo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('tipo', `Tipo de despacho: delivery o retiro. Usa exactamente uno de esos dos valores.`, 'string') }}",
+            "lat": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('lat', 'Latitud si el cliente envió un pin de ubicación por WhatsApp. Si NO hay pin, envía cadena vacía \\'\\'. NUNCA envíes null.', 'string') }}",
+            "lng": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('lng', 'Longitud si el cliente envió un pin de ubicación por WhatsApp. Si NO hay pin, envía cadena vacía \\'\\'. NUNCA envíes null.', 'string') }}",
+            "zona_confirmada_por_cliente": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('zona_confirmada_por_cliente', 'true si el cliente dijo explícitamente una de las zonas de reparto del restaurante O si la dirección contiene un código postal de 5 dígitos (ej: 35500) — en ambos casos el sistema resuelve la zona automáticamente. false solo si la dirección no tiene zona ni CP válido. NUNCA pongas false cuando ya tienes zona o CP en la dirección.', 'string') }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "direccion_texto",
+              "displayName": "direccion_texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "codigo_postal",
+              "displayName": "codigo_postal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "lat",
+              "displayName": "lat",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "lng",
+              "displayName": "lng",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "pedido_id",
+              "displayName": "pedido_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "zona_confirmada_por_cliente",
+              "displayName": "zona_confirmada_por_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5776,
+        928
+      ],
+      "id": "6726e1b4-aca7-461e-98fc-6ad5698d9218",
+      "name": "Despacho"
+    },
+    {
+      "parameters": {
+        "description": "Úsala cuando el cliente quiere AGREGAR, QUITAR o MODIFICAR ítems del pedido (ejemplo: 'quiero una pizza margarita', 'quita la bebida', 'agrega extra queso'). NO la uses para preguntas sobre la carta, precios ni horarios — para eso usa Preguntas.",
+        "workflowId": {
+          "__rl": true,
+          "value": "GXPueVJ0gJMzQz4g",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/GXPueVJ0gJMzQz4g",
+          "cachedResultName": "[MVP] Apertura"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "accion": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('accion', `\"accion\" siempre debe ser: \"agregar\" | \"quitar\" | \"modificar\" | \"consultar\"`, 'string') }}",
+            "items": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('items', `Array de productos. Cada objeto: {\"nombre\": string, \"cantidad\": number, \"notas\": string | null}. REGLAS: 1) envía UN objeto por producto; 2) no combines dos productos en un mismo nombre; 3) conserva tamaño/variante dentro del nombre; 4) para agregar/quitar/modificar usa nombre+cantidad; 5) para consultar envía SIEMPRE [{\"nombre\":\"consulta\",\"cantidad\":0}]; 6) usa \"notas\" SOLO cuando el cliente haya expresado una preferencia sobre ese ítem específico (ej: \"sin queso\", \"término medio\", \"sin cebolla\"). Las notas las verá el equipo del restaurante y no modifican precio. Si el cliente no expresó preferencia, omite el campo o usa null. Ejemplo: [{\"nombre\":\"Pizza Peperoni mediana\",\"cantidad\":1,\"notas\":\"sin queso\"},{\"nombre\":\"Hamburguesa Pollo Crispy\",\"cantidad\":1,\"notas\":null}]`, 'json') }}",
+            "pedido_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('pedido_id', `Usa el pedido_id exacto devuelto por Pedidos Cliente o por una tool previa si ya existe un pedido en curso. Si todavía no existe pedido_id o es un pedido nuevo, envía cadena vacía. Nunca envíes null. No inventes este valor.`, 'string') }}",
+            "telefono": "={{ $('Variables').item.json.telefono }}",
+            "session_id": "={{ $('Session Manager').item.json.session_id }}",
+            "usuario_id": "={{ $('Asegurar Usuario Maestro').first().json.id }}",
+            "forzar_pedido_nuevo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('forzar_pedido_nuevo', `Usa \"true\" solo si el cliente pidió explícitamente un pedido separado, otro pedido o un pedido nuevo. En cualquier otro caso usa \"false\".`, 'string') }}",
+            "conversation_id": "={{ $('Variables').item.json.conversation_id }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "accion",
+              "displayName": "accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "items",
+              "displayName": "items",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "pedido_id",
+              "displayName": "pedido_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "usuario_id",
+              "displayName": "usuario_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "forzar_pedido_nuevo",
+              "displayName": "forzar_pedido_nuevo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5104,
+        1104
+      ],
+      "id": "027d9964-7b54-4bc3-8828-608a3c12184d",
+      "name": "Apertura"
+    },
+    {
+      "parameters": {
+        "description": "Úsala cuando el cliente especifica el método de pago (efectivo, tarjeta, bizum). Solo llamar después de que Despacho haya definido el tipo de entrega (delivery o retiro).",
+        "workflowId": {
+          "__rl": true,
+          "value": "GwYCQg08T7Cq5lqe",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/GwYCQg08T7Cq5lqe",
+          "cachedResultName": "[MVP] Pago"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "telefono": "={{ $('Variables').item.json.telefono }}",
+            "session_id": "={{ $('Session Manager').item.json.session_id }}",
+            "metodo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('metodo', `Método de pago elegido por el cliente: efectivo, tarjeta, bizum u online.`, 'string') }}",
+            "pedido_id": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('pedido_id', `ID numérico del pedido activo. Usa el pedido_id exacto devuelto por Apertura o Despacho en este turno. Si no lo tienes, omite este campo o envía 0.`, 'number') }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "metodo",
+              "displayName": "metodo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "pedido_id",
+              "displayName": "pedido_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5264,
+        1120
+      ],
+      "id": "992b4bdc-35b5-4aa4-ad51-5a427d837659",
+      "name": "Pago"
+    },
+    {
+      "parameters": {
+        "jsCode": "const contextoActual = $json.contexto || '';\nconst sessionIdDb = $json.session_id || null;\nconst sessionStartedDb = $json.session_started_at || null;\nconst SESSION_TIMEOUT_MINUTES = 30;\n\nfunction generarUUID() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\nlet sessionId = sessionIdDb;\nlet sessionStarted = sessionStartedDb ? new Date(sessionStartedDb) : null;\n\nif (!sessionId) {\n  const match = contextoActual.match(/SESSION_ID:\\s*([a-f0-9-]+)/i);\n  if (match) sessionId = match[1];\n}\nif (!sessionStarted) {\n  const match = contextoActual.match(/SESSION_STARTED:\\s*([0-9T:\\-\\.Z]+)/i);\n  if (match) {\n    const parsed = new Date(match[1].trim());\n    if (!isNaN(parsed.getTime())) sessionStarted = parsed;\n  }\n}\n\nconst ahora = new Date();\nlet nuevaSesion = false;\nlet razonNuevaSesion = 'activa';\n\nif (!sessionId || !sessionStarted || isNaN(sessionStarted.getTime())) {\n  nuevaSesion = true;\n  razonNuevaSesion = !sessionId ? 'primera_vez' : 'sin_timestamp';\n} else {\n  const minutosPasados = (ahora - sessionStarted) / 1000 / 60;\n  if (minutosPasados > SESSION_TIMEOUT_MINUTES) {\n    nuevaSesion = true;\n    razonNuevaSesion = 'timeout';\n  }\n}\n\nif (nuevaSesion) {\n  sessionId = generarUUID();\n  sessionStarted = ahora;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    session_id: sessionId,\n    session_started_at: sessionStarted.toISOString(),\n    session_is_new: nuevaSesion,\n    session_razon: razonNuevaSesion,\n    session_timeout_minutes: SESSION_TIMEOUT_MINUTES,\n    session_timestamp_now: ahora.toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3568,
+        960
+      ],
+      "id": "b3a3f5df-24ec-49fb-967b-a3ca63db311d",
+      "name": "Session Manager"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "restaurante",
+          "mode": "list",
+          "cachedResultName": "restaurante"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "id",
+              "value": "={{ $('Variables').first().json.restaurante_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4160,
+        944
+      ],
+      "id": "98b23db3-7ffe-49d2-8549-81b26b1841e2",
+      "name": "Obtener Config Restaurante",
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.usuarios(restaurante_id, telefono, created_at, updated_at)\nVALUES ({{ $('Variables').first().json.restaurante_id }}, '{{ $('Variables').first().json.telefono }}', NOW(), NOW())\nON CONFLICT (restaurante_id, telefono) DO UPDATE SET updated_at = NOW()\nRETURNING id, telefono, nombre, direccion_frecuente, lat_frecuente, long_frecuente",
+        "options": {}
+      },
+      "id": "71a7c9be-f313-409c-a3c4-7a4b56d15b13",
+      "name": "Asegurar Usuario Maestro",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        3760,
+        976
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Úsala SOLO para guardar o actualizar el nombre del cliente o su dirección frecuente cuando el cliente la confirme FUERA del contexto de un pedido activo. NO la uses cuando el cliente está especificando dónde quiere recibir su pedido actual — para eso usa Despacho.",
+        "workflowId": {
+          "__rl": true,
+          "value": "bWbJQPndHG56RRHn",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/bWbJQPndHG56RRHn",
+          "cachedResultName": "[MVP] Perfil Cliente"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "accion": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('accion_perfil', `Usa \"actualizar\" cuando debas guardar nombre o dirección del cliente.`, 'string') }}",
+            "telefono": "={{ $('Variables').first().json.telefono }}",
+            "nombre": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('nombre_cliente', `Nombre del cliente para dejar el pedido. Si no aplica, cadena vacía.`, 'string') }}",
+            "direccion": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('direccion_cliente', `Dirección completa del cliente para delivery. Si no aplica, cadena vacía.`, 'string') }}",
+            "tipo_despacho": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('tipo_despacho_perfil', `Tipo de despacho asociado a la actualización: retiro, delivery o domicilio.`, 'string') }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "accion",
+              "displayName": "accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "direccion",
+              "displayName": "direccion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tipo_despacho",
+              "displayName": "tipo_despacho",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5488,
+        1120
+      ],
+      "id": "68018f5f-b105-46cc-86fd-60e73ce38e1a",
+      "name": "Perfil Cliente"
+    },
+    {
+      "parameters": {
+        "description": "Resuelve pedidos del cliente por código o referencia y también permite listar los pedidos aún modificables. Úsala cuando el cliente mencione un pedido por código completo o corto (por ejemplo 260418-1001 o 1001), cuando quiera consultar un pedido específico, o cuando necesites elegir entre varios pedidos vigentes.",
+        "workflowId": {
+          "__rl": true,
+          "value": "CXSyNqVqMk3gHzSm",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/CXSyNqVqMk3gHzSm",
+          "cachedResultName": "[MVP] Pedidos Cliente"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "accion": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('accion_pedido_cliente', `Usa \"listar_modificables\" para listar pedidos vigentes, \"resolver\" para identificar un pedido que el cliente quiere CAMBIAR, y \"consultar\" para identificar o resumir un pedido por código cuando el cliente lo quiere CONSULTAR.`, 'string') }}",
+            "telefono": "={{ $('Variables').first().json.telefono }}",
+            "referencia": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('referencia_pedido', `Código o referencia del pedido que el cliente quiere consultar o modificar. Acepta formatos como 260418-1001 o 1001. Si no aplica, cadena vacía.`, 'string') }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "accion",
+              "displayName": "accion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "referencia",
+              "displayName": "referencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5568,
+        848
+      ],
+      "id": "7b047056-b4e1-485a-ac38-a23dd048a176",
+      "name": "Pedidos Cliente"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT dia, disponible, apertura_1, cierre_1, apertura_2, cierre_2\nFROM public.horarios\nWHERE restaurante_id = {{ $('Variables').first().json.restaurante_id }}\nORDER BY CASE dia\n  WHEN 'lunes' THEN 1 WHEN 'martes' THEN 2 WHEN 'miercoles' THEN 3\n  WHEN 'jueves' THEN 4 WHEN 'viernes' THEN 5 WHEN 'sabado' THEN 6\n  WHEN 'domingo' THEN 7 ELSE 8 END",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4368,
+        944
+      ],
+      "id": "f269ceca-5524-47aa-bea4-95aca32a2cb5",
+      "name": "Horarios",
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM public.n8n_chat_histories\nWHERE session_id = '{{ $('Variables').first().json.restaurante_id }}_{{ $('Variables').first().json.conversation_id }}'",
+        "options": {}
+      },
+      "id": "c41d7aec-7199-48c9-86b1-09bcf3e754a3",
+      "name": "Limpiar Historial Corrupto",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        5760,
+        176
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fe7ca62f-df99-4142-b15b-93405ff582ba",
+              "name": "respuesta",
+              "value": "Disculpa, tuve un problema técnico. Puedes repetir tu último mensaje?",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "52f85222-d3b6-48cb-ad32-a31b4599608a",
+      "name": "Respuesta Error Historial",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6368,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-interactive",
+              "leftValue": "={{ $json.interactive !== null && $json.interactive !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "64b036d9-70fb-47e2-9fec-abcab018fd7e",
+      "name": "¿Hay Botones?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        6160,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=__CHATWOOT_URL__/api/v1/accounts/{{ $('Variables').first().json.account_id }}/conversations/{{ $('Variables').first().json.conversation_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={{ $('Seteo respuesta').first().json.mensaje }}"
+            },
+            {
+              "name": "content_type",
+              "value": "input_select"
+            },
+            {
+              "name": "content_attributes",
+              "value": "={{ JSON.stringify({ items: $('Seteo respuesta').first().json.interactive.items }) }}"
+            },
+            {
+              "name": "message_type",
+              "value": "outgoing"
+            },
+            {
+              "name": "private",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "550c232e-3fd3-4bf3-95cf-221f1ba148fc",
+      "name": "Mensaje Interactivo Chatwoot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6352,
+        1248
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "passThrough"
+      },
+      "id": "8fe2b123-ab27-4525-a70b-2e621143e4ee",
+      "name": "Merge Envío",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        6848,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT zone_name, fee, min_order_amount\nFROM public.delivery_zone\nWHERE restaurante_id = {{ $('Variables').first().json.restaurante_id }}\n  AND is_active = true\nORDER BY zone_name",
+        "options": {}
+      },
+      "id": "f3c2764c-df91-45c8-b671-e0b7ffac53be",
+      "name": "Consultar Zonas DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        4288,
+        880
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const zonas = $input.all().map(i => i.json);\n\nfunction fmt(v) {\n  return '€' + Number(v||0).toFixed(2).replace('.',',');\n}\n\nconst zonaLista = zonas\n  .map((z, i) => `   ${i+1}. ${z.zone_name} (envío ${fmt(z.fee)} · mínimo ${fmt(z.min_order_amount)})`)\n  .join('\\n');\n\nconst zonaNombres = zonas.map(z => z.zone_name).join(', ');\nconst zonaNombresSlash = zonas.map(z => z.zone_name).join('/');\nconst zonaNames = zonas.map(z => z.zone_name);\n\n// Build full system message with dynamic zones\nlet sm = `=Eres el asistente virtual de {{ $('Obtener Config Restaurante').first().json.nombre || 'este restaurante' }} por WhatsApp.\n\nCONTEXTO DEL CLIENTE:\n{{ $json.contexto }}\n\nDATOS DIRECTOS DEL CLIENTE:\n- Nombre guardado: {{ $json.cliente_nombre || 'no definido' }}\n- Dirección frecuente: {{ $json.direccion_frecuente || 'no definida' }}\n\nESTADO REAL DEL ÚLTIMO PEDIDO (BASE DE DATOS — fuente de verdad):\n{{ $json.pedido_db_estado || 'sin_pedido' }}{{ $json.pedido_db_codigo ? ' — Código: ' + $json.pedido_db_codigo : '' }}\n\nESTADO DEL LOCAL:\n{{ $json.estado }}\n\nOBJETIVO:\n- ayudar al cliente con información y pedidos cuando el local está abierto\n- avanzar por fases: Apertura -> Despacho -> Pago\n- usar las tools cuando corresponda\n- responder en un solo mensaje breve, natural y claro\n\nREGLAS CRÍTICAS:\n0. AVISO LEGAL IA (UE) — OBLIGATORIO EN PRIMERA INTERACCIÓN: Cuando el CONTEXTO esté vacío o el cliente salude por primera vez en la sesión, tu respuesta DEBE comenzar con: \"Hola, soy el asistente virtual de [nombre del local] 🤖\". A partir del segundo mensaje en la misma sesión, NO vuelvas a identificarte. Esta identificación es obligatoria por normativa europea de IA.\n1. Español neutro, tuteo, texto plano.\n2. Máximo 2 frases o 1 párrafo corto. EXCEPCIÓN: si en este turno llamaste ConsultarMenu, copia el campo respuesta_agente LITERALMENTE sin resumir, sin reformatear en prosa, sin enumerar con palabras. El formato con bullets (•) y categorías en *negrita* ya está listo — solo transcríbelo tal cual.\n3. No inventes productos, precios, horarios, direcciones ni coberturas. NUNCA menciones nombres específicos de productos de memoria — ni siquiera como ejemplos. Si el cliente pide \"una bebida\", \"una pizza\" o cualquier tipo de producto sin especificar cuál, llama ConsultarMenu para esa categoría, muestra las opciones REALES y espera a que elija. Solo entonces llama Apertura.\n4. Si el cliente pregunta algo del negocio, usa Preguntas.\n4b. CONSULTA DE MENÚ — FLUJO EXCLUSIVO: Si el cliente pregunta por productos, precios, ingredientes o categorías del menú (frases como \"¿qué tienen?\", \"¿cuáles son las pizzas?\", \"muéstrame el menú\", \"¿qué hay de postre?\", \"qué opciones tienen\"), llama ConsultarMenu Y DEVUELVE SOLO EL RESULTADO. PROHIBIDO en el mismo mensaje: preguntar zona, pedir dirección, preguntar delivery/retiro, ni cualquier dato del pedido. El cliente solo está consultando, no pidiendo aún. Espera a que exprese intención de compra antes de avanzar al flujo de pedido. NUNCA respondas preguntas de menú desde memoria.\n5. Usa Apertura SOLO para acciones estándar sobre el pedido: agregar | quitar | modificar | consultar.\n6. NUNCA uses Apertura con acciones como pedido_cliente, listar_modificables, resolver, referencia_pedido ni variantes parecidas.\n7. Solo usa Despacho cuando ya haya al menos un producto en el pedido.\n8. Solo usa Pago cuando ya esté definido delivery o retiro.\n9. Si el cliente pide humano, reclama, está molesto o hay un caso sensible, usa Derivar Humano.\n10. Basa tu respuesta EXCLUSIVAMENTE en la salida de las tools llamadas en este turno. Usa el campo respuesta_agente que devuelva la tool como base de tu respuesta. Para totales, moneda, montos e ítems del pedido usa exactamente los valores que devolvió la tool. No sintetices confirmaciones ni estados del pedido a partir de turnos anteriores de la conversación.\n11. Si el pedido ya está armado, ayúdale a continuarlo sin reiniciar la conversación.\n11b. CONTINUAR PEDIDO EXISTENTE: Si el agente preguntó \"continuar con tu pedido o hacer uno nuevo\" y el cliente responde \"Continuar\", \"continuar\", \"sí\", \"si\", \"ese\" o cualquier afirmación, llama INMEDIATAMENTE Apertura con accion=consultar para cargar el estado del pedido activo y muestra el resumen de productos al cliente. NO esperes más input.\n12. Si el cliente pregunta por su pedido actual sin código, usa Apertura con acción \"consultar\".\n13. Si hay nombre guardado, saluda por nombre en próximas conversaciones.\n14. NOMBRE OBLIGATORIO: Si cliente_nombre está vacío o es \"no definido\", DEBES pedir el nombre ANTES de procesar despacho o pago. Pregunta: \"¿A nombre de quién hago el pedido?\" No llames a Despacho ni a Pago hasta recibir el nombre. Tan pronto el cliente lo dé, llama Perfil Cliente con accion=actualizar y nombre=<nombre dado>. No confirmes ni finalices el pedido sin nombre guardado.\n15. Si ya existe nombre guardado, NO vuelvas a pedirlo salvo que el cliente lo cambie explícitamente.\n16. Si el cliente entrega su nombre y estaba pendiente, usa Perfil Cliente para guardarlo.\n17. Si el pedido es delivery/domicilio y el cliente envía dirección nueva, usa Perfil Cliente para guardar direccion_frecuente.\n18. Para retiro/local/para llevar: NUNCA pidas dirección de retiro. Usa Despacho con tipo='retiro'.\n19. Para delivery/domicilio: DEBES tener dirección CON ZONA EXPLÍCITA O CÓDIGO POSTAL antes de llamar Despacho. Si hay dirección frecuente guardada, pregunta si la usa\n20. PEDIDO PAGADO — PROTECCIÓN OBLIGATORIA:\n    - Si el cliente tiene un pedido pagado/confirmado/en_preparacion y quiere AGREGAR productos:\n      * Llama a Apertura con accion=agregar (con los items que el cliente especificó, si los hay).\n      * Apertura devolverá crear_pedido_nuevo=true. Hay dos sub-casos según items_validados_pendientes:\n\n      SUB-CASO A — items_validados_pendientes tiene items (el cliente ya dijo qué quiere):\n        a) Muestra el mensaje de respuesta_agente (pide confirmación al cliente).\n        b) Si el cliente confirma: llama Apertura con forzar_pedido_nuevo=true y los items de items_validados_pendientes.\n           NUNCA uses los items del pedido pagado anterior. Solo los que el cliente pidió AHORA.\n        c) El nuevo pedido heredará tipo_despacho_heredado y metodo_pago_heredado del resultado.\n\n      SUB-CASO B — items_validados_pendientes está vacío (el cliente aún no dijo qué quiere):\n        a) Muestra el mensaje de respuesta_agente (pregunta qué quiere agregar).\n        b) Espera a que el cliente especifique los productos nuevos.\n        c) Cuando el cliente diga qué quiere, llama Apertura con forzar_pedido_nuevo=true\n           y SOLO esos items nuevos. NO copies items de pedidos anteriores.\n\n      En ambos casos: NO agregues items del pedido pagado anterior al nuevo pedido.\n\n    - Si el cliente con pedido pagado quiere QUITAR o REDUCIR productos:\n      * Llama a Apertura con accion=quitar normalmente.\n      * Apertura devolverá derivar_humano=true. Cuando eso ocurra:\n        a) Muestra el mensaje de respuesta_agente.\n        b) Llama inmediatamente a Derivar Humano para escalar el caso.\n      * NO intentes modificar el pedido pagado directamente.\n21. Usa Pedidos Cliente cuando el cliente mencione un pedido por código, use referencias como 1001 / 260418-1001 o cuando realmente necesites desambiguar entre varios pedidos.\n22. Si el cliente quiere CAMBIAR un pedido por código, usa Pedidos Cliente con acción \"resolver\".\n23. Si el cliente quiere CONSULTAR un pedido por código, usa Pedidos Cliente con acción \"consultar\".\n24. Después de que Pedidos Cliente devuelva un pedido, reutiliza ese mismo pedido_id en las siguientes llamadas a Apertura, Despacho o Pago. No lo omitas ni lo inventes.\n25. Si Pedidos Cliente devuelve varios pedidos, pregunta cuál quiere modificar usando el pedido_codigo.\n26. Para cualquier parámetro opcional de tipo string en una tool, si no tienes valor usa cadena vacía. Nunca envíes null.\n27. Si Pedidos Cliente devuelve \\`derivar_humano: true\\` en su respuesta, llama INMEDIATAMENTE a Derivar Humano — no llames a ninguna otra tool. Usa como \\`problema\\` el texto del campo \\`respuesta_agente\\` que devolvió Pedidos Cliente. Esto ocurre cuando la ventana de modificación expiró o el pedido ya está en preparación. NO inicies un pedido nuevo en ese caso, el equipo humano decidirá cómo continuar.\n28. Solo crea un pedido separado cuando el cliente lo diga de forma explícita con frases como \"pedido nuevo\", \"otro pedido\" o \"separado\". En ese caso usa Apertura con forzar_pedido_nuevo=true.\n29. No cambies tipo de despacho, dirección ni costo de envío salvo confirmación explícita del cliente.\n29. Cuando el cliente exprese intención de pedir o modificar productos con frases como \"quiero\", \"agrega\", \"añade\", \"suma\", \"quita\" o \"cambia\" + productos, usa Apertura; no uses Preguntas para eso.\n29b. VARIANTE/TAMAÑO — NUNCA PREGUNTES ANTES DE APERTURA: No preguntes por tamaño, variante ni cantidad ANTES de llamar Apertura. Llama Apertura directamente con los datos disponibles. Si el producto tiene una sola variante (\"Único\"), Apertura la selecciona automáticamente. Si Apertura necesita aclaración, devuelve la pregunta exacta — transmítela sin modificarla.\n30. Cuando uses Apertura, envía un objeto por producto. Nunca combines dos productos distintos en un mismo item. Conserva tamaño o variante dentro del nombre de cada producto.\n31. Si Apertura confirma algunos productos y deja otros pendientes, responde indicando qué se agregó y pregunta solo por lo faltante; no digas que todo falló.\n32. Si el pedido ya tiene tipo_despacho definido, no vuelvas a preguntar delivery o retiro salvo que el cliente pida cambiarlo.\n32b. DESPACHO — NO ACUMULAR SIN LLAMAR TOOL: Si el cliente ya indicó delivery/retiro en el historial visible de esta sesión y el pedido tiene al menos un producto, llama Despacho INMEDIATAMENTE con el tipo indicado — no preguntes de nuevo. NUNCA acumules zona/dirección conversacionalmente sin llamar Despacho. El historial de la sesión vale como confirmación explícita.\n33. Si el pedido ya tiene tipo_despacho='retiro', nunca pidas dirección.\n34. Si el pedido ya tiene tipo_despacho='delivery' y dirección definida, no vuelvas a pedir dirección salvo cambio explícito.\n35. Si el cliente dice \"confirmar y pagar\" y el pedido ya tiene delivery/retiro definido, usa Pago directamente.\n36. Si el cliente consulta un pedido, no lo reinicies ni cambies su estado solo por consultarlo.\n\nGUÍA OPERATIVA:\n- Productos, cantidades, quitar, modificar: Apertura.\n- Si el cliente terminó de elegir productos y aún no hay despacho definido: SIEMPRE pregunta \"¿Lo quieres para delivery o retiro en local?\" antes de cualquier otra cosa. NUNCA asumas delivery ni retiro sin confirmación explícita del cliente en este turno o uno anterior.\n- Si el pedido ya está en delivery y cambian los productos, vuelve a usar Despacho con el mismo pedido para recalcular mínimo, envío, total y tiempo antes de pasar a pago.\n- Si el cliente dice retiro: si falta nombre pídelo; si ya hay nombre, usa Despacho.\n- Si el cliente dice delivery o domicilio: si falta nombre pídelo; luego aplica Regla 67 (zona primero, dirección después); con zona + dirección confirmadas, llama Despacho.\n- Si el cliente dice efectivo, tarjeta, bizum u online: Pago.\n- Si el cliente quiere cambiar el nombre del pedido o actualizar dirección, usa Perfil Cliente.\n- Después de usar una tool, responde apoyándote en su salida y avanza solo el siguiente paso lógico.\n\nREGLA H6 — TIPO DE DESPACHO Y DIRECCIÓN: NUNCA SE PIERDEN:\n   Si el pedido activo ya tiene tipo_despacho (delivery/retiro) definido en la BD:\n   a) NUNCA preguntes \"¿delivery o retiro?\" en ningún mensaje posterior de la sesión.\n   b) Si sientes que perdiste el contexto en conversaciones largas, llama Apertura con accion=\"consultar\" PRIMERO — no preguntes al cliente.\n   c) La BD es siempre la fuente de verdad. El historial de mensajes es referencia, no autoridad.\n   Si el pedido activo ya tiene dirección de delivery guardada:\n   a) NUNCA vuelvas a pedirla salvo cambio explícito del cliente.\n   b) Ante duda, consulta con Apertura accion=\"consultar\" antes de preguntar al cliente.\n\nConsulta de menú SIN intención de compra: solo ConsultarMenu + resultado. No preguntes zona ni despacho.\nNo expliques las tools. No uses listas salvo que Preguntas o Pedidos Cliente devuelvan varias opciones.\n37. Nunca confirmes un pedido final ni digas que quedó confirmado si no acabas de usar Pago en este turno.\n38. Si el cliente dice solo \"confirmar\" o \"sí\" y todavía no indicó el método de pago, NO asumas efectivo ni ningún otro método: pregunta cómo quiere pagar.\n39. Si el pedido venía como delivery y estaba pendiente por mínimo, y luego el cliente agrega/quita/modifica productos, conserva delivery y revalida con Despacho antes de hablar de pago.\n40. Si un pedido ya está en delivery, nunca lo cambies a retiro salvo instrucción explícita del cliente.\n41. Si Despacho responde mínimo no alcanzado, no cierres el pedido ni pases a Pago; solo ayuda a agregar más productos o a cambiar a retiro si el cliente lo pide.\n42. Si el cliente quiere cancelar o anular su pedido (frases como \"cancelar\", \"anular\", \"ya no quiero el pedido\", \"no quiero nada\"), usa Derivar Humano de inmediato con un mensaje claro indicando la intención de cancelación. No intentes modificar ni eliminar el pedido directamente. El equipo lo gestionará desde el dashboard.\n43. Cuando Pago devuelva su resultado, SIEMPRE incluye el código del pedido en tu respuesta (ejemplo: \"Tu código de pedido es *260419-1005*.\"). Nunca omitas el código si Pago lo devolvió.\n44. El pedido queda confirmado automáticamente cuando el cliente elige efectivo o tarjeta. No lo des como pendiente salvo que el sistema lo indique.\n45. Si Pedidos Cliente devuelve \\`derivar_humano: true\\` (motivo: ventana_modificacion_expirada), usa Derivar Humano de inmediato. Indica al operador que el cliente quería modificar el pedido pero la ventana ya expiró e incluye el código del pedido. No intentes crear un pedido nuevo ni modificar nada.\n46. Cuando Apertura devuelva su resultado, el campo pedido_id es un número entero; ese es el valor que debes pasar a Despacho y Pago. NUNCA uses pedido_codigo (formato 260430-NNNN) donde se espera pedido_id. Si Apertura devolvió pedido_id, guárdalo y úsalo en las tools siguientes.\n47. Si el cliente expresa una preferencia o instrucción sobre un ítem específico (ej: \"sin queso\", \"bien cocido\", \"término medio\", \"sin cebolla\", \"no muy picante\", \"sin tomate\", \"sin mantequilla\"), trátala como una NOTA del ítem. Llama Apertura con acción=\"modificar\", el ítem correspondiente y el campo \"notas\" con la instrucción textual del cliente. NUNCA digas que no puedes anotar esa instrucción; siempre recíbela como nota visible para el equipo del restaurante.\n48. NUNCA digas \"agregué X\", \"añadí X\" ni \"quedó X en el pedido\" salvo que hayas llamado Apertura en ESTE turno y la tool haya devuelto ese ítem en su respuesta. Si un ítem ya estaba en el pedido desde un turno anterior, no lo reconfirmes como recién agregado. Tu respuesta debe basarse solo en lo que la tool devolvió en este turno.\n49. Cuando todos los ítems estén confirmados y aún no hayas preguntado por despacho, puedes hacer una pregunta combinada natural: \"¿Lo quieres para delivery o retiro? ¿Tienes alguna nota para el pedido?\" — solo una vez, solo si el cliente no ha expresado preferencias o notas antes.\n50. Si cualquier herramienta (Apertura, Despacho, Pago, Preguntas, Pedidos Cliente, Perfil Cliente u otra) devuelve un objeto con \\`error: true\\` y \\`tipo: \"sistema\"\\`, deriva INMEDIATAMENTE a humano usando Derivar Humano con motivo=\"error_sistema\". No reintentes la misma herramienta. No improvises ni inventes una respuesta. El mensaje al operador debe indicar brevemente qué subflujo falló y cuál era la acción que se intentaba. El mensaje al cliente debe ser: \"Ocurrió un problema técnico. Un operador te atenderá enseguida.\" \n51. Cuando el cliente pida agregar un extra del menú (jalapeños, queso extra, bacon, salsa, etc.), inclúyelo en el campo \\`nombre\\` del ítem al llamar Apertura — no en \\`notas\\`. Ejemplo: {nombre: \"Hamburguesa Pollo Crispy con extra jalapeños\", cantidad: 2, notas: null}. El campo \\`notas\\` es exclusivamente para preferencias de cocina que no son extras del menú (ej: \"término medio\", \"bien cocido\", \"sin sal\"). Si el cliente pide un extra Y tiene una nota de cocina, envía ambos: el extra en el \\`nombre\\` y la nota de cocina en \\`notas\\`.\n52. Cuando Pago devuelva datos adicionales en \\`respuesta_agente\\`, inclúyelos completos en tu respuesta tal como aparecen. No los abrevies.\n53. Si el cliente pregunta por zonas de delivery, cobertura o frases como \"¿a dónde llegáis?\", \"¿hacéis delivery aquí?\", responde sin llamar a ninguna herramienta: \"Hacemos delivery a {{ZONA_NOMBRES}}.\"\n54. Si Despacho responde con motivo=sin_direccion, NO repitas el mensaje de error al cliente. Aplica Regla 67: muestra la lista numerada de zonas con tarifas y pide al cliente que seleccione una zona. NO pidas la dirección todavía.\n55. Si en el contexto del mensaje del cliente aparece lat y lng (pin de ubicación de WhatsApp), extrae esos valores y pásalos a Despacho como lat y lng numéricos. Esto reemplaza la necesidad de que el cliente escriba la dirección a mano. Aun así confirma verbalmente la dirección resuelta.\n56. CHECKLIST OBLIGATORIO antes de llamar Despacho para delivery — verifica cada punto:\n   a) ¿El cliente dijo EXPLÍCITAMENTE una zona ({{ZONA_NOMBRES_SLASH}}) o CP de 5 dígitos en este turno o uno anterior? → zona_confirmada_por_cliente=true\n   b) Si NO dijo zona → zona_confirmada_por_cliente=false → NO llames Despacho → aplica Regla 67: muestra la lista numerada de zonas con tarifas.\n   c) direccion_texto = exactamente lo que dijo el cliente, sin modificaciones tuyas.\n   d) NUNCA añadas tú mismo una zona al campo direccion_texto. Si el cliente dijo \"Calle 14 # 21-10\", envías \"Calle 14 # 21-10\", no \"Calle 14 # 21-10, {{ZONA_EJEMPLO}}\".\n   e) Cuando pidas la dirección, usa el formato: \"Indica calle, número, piso/puerta y zona. Ejemplo: Calle Mayor 12, 3ºA, {{ZONA_EJEMPLO}}.\"\n57a. Si Despacho responde con motivo=ubicacion_necesaria, pide al cliente que comparta su ubicación por WhatsApp (📎 → Ubicación) y vuelve a llamar Despacho con lat y lng; no le pidas la zona. Si responde motivo=elegir_local, pregunta en qué local recoge usando la lista que devuelve y llama Despacho con tipo=retiro y direccion_texto=<local elegido>. Si responde motivo=local_cerrado, explica que el local está cerrado y no tomes el pedido.\n57. Si Despacho responde con motivo=zona_no_identificada, NO digas que no llegas a esa dirección. Muestra la lista numerada de la Regla 67 con todas las zonas y tarifas, e indica que el cliente debe seleccionar una. Luego llama Despacho con zona_confirmada_por_cliente=true y direccion_texto = \"<dirección previa>, <zona seleccionada>\".\n58. Cuando el cliente indique la zona para una dirección ya dada (frases como \"en {{ZONA_EJEMPLO}}\" o \"esa dirección es en {{ZONA_EJEMPLO}}\"; zonas: {{ZONA_NOMBRES}}), DEBES llamar Despacho de inmediato con direccion_texto = <dirección previa> + \", \" + <zona indicada>. Ejemplo: direccion_texto=\"Calle 14 # 21-10, {{ZONA_EJEMPLO}}\". NUNCA respondas sin llamar Despacho cuando el cliente acaba de dar zona o CP para una dirección existente.\n59. El campo zona_confirmada_por_cliente del tool Despacho es CRÍTICO:\n   - true: el cliente mencionó explícitamente una de estas zonas en esta conversación: {{ZONA_NOMBRES}}.\n   - false: no mencionó ninguna zona → Despacho bloqueará la búsqueda por zona → devolverá zona_no_identificada.\n   NO inviertas este valor. Si tienes dudas, usa false y pide la zona al cliente.\n60. PEDIDO VIGENTE — CUÁNDO OFRECER CONTINUAR:\n   Usa el campo ESTADO REAL DEL ÚLTIMO PEDIDO (BASE DE DATOS) indicado arriba — es la fuente de verdad, más fiable que el CONTEXTO.\n   SOLO puedes preguntar \"¿Quieres continuar con tu pedido [código] o hacer uno nuevo?\" cuando se cumplan LAS TRES condiciones:\n     a) ESTADO REAL es exactamente \"confirmado\" — ningún otro valor activa esta regla\n     b) El cliente expresa intención de pedir en este turno sin referenciar el pedido por código\n     c) No has llamado Apertura ya en esta sesión sobre ese pedido\n   Si el cliente dice continuar → llama Apertura con forzar_pedido_nuevo=false INMEDIATAMENTE como primer paso.\n   Si el cliente dice nuevo → llama Apertura con forzar_pedido_nuevo=true.\n   IMPORTANTE: después de que el cliente diga \"continuar\", NO preguntes por despacho, notas ni nada — llama Apertura primero y basa tu respuesta en lo que devuelva.\n61. ESTADO REAL DEL PEDIDO — COMPORTAMIENTO OBLIGATORIO POR VALOR:\n   SIEMPRE prioriza el campo ESTADO REAL sobre el texto PEDIDO_ACTUAL del CONTEXTO cuando haya discrepancia. El contexto puede estar desactualizado; la BD no.\n   - \"expirado\": TERMINANTEMENTE PROHIBIDO mencionar ese pedido, preguntar si quiere continuarlo ni referenciarlo de ninguna forma. Trata al cliente exactamente como si ESTADO REAL fuera \"sin_pedido\". Saluda con normalidad.\n   - \"en_curso\": NO preguntes si quiere continuar. Apertura consultará la BD y decidirá. Saluda con normalidad. Si pide algo, llama Apertura con forzar_pedido_nuevo=false.\n   - \"sin_pedido\": saluda con normalidad, espera intención. Llama Apertura con forzar_pedido_nuevo=false cuando el cliente pida algo.\n   - \"entregado\": trata como \"sin_pedido\". Si quiere pedir, Apertura con forzar_pedido_nuevo=true.\n   - \"confirmado\": ver regla 60.\n   - \"cancelado\": trata como \"sin_pedido\".\n   EJEMPLO CORRECTO — ESTADO REAL: expirado, cliente dice \"Hola\":\n     Respuesta: \"¡Hola César! ¿Qué te apetece hoy?\" ✓\n   EJEMPLO INCORRECTO — misma situación:\n     Respuesta: \"Hola César, ¿quieres continuar con tu pedido 260512-1002 o hacer uno nuevo?\" ✗\n62. VALIDACIÓN OBLIGATORIA AL CONTINUAR UN PEDIDO: Cuando el cliente responda que quiere continuar (dice \"sí\", \"continuar\", \"ese mismo\", \"ese pedido\"), tu PRIMER paso OBLIGATORIO es llamar Apertura con forzar_pedido_nuevo=false. NUNCA preguntes por despacho, notas, método de pago ni nada relacionado con el pedido hasta que Apertura responda en este turno. Si Apertura devuelve que el pedido expiró, fue cancelado o no es reutilizable, informa al cliente: \"Tu pedido anterior ya no está disponible. ¿Empezamos uno nuevo?\" y llama Apertura con forzar_pedido_nuevo=true.\n63. NUNCA escribas una invocación de herramienta como texto plano en tu respuesta (ej: 'Calling Apertura with input: {...}'). Las herramientas se invocan exclusivamente por function calling. Tu respuesta al cliente siempre debe ser lenguaje natural en español.\n64. PEDIDO EN CURSO CON ITEMS PREVIOS — OBLIGATORIO INFORMAR:\n   Cuando ESTADO REAL sea \"en_curso\" y el cliente pida agregar productos:\n   a) Llama PRIMERO Apertura con accion=\"consultar\" para obtener los items actuales del pedido.\n   b) En tu respuesta, muestra los items que ya tiene el pedido y los nuevos que el cliente acaba de pedir. Ejemplo: \"Tenías en curso: 2x Hamburguesa Clásica. ¿Agrego las 3 pizzas a este pedido o prefieres empezar uno nuevo?\"\n   c) Si el cliente dice continuar: llama Apertura con forzar_pedido_nuevo=false y los nuevos items.\n   d) Si el cliente dice nuevo: llama Apertura con forzar_pedido_nuevo=true y los nuevos items.\n   EXCEPCIÓN: si en este turno ya llamaste Apertura con accion=\"consultar\" y el cliente ya confirmó que quiere continuar, procede directamente a agregar sin volver a mostrar los items.\n65. CONTEO DE TAMAÑOS OBLIGATORIO:\n   Si el cliente pide N unidades de un producto que requiere elegir tamaño (pizza, hamburguesa, etc.) y en su respuesta solo especifica M tamaños con M < N, NO llames Apertura aún. Responde preguntando por el/los tamaños faltantes: \"Pediste N pizzas peperoni. Indicaste mediana y familiar, ¿qué tamaño quieres para la tercera?\" Solo llama Apertura cuando tengas un tamaño por cada unidad pedida.\n66. BOTONES DE RESPUESTA RÁPIDA — COMANDOS DIRECTOS:\n   Si el mensaje del cliente coincide exactamente con una de estas etiquetas de botón (\"Retiro en local\", \"Delivery\", \"Efectivo\", \"Tarjeta\", \"Sí\", \"No\"), trátalo como instrucción directa sin pedir confirmación.\n   - \"Retiro en local\" → llama Despacho con tipo='retiro' inmediatamente (no preguntes \"¿confirmas?\").\n   - \"Delivery\" → aplica regla 67.\n   - \"Efectivo\" / \"Tarjeta\" → llama Pago con el método correspondiente inmediatamente.\n   - \"Sí\" en contexto de confirmación → ejecuta la acción pendiente sin volver a pedir confirmación.\n67. ZONA DELIVERY — FLUJO OBLIGATORIO (PRIORIDAD MÁXIMA, sobreescribe Reglas 54, 56, 57 y GUÍA OPERATIVA para delivery):\n   PASO 1 — Zona primero: cuando el cliente dice \"delivery\" o activa la opción delivery Y no ha indicado zona explícita en ESTE turno, responde ÚNICAMENTE con:\n   \"¿A qué zona quieres el delivery?\n{{ZONA_LISTA}}\n   Escribe el nombre o el número de tu zona.\"\n   NO pidas dirección todavía. NO llames Despacho todavía.\n\n   PASO 2 — Dirección: cuando el cliente responda con zona (nombre o número), confirma la zona y pregunta: \"Perfecto, ¿cuál es tu dirección exacta? Indica calle, número y piso/puerta.\"\n\n   PASO 3 — Llamar Despacho: con zona + dirección confirmadas, llama Despacho con:\n   - zona_confirmada_por_cliente=true\n   - direccion_texto = \"<dirección exacta>, <zona>\" (OBLIGATORIO incluir siempre la zona al final de la dirección, ej: \"Calle 40 #10-15, {{ZONA_EJEMPLO}}\")\n   NUNCA llames Despacho sin incluir la zona en direccion_texto, aunque el cliente ya la haya indicado antes.\n\n   EXCEPCIÓN A: si el cliente YA incluyó zona reconocible en su mensaje (ej: \"Calle 14, {{ZONA_EJEMPLO}}\" o solo \"{{ZONA_EJEMPLO}}\") → sáltate Paso 1, confirma zona y ejecuta Paso 2 o 3 según corresponda.\n   EXCEPCIÓN B: si el cliente confirmó zona en turno anterior en esta sesión → sáltate Pasos 1 y 2, llama Despacho directamente.\n   EXCEPCIÓN C: si hay dirección frecuente guardada que ya contiene zona → pregunta si usa esa dirección; si sí, llama Despacho directamente.\n   EXCEPCIÓN D: si el cliente envió su ubicación de WhatsApp (pin con lat/lng) → no pidas zona ni dirección escrita: llama Despacho directamente con lat y lng (Despacho elige la zona y el local).\n68. NUNCA ASUMIR TIPO DE DESPACHO — OBLIGATORIO:\n   Si el cliente no ha dicho explícitamente \"delivery\", \"retiro\", \"domicilio\", \"para llevar\" o equivalente en esta sesión, y el tipo_despacho del pedido activo no está definido, DEBES preguntar antes de seguir:\n   \"¿Lo quieres para delivery o retiro en local?\"\n   Esta pregunta SIEMPRE activa los botones interactivos del sistema. NO la omitas ni asumas. NO la fusiones con otra pregunta. Envíala como mensaje independiente si el pedido ya tiene productos pero no tiene tipo de despacho definido.\n69. FLUJO POST-AGREGADO — OBLIGATORIO:\n   Inmediatamente después de que Apertura confirme que un producto fue agregado exitosamente, tu mensaje DEBE:\n   a) Confirmar qué se agregó y el subtotal actual.\n   b) Preguntar: \"¿Querés agregar algo más o pasamos al despacho?\" — esta frase activa los botones [Agregar más] [Ir al despacho].\n   c) NUNCA preguntes delivery/retiro en este mismo mensaje. Primero el cliente decide si sigue comprando.\n   EXCEPCIÓN: si el pedido ya tiene tipo_despacho definido, omitís la pregunta de despacho y solo preguntás si quiere agregar algo más o ir al pago.\n70. BOTÓN \"AGREGAR MÁS\" — FLUJO OBLIGATORIO:\n   Cuando el cliente dice \"Agregar más\", \"quiero agregar más productos\" o equivalente:\n   a) USA los datos de la última respuesta de Apertura: el campo \"categorias_menu\" tiene las categorías disponibles, y el campo \"extras_sugeridos\" o \"botones\" tiene extras del último producto — NO llames ConsultarMenu en este turno.\n   b) Muestra las categorías del menú disponibles (de categorias_menu) para que el cliente elija qué quiere agregar.\n   c) Si había extras_sugeridos en la última respuesta de Apertura, mencionarlos también.\n   d) Espera a que el cliente diga qué quiere — NO llames Apertura ni Despacho en este turno.\n   e) Si no tienes datos de categorias_menu, pregunta directamente \"¿Qué más quieres agregar?\" (no nombres productos de memoria)\n71. BOTÓN \"IR AL DESPACHO\" — FLUJO OBLIGATORIO:\n   Cuando el cliente dice \"Ir al despacho\" o \"quiero ir al despacho\":\n   a) Si el pedido NO tiene tipo_despacho: pregunta \"¿Lo quieres para delivery o retiro en local?\" — activa botones [Delivery] [Retiro en local].\n   b) Si el pedido YA tiene tipo_despacho: procede con Despacho o Pago según el estado.\n   NO vuelvas a mostrar [Agregar más] [Ir al despacho] en este punto.\n72. VARIANTES — NUNCA PREGUNTES ANTES DE LLAMAR APERTURA:\n   NUNCA preguntes al cliente por tamaño, variante o sabor antes de llamar Apertura.\n   Llama Apertura con el nombre del producto exactamente como lo dijo el cliente.\n   Apertura se encarga de detectar la variante, auto-seleccionar si hay solo una, y pedir aclaración si hay múltiples opciones.`;\n// Ejemplo de zona para el prompt: la primera zona del restaurante, sin la parte entre paréntesis.\nconst zonaEjemplo = (zonaNames[0] || 'tu zona').replace(/\\s*\\(.*\\)\\s*$/, '');\nsm = sm.replaceAll('{{ZONA_LISTA}}', zonaLista || '   (este restaurante no tiene zonas de reparto)');\nsm = sm.replaceAll('{{ZONA_NOMBRES}}', zonaNombres || 'sin zonas configuradas');\nsm = sm.replaceAll('{{ZONA_NOMBRES_SLASH}}', zonaNombresSlash || 'sin zonas configuradas');\nsm = sm.replaceAll('{{ZONA_EJEMPLO}}', zonaEjemplo);\n\nreturn [{\n  json: {\n    zonaLista,\n    zonaNombres,\n    zonaNombresSlash,\n    zonaNames,\n    system_message: sm\n  }\n}];"
+      },
+      "id": "babb05fe-901b-404a-a3de-194085f157e5",
+      "name": "Formatear Zonas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4432,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "description": "Tool para listar productos del menú desde la base de datos. Úsala cuando el cliente pregunte '¿qué tienen de X?', '¿cuáles son las pizzas?', '¿qué hay en la categoría Y?', 'muéstrame el menú', 'qué tienen disponible', etc. Devuelve la lista real y actualizada de productos con variantes y precios. Si el cliente no especifica categoría, devuelve el menú completo. NUNCA respondas preguntas de menú desde tu memoria — usa siempre esta tool.",
+        "workflowId": {
+          "__rl": true,
+          "value": "0YnaRqq5dGuuQ9tw",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/0YnaRqq5dGuuQ9tw",
+          "cachedResultName": "[MVP] ConsultarMenu"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "categoria": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('categoria', `Nombre de la categoría que el cliente quiere consultar. Si no especificó categoría, enviar cadena vacía ''.`, 'string') }}",
+            "restaurante_id": "={{ $('Variables').item.json.restaurante_id }}"
+          },
+          "matchingColumns": [
+            "categoria"
+          ],
+          "schema": [
+            {
+              "id": "categoria",
+              "displayName": "categoria",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "restaurante_id",
+              "displayName": "restaurante_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            }
+          ]
+        }
+      },
+      "id": "31be968c-2211-44e0-99c9-882d37dbd105",
+      "name": "ConsultarMenu",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        5584,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalaciones\n  (restaurante_id, telefono, problema, contexto, conversation_id, account_id, contact_id, tipo_escalacion, estado)\nVALUES (\n  {{ $('Variables').first().json.restaurante_id }},\n  '{{ $('Variables').first().json.telefono }}',\n  'Error técnico del sistema — historial de chat corrupto (tool_calls sin respuesta)',\n  '{\"tipo\": \"error_sistema\"}'::jsonb,\n  '{{ $('Variables').first().json.conversation_id }}',\n  '{{ $('Variables').first().json.account_id }}',\n  '{{ $('Variables').first().json.contact_id }}',\n  'error_sistema',\n  'pendiente'\n)\nON CONFLICT DO NOTHING",
+        "options": {}
+      },
+      "id": "980192d1-1fd0-426f-a9e6-1bc7e27e967b",
+      "name": "Registrar Escalacion Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        5984,
+        176
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Elimina tool messages que quedaron huerfanos al inicio de la ventana.\n-- Un tool message es huerfano si no tiene ANTES un assistant CON tool_calls\n-- dentro de la misma ventana de contexto.\n-- Cobre ambos formatos de n8n: additional_kwargs.tool_calls y tool_calls directo.\nWITH ordered AS (\n  SELECT id,\n         message,\n         message->>'role'                              AS role,\n         ROW_NUMBER() OVER (ORDER BY id)               AS rn\n  FROM   public.n8n_chat_histories\n  WHERE  session_id = '{{ $('Variables').first().json.restaurante_id }}_{{ $('Variables').first().json.conversation_id }}'\n),\ntotal AS (SELECT COUNT(*) AS cnt FROM ordered),\nin_window AS (\n  SELECT o.id, o.role, o.rn, o.message\n  FROM   ordered o, total t\n  WHERE  o.rn >= GREATEST(1, t.cnt - 19)\n),\nbad_tool_ids AS (\n  SELECT t.id\n  FROM   in_window t\n  WHERE  t.role = 'tool'\n    AND  NOT EXISTS (\n           SELECT 1\n           FROM   in_window a\n           WHERE  a.role = 'assistant'\n             AND  a.rn < t.rn\n             AND  (\n                    -- formato 1: additional_kwargs.tool_calls (n8n LangChain clásico)\n                    (    a.message->'additional_kwargs' ? 'tool_calls'\n                     AND jsonb_array_length(a.message->'additional_kwargs'->'tool_calls') > 0\n                    )\n                    OR\n                    -- formato 2: tool_calls en raíz del mensaje\n                    (    a.message ? 'tool_calls'\n                     AND jsonb_typeof(a.message->'tool_calls') = 'array'\n                     AND jsonb_array_length(a.message->'tool_calls') > 0\n                    )\n                  )\n         )\n)\nDELETE FROM public.n8n_chat_histories\nWHERE  id IN (SELECT id FROM bad_tool_ids)",
+        "options": {}
+      },
+      "id": "5e551076-cfc3-4ed3-adf3-596622bc9737",
+      "name": "Sanitizar Historial",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        5024,
+        832
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "solo-mensajes",
+              "leftValue": "={{ String($json.body.event || '') }}",
+              "rightValue": "message_created",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "solo-entrantes",
+              "leftValue": "={{ String($json.body.message_type || '') }}",
+              "rightValue": "incoming",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "sin-notas",
+              "leftValue": "={{ String($json.body.private === true) }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "director-solo-entrantes",
+      "name": "¿Mensaje del cliente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        184,
+        1024
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Ubicación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Descargar Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Descargar Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI1": {
+      "main": [
+        [
+          {
+            "node": "Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ubicación": {
+      "main": [
+        [
+          {
+            "node": "Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis2": {
+      "main": [
+        [
+          {
+            "node": "Input Agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch2": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait7": {
+      "main": [
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar Imagen": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar Audio": {
+      "main": [
+        [
+          {
+            "node": "OpenAI1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bot": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "¿Mensaje del cliente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto": {
+      "main": [
+        [
+          {
+            "node": "Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variables": {
+      "main": [
+        [
+          {
+            "node": "Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Agente": {
+      "main": [
+        [
+          {
+            "node": "Obtener registros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "Switch2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener registros": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Preparar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nuevo usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nuevo usuario": {
+      "main": [
+        [
+          {
+            "node": "Sin contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sin contexto": {
+      "main": [
+        [
+          {
+            "node": "Session Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar contexto": {
+      "main": [
+        [
+          {
+            "node": "Session Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Agente1": {
+      "main": [
+        [
+          {
+            "node": "Obtener Config Restaurante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validacion": {
+      "main": [
+        [
+          {
+            "node": "Disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disponible": {
+      "main": [
+        [
+          {
+            "node": "Sanitizar Historial",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agente Cerrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente Cerrado": {
+      "main": [
+        [
+          {
+            "node": "Seteo respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Director": {
+      "main": [
+        [
+          {
+            "node": "Seteo respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Limpiar Historial Corrupto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente Cerrado",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Director",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente Cerrado",
+            "type": "ai_memory",
+            "index": 0
+          },
+          {
+            "node": "Director",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preguntas": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Cerrado",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Derivar Humano": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente Cerrado",
+            "type": "ai_tool",
+            "index": 0
+          },
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Despacho": {
+      "ai_tool": [
+        [
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apertura": {
+      "ai_tool": [
+        [
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pago": {
+      "ai_tool": [
+        [
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Session Manager": {
+      "main": [
+        [
+          {
+            "node": "Asegurar Usuario Maestro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Config Restaurante": {
+      "main": [
+        [
+          {
+            "node": "Consultar Zonas DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asegurar Usuario Maestro": {
+      "main": [
+        [
+          {
+            "node": "Consultar Pedido Activo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Pedido Activo": {
+      "main": [
+        [
+          {
+            "node": "Input Agente1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perfil Cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedidos Cliente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Horarios": {
+      "main": [
+        [
+          {
+            "node": "Validacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar Historial Corrupto": {
+      "main": [
+        [
+          {
+            "node": "Registrar Escalacion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Error Historial": {
+      "main": [
+        [
+          {
+            "node": "Seteo respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seteo respuesta": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Botones?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Botones?": {
+      "main": [
+        [
+          {
+            "node": "Mensaje Interactivo Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mensaje Chatwoot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensaje Interactivo Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Crear Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensaje Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "Crear Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Zonas DB": {
+      "main": [
+        [
+          {
+            "node": "Formatear Zonas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Zonas": {
+      "main": [
+        [
+          {
+            "node": "Horarios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ConsultarMenu": {
+      "ai_tool": [
+        [
+          {
+            "node": "Director",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Escalacion Error": {
+      "main": [
+        [
+          {
+            "node": "Respuesta Error Historial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitizar Historial": {
+      "main": [
+        [
+          {
+            "node": "Director",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Mensaje del cliente?": {
+      "main": [
+        [
+          {
+            "node": "Variables",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "da947834-6adf-47c0-8eaf-43b6276b64ec",
+  "meta": {
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "RkF1ucfc9M9m2JCY",
+  "tags": []
+}

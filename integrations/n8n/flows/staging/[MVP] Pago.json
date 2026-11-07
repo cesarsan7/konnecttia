@@ -1,0 +1,405 @@
+{
+  "name": "[MVP] Pago",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\"metodo\": \"transferencia\", \"telefono\": \"+56912345678\", \"session_id\": \"abc-123-def-456\", \"pedido_id\": 58, \"restaurante_id\": 1}"
+      },
+      "id": "25d470a4-c40a-4dd6-996f-4b22f46d5fbe",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -976,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM public.fn_select_pedido_reutilizable(\n  '{{ $('When Executed by Another Workflow').first().json.telefono }}',\n  '{{ $('When Executed by Another Workflow').first().json.session_id }}',\n  '{{ String($('When Executed by Another Workflow').first().json.pedido_id || '').replace(/'/g, \"''\") }}',\n  false,\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }}\n)",
+        "options": {}
+      },
+      "id": "e8ddfb3e-d431-4f53-91a7-e11d7fe87805",
+      "name": "Obtener Pedido con Total",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -736,
+        176
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-pedido",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3f7f39e9-6728-4894-8499-f9da5783c8e1",
+      "name": "¿Pedido Válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -496,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-metodo",
+              "leftValue": "={{ ['transferencia','transfer','bizum','online','pago online'].includes(String($('When Executed by Another Workflow').first().json.metodo || '').toLowerCase().trim()) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f431f0db-2bc7-4cde-92f2-9c566c605e08",
+      "name": "¿Es Transferencia?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -256,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT datos_bancarios, direccion, moneda FROM restaurante WHERE id = {{ $('When Executed by Another Workflow').first().json.restaurante_id }} LIMIT 1",
+        "options": {}
+      },
+      "id": "d0935b74-c6e8-46f1-b4e0-dfabf86b70a6",
+      "name": "Obtener Datos Bancarios",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        0,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE pedidos\nSET\n  metodo_pago = {{\n    String($(\"When Executed by Another Workflow\").first().json.metodo || \"\").toLowerCase().trim().includes(\"transfer\") ? \"'transferencia'\" :\n    String($(\"When Executed by Another Workflow\").first().json.metodo || \"\").toLowerCase().trim().includes(\"bizum\") ? \"'bizum'\" :\n    String($(\"When Executed by Another Workflow\").first().json.metodo || \"\").toLowerCase().trim().includes(\"online\") ? \"'online'\" :\n    (String($(\"When Executed by Another Workflow\").first().json.metodo || \"\").toLowerCase().trim().includes(\"tarjeta\") || String($(\"When Executed by Another Workflow\").first().json.metodo || \"\").toLowerCase().trim().includes(\"card\")) ? \"'tarjeta'\" :\n    \"'efectivo'\"\n  }},\n  estado = 'recibido',\n  estado_pago = 'pendiente',\n  updated_at = NOW()\nWHERE id = {{ $(\"Obtener Pedido con Total\").first().json.id }}\nRETURNING *",
+        "options": {}
+      },
+      "id": "cccbac52-6510-42cf-96d4-ba79b7190fc5",
+      "name": "Registrar Método y Estado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        224,
+        144
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pedidoDB = $json || {};\nconst trigger = (() => { try { return $(\"When Executed by Another Workflow\").first().json || {}; } catch { return {}; } })();\nconst datosRest = (() => { try { return $(\"Obtener Datos Bancarios\").first().json || {}; } catch { return {}; } })();\n\nfunction price(v) {\n  return \"€\" + Number(v || 0).toFixed(2).replace(\".\", \",\");\n}\n\nconst rawMetodo = String(trigger.metodo || \"\").toLowerCase().trim();\nconst metodo = rawMetodo.includes(\"transfer\") ? \"transferencia\"\n  : rawMetodo.includes(\"bizum\") ? \"bizum\"\n  : rawMetodo.includes(\"online\") ? \"online\"\n  : (rawMetodo.includes(\"tarjeta\") || rawMetodo.includes(\"card\")) ? \"tarjeta\"\n  : \"efectivo\";\n\nlet items = [];\ntry {\n  items = typeof pedidoDB.items === \"string\" ? JSON.parse(pedidoDB.items) : (pedidoDB.items || []);\n} catch {\n  items = [];\n}\n\nconst itemsTexto = items.length\n  ? items.map(i => `${Number(i.cantidad || 1)}x ${i.nombre}`).join(\", \")\n  : \"sin detalle disponible\";\n\nconst subtotal    = Number(pedidoDB.subtotal || 0);\nconst total       = Number(pedidoDB.total || 0);\nconst costoEnvio  = Number(pedidoDB.costo_envio || 0);\nconst tiempo      = pedidoDB.tiempo_estimado ? ` Tiempo estimado: ${pedidoDB.tiempo_estimado}.` : \"\";\n\nconst despachoTexto = String(pedidoDB.tipo_despacho || \"\") === \"delivery\"\n  ? `Delivery a ${pedidoDB.direccion}. Envío: ${price(costoEnvio)}.${tiempo}`\n  : `Retiro en el local${datosRest.direccion ? ` (${datosRest.direccion})` : \"\"}.${tiempo}`;\n\nconst codigoTexto = pedidoDB.pedido_codigo ? `Tu código de pedido es *${pedidoDB.pedido_codigo}*.` : \"\";\n\nlet instrucciones = \"\";\nif (metodo === \"transferencia\") {\n  const db = datosRest.datos_bancarios || null;\n  instrucciones = `Tu pedido ha sido REGISTRADO y está pendiente de confirmación por el restaurante. Para agilizar el proceso, transfiere ${price(total)}`;\n  if (db) {\n    instrucciones += \" a:\\n\";\n    if (db.banco)   instrucciones += `🏦 Banco: ${db.banco}\\n`;\n    if (db.titular) instrucciones += `👤 Titular: ${db.titular}\\n`;\n    if (db.cuenta)  instrucciones += `🔢 Cuenta: ${db.cuenta}\\n`;\n    if (db.alias)   instrucciones += `📲 Alias: ${db.alias}\\n`;\n    instrucciones += \"Envíanos el comprobante por aquí y el restaurante confirmará tu pedido.\";\n  } else {\n    instrucciones += \" y envíanos el comprobante. El restaurante confirmará tu pedido al verificarlo.\";\n  }\n} else if (metodo === \"efectivo\") {\n  instrucciones = `Pagarás en efectivo por ${price(total)}.`;\n} else if (metodo === \"tarjeta\") {\n  instrucciones = `El pago será con tarjeta por ${price(total)}.`;\n} else if (metodo === \"bizum\") {\n  instrucciones = `El pago será por Bizum por ${price(total)}.`;\n} else {\n  instrucciones = `El pago será online por ${price(total)}.`;\n}\n\nconst resumenItems = `${itemsTexto}. ${despachoTexto} Método de pago: ${metodo}. Subtotal: ${price(subtotal)}. Total: ${price(total)}.`;\nconst respuesta = [codigoTexto, resumenItems, instrucciones].filter(Boolean).join(\" \").replace(/  +/g, \" \").trim()\n  // Hallazgo 2: sin frase \"agregar más\" — el pedido ya fue registrado\n  + \" Tu pedido queda registrado. El restaurante lo confirmara en breve.\";\n\n// Datos bancarios estructurados para que el Director los incluya completos\nconst datosBancariosEstructurados = (() => {\n  const db = datosRest.datos_bancarios || null;\n  if (!db) return null;\n  return {\n    banco:   db.banco   || null,\n    titular: db.titular || null,\n    cuenta:  db.cuenta  || null,\n    alias:   db.alias   || null\n  };\n})();\n\nreturn [{\n  json: {\n    success: true,\n    respuesta_agente: respuesta,\n    pedido_id: pedidoDB.id,\n    pedido_numero: pedidoDB.pedido_numero,\n    pedido_codigo: pedidoDB.pedido_codigo || null,\n    total,\n    subtotal,\n    metodo_pago: metodo,\n    estado: pedidoDB.estado || \"recibido\",\n    estado_pago: pedidoDB.estado_pago || \"pendiente\",\n    tipo_despacho: pedidoDB.tipo_despacho || null,\n    tiempo_estimado: pedidoDB.tiempo_estimado || null,\n    datos_bancarios: datosBancariosEstructurados\n  }\n}];"
+      },
+      "id": "ed9513da-2b48-430e-965f-f9ce119788c9",
+      "name": "Generar Resumen Final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        176
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sin pedido activo\nreturn [{\n  json: {\n    success: false,\n    respuesta_agente: 'No encontré un pedido activo para tu número. ¿Quieres hacer un pedido nuevo?',\n    pedido_id: null\n  }\n}];"
+      },
+      "id": "62c181a6-debf-4e1a-928b-165337ada914",
+      "name": "Error Sin Pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        336
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        736,
+        272
+      ],
+      "id": "ef1b3f5d-be0f-4165-8f5c-1342c4fdb87b",
+      "name": "Merge Respuesta Final"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo de catch global para Pago\n// Se activa cuando cualquier nodo upstream falla (onError: continueErrorOutput)\nconst err = $input.first();\nconst origen = err?.json?.node || err?.json?.source || 'nodo desconocido';\nconst detalle = err?.json?.message || err?.json?.error || 'sin detalle';\nconst telefono = $('When Executed by Another Workflow').first().json?.telefono || '';\n\nreturn [{\n  json: {\n    success: false,\n    error: true,\n    tipo: 'sistema',\n    subflujo: 'Pago',\n    mensaje: `Error técnico en Pago (${origen}): ${detalle}`,\n    puede_continuar: false,\n    mutar_db: false,\n    telefono: telefono,\n    problema_escalacion: `Error técnico en Pago (${origen}): ${detalle}`\n  }\n}];"
+      },
+      "id": "82df4a6b-e3a7-4958-80a3-99965f3bf3b4",
+      "name": "Respuesta Error Sistema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalaciones\n  (restaurante_id, telefono, problema, contexto, conversation_id, account_id, contact_id, tipo_escalacion, estado)\nVALUES (\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }},\n  '{{ $input.first().json.telefono.replace(/'/g, \"''\") }}',\n  '{{ $input.first().json.problema_escalacion.replace(/'/g, \"''\") }}',\n  '{\"subflujo\": \"Pago\", \"tipo\": \"error_sistema\"}'::jsonb,\n  '', '', '', 'error_sistema', 'pendiente'\n)",
+        "options": {}
+      },
+      "id": "d4ddc1dd-0005-4457-ae46-5348d3e648cc",
+      "name": "Registrar Escalacion Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1504,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reenviar la respuesta de error al Director sin modificar\nreturn [$(\"Respuesta Error Sistema\").first()];"
+      },
+      "id": "f0e8ac5c-5da5-4bdf-af50-ea0af9a1dec7",
+      "name": "Devolver Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        400
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Obtener Pedido con Total",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Pedido con Total": {
+      "main": [
+        [
+          {
+            "node": "¿Pedido Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Pedido Válido?": {
+      "main": [
+        [
+          {
+            "node": "¿Es Transferencia?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Sin Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Transferencia?": {
+      "main": [
+        [
+          {
+            "node": "Obtener Datos Bancarios",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Método y Estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Datos Bancarios": {
+      "main": [
+        [
+          {
+            "node": "Registrar Método y Estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Método y Estado": {
+      "main": [
+        [
+          {
+            "node": "Generar Resumen Final",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Resumen Final": {
+      "main": [
+        [
+          {
+            "node": "Merge Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Sin Pedido": {
+      "main": [
+        [
+          {
+            "node": "Merge Respuesta Final",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Respuesta Error Sistema": {
+      "main": [
+        [
+          {
+            "node": "Registrar Escalacion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Escalacion Error": {
+      "main": [
+        [
+          {
+            "node": "Devolver Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d7d884fb-7164-4a70-867e-2ba8490e1bd2",
+  "meta": {
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "GwYCQg08T7Cq5lqe",
+  "tags": []
+}

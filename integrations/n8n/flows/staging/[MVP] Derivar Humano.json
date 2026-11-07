@@ -1,0 +1,410 @@
+{
+  "name": "[MVP] Derivar Humano",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "problema"
+            },
+            {
+              "name": "telefono"
+            },
+            {
+              "name": "account_id"
+            },
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "contact_id"
+            },
+            {
+              "name": "contexto_actual"
+            },
+            {
+              "name": "tipo_escalacion"
+            },
+            {
+              "name": "restaurante_id"
+            }
+          ]
+        }
+      },
+      "id": "2016af27-4650-43fa-b5e7-c552e1267daf",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        320,
+        224
+      ],
+      "id": "c49adb7d-8cea-477a-bc0b-a009902d0e80",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "name": "staging OpenAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=__CHATWOOT_URL__/api/v1/accounts/{{ $('Variables').first().json.account_id }}/contacts/{{ $('Variables').first().json.contact_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"custom_attributes\": {\n    \"bot\": \"Off\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1264,
+        0
+      ],
+      "id": "fc51113e-007c-4663-84d2-bb545742a2b7",
+      "name": "Apagar bot",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "__SUPABASE_FUNCIONES_URL__/functions/v1/webhook-intervention",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"cliente_telefono\": \"{{ $('When Executed by Another Workflow').item.json.telefono }}\",\n  \"mensaje\": \"{{ $('When Executed by Another Workflow').item.json.problema }}\",\n  \"chatwoot_url\": \"__CHATWOOT_URL__/app/accounts/{{ $('Variables').item.json.account_id }}/conversations/{{ $('Variables').item.json.conversation_id }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "375ee7ac-baec-4bbb-9999-a22a4396e9f8",
+      "name": "noti lovable",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('When Executed by Another Workflow').item.json.problema }}",
+        "options": {
+          "systemMessage": "=# ROL\nEres el agente de derivación humana del restaurante.\nTu única tarea es responder con un mensaje breve indicando que el caso será atendido por una persona.\n\nREGLAS:\n- Responde solo texto plano.\n- Máximo 2 frases.\n- Sin emojis.\n- Sin prometer tiempos exactos.\n- Si el cliente está molesto o reclama, empieza con una disculpa breve.\n- Si pide humano explícitamente, dilo con claridad.\n\nEJEMPLOS:\n- Entendido. Te paso con el encargado para revisarlo.\n- Claro. Te paso con una persona del equipo.\n- Disculpa la molestia. Te paso con el encargado para ayudarte."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        368,
+        0
+      ],
+      "id": "86c46566-4831-4139-954e-814852cfaca8",
+      "name": "Resuelve Problemas"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "086483d7-ea9a-4b88-b027-c53010f0f034",
+              "name": "mensaje",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "45b01b59-149f-47b5-a8bd-dad7e37e485a",
+              "name": "account_id",
+              "value": "={{ $('When Executed by Another Workflow').item.json.account_id }}",
+              "type": "string"
+            },
+            {
+              "id": "2fdb9b75-0ff9-4787-b0fc-d99ef6700c5c",
+              "name": "conversation_id",
+              "value": "={{ $('When Executed by Another Workflow').item.json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "6d13ed1b-41ec-493c-af78-b94765865886",
+              "name": "contact_id",
+              "value": "={{ $('When Executed by Another Workflow').item.json.contact_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        768,
+        0
+      ],
+      "id": "fcd76c2b-94aa-422f-9841-4fc5bc158c68",
+      "name": "Variables"
+    },
+    {
+      "parameters": {
+        "keep": "lastItems"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        0
+      ],
+      "id": "8de6bb9d-9b48-49c3-ba33-89cc079139a3",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "x79s9xuF5q9iayoc",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/x79s9xuF5q9iayoc",
+          "cachedResultName": "[MVP] Contexto"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Contexto Actual": "={{ $('When Executed by Another Workflow').item.json.contexto_actual || 'sin datos' }}",
+            "Mensaje del Cliente": "={{ $('When Executed by Another Workflow').item.json.problema }}",
+            "Respuesta del Agente": "={{ $('Resuelve Problemas').item.json.output }}",
+            "Telefono": "={{ $('When Executed by Another Workflow').item.json.telefono }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Contexto Actual",
+              "displayName": "Contexto Actual",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "Mensaje del Cliente",
+              "displayName": "Mensaje del Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "Respuesta del Agente",
+              "displayName": "Respuesta del Agente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "Telefono",
+              "displayName": "Telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1664,
+        0
+      ],
+      "id": "b555ff65-2486-474f-aa7a-8c41d56af59c",
+      "name": "Crear Contexto1",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepara el payload para INSERT en escalaciones.\n// Tomamos los valores del trigger original para evitar referencias rotas.\nconst trigger = $('When Executed by Another Workflow').first().json;\nconst respuesta = (() => { try { return $('Resuelve Problemas').first().json.output || ''; } catch { return ''; } })();\n\nconst contexto = {\n  contexto_actual: trigger.contexto_actual || null,\n  respuesta_agente: respuesta\n};\n\nreturn [{\n  json: {\n    telefono:        String(trigger.telefono || ''),\n    problema:        String(trigger.problema  || '').substring(0, 1000),\n    contexto_str:    JSON.stringify(contexto),\n    conversation_id: String(trigger.conversation_id || ''),\n    account_id:      String(trigger.account_id      || ''),\n    contact_id:      String(trigger.contact_id      || ''),\n    tipo_escalacion: String(trigger.tipo_escalacion || 'derivacion_cliente'),\n    restaurante_id:  Number(trigger.restaurante_id || 11)\n  }\n}];"
+      },
+      "id": "9ccf44e4-dfa5-4f70-bce4-18f58215dee2",
+      "name": "Preparar Escalacion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1904,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalaciones\n  (restaurante_id, telefono, problema, contexto, conversation_id, account_id, contact_id, tipo_escalacion, estado)\nVALUES (\n  {{ $json.restaurante_id }},\n  '{{ $json.telefono.replace(/'/g, \"''\") }}',\n  '{{ $json.problema.replace(/'/g, \"''\") }}',\n  '{{ $json.contexto_str.replace(/'/g, \"''\") }}'::jsonb,\n  '{{ $json.conversation_id }}',\n  '{{ $json.account_id }}',\n  '{{ $json.contact_id }}',\n  '{{ $json.tipo_escalacion }}',\n  'pendiente'\n)\nRETURNING id, created_at",
+        "options": {}
+      },
+      "id": "836df4f5-22a2-4e41-b7d6-d7015bc10729",
+      "name": "Registrar Escalacion",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2144,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Resuelve Problemas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Resuelve Problemas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apagar bot": {
+      "main": [
+        [
+          {
+            "node": "Crear Contexto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "noti lovable": {
+      "main": [
+        [
+          {
+            "node": "Crear Contexto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resuelve Problemas": {
+      "main": [
+        [
+          {
+            "node": "Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variables": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Apagar bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Contexto1": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalacion": {
+      "main": [
+        [
+          {
+            "node": "Registrar Escalacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "4957a191-118a-438a-a131-2b38552f0bf4",
+  "meta": {
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "07nvtRBmnGVkoS4G",
+  "tags": []
+}

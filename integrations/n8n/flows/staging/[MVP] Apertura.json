@@ -1,0 +1,850 @@
+{
+  "name": "[MVP] Apertura",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "accion"
+            },
+            {
+              "name": "items"
+            },
+            {
+              "name": "telefono"
+            },
+            {
+              "name": "session_id"
+            },
+            {
+              "name": "pedido_id"
+            },
+            {
+              "name": "usuario_id"
+            },
+            {
+              "name": "forzar_pedido_nuevo"
+            },
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "restaurante_id"
+            }
+          ]
+        }
+      },
+      "id": "cf484c21-b047-4bce-a57b-214e3444bbc9",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -16,
+        400
+      ],
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM public.fn_select_pedido_reutilizable(\n  '{{ $('When Executed by Another Workflow').first().json.telefono }}',\n  '{{ $('When Executed by Another Workflow').first().json.session_id }}',\n  '{{ String($('When Executed by Another Workflow').first().json.pedido_id || '').replace(/'/g, \"''\") }}',\n  {{ ['true', true, '1', 1].includes($('When Executed by Another Workflow').first().json.forzar_pedido_nuevo) ? 'true' : 'false' }},\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }}\n)",
+        "options": {}
+      },
+      "id": "bd1d3c8b-32aa-4b6e-b5a0-d7d61877a90c",
+      "name": "Buscar Pedido Activo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        640,
+        544
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5928a794-4c94-4a21-973a-c15dcd652781",
+              "leftValue": "={{ Number($json.id || 0) > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "414b8115-3181-4f1d-91b9-f059f7399503",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.fn_next_pedido_numero({{ $('When Executed by Another Workflow').first().json.restaurante_id }}) AS siguiente_numero",
+        "options": {}
+      },
+      "id": "bddc652b-e1be-45c0-85d4-53ca1ca2ec8f",
+      "name": "Obtener Siguiente Número",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        304,
+        80
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pedidos (\n  restaurante_id, usuario_id, telefono, session_id, session_started_at, pedido_numero,\n  items, subtotal, total, estado, canal, chatwoot_conversation_id, created_at, updated_at\n) VALUES (\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }},\n  COALESCE(\n    CASE WHEN regexp_replace('{{ $('When Executed by Another Workflow').item.json.usuario_id || '' }}', '[^0-9]', '', 'g') <> '' THEN regexp_replace('{{ $('When Executed by Another Workflow').item.json.usuario_id || '' }}', '[^0-9]', '', 'g')::int ELSE NULL END,\n    (SELECT id FROM usuarios WHERE telefono = '{{ $('When Executed by Another Workflow').item.json.telefono }}' AND restaurante_id = {{ $('When Executed by Another Workflow').first().json.restaurante_id }} LIMIT 1)\n  ),\n  '{{ $('When Executed by Another Workflow').item.json.telefono }}',\n  '{{ $('When Executed by Another Workflow').item.json.session_id }}',\n  NOW(),\n  {{ $json.siguiente_numero }},\n  '[]'::jsonb, 0, 0, 'en_curso',\n  'whatsapp',\n  NULLIF('{{ $('When Executed by Another Workflow').item.json.conversation_id || '' }}', ''),\n  NOW(), NOW()\n) RETURNING *",
+        "options": {}
+      },
+      "id": "68645b42-fa8a-4cb6-be3a-773ad85e11b1",
+      "name": "Crear Pedido Nuevo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        448,
+        80
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const datos = $('Preparar Datos').first().json || {};\nconst menuRows = $input.all().map(i => i.json || {});\n\nfunction normalize(v) {\n  return String(v || '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction tokenize(v) {\n  return normalize(v)\n    .split(' ')\n    .map(x => x.trim())\n    .filter(Boolean)\n    .filter(x => !['una','uno','un','de','del','con','y','la','el','los','las','para','al','a','por','favor'].includes(x));\n}\n\nfunction uniq(arr) {\n  return [...new Set(arr.filter(Boolean))];\n}\n\nfunction toNumber(v, d = 0) {\n  const n = Number(v);\n  return Number.isFinite(n) ? n : d;\n}\n\nfunction dice(a, b) {\n  a = normalize(a);\n  b = normalize(b);\n  if (!a || !b) return 0;\n  if (a === b) return 1;\n  const bigrams = s => {\n    const out = [];\n    for (let i = 0; i < s.length - 1; i++) out.push(s.slice(i, i + 2));\n    return out;\n  };\n  const ab = bigrams(a);\n  const bb = bigrams(b);\n  if (!ab.length || !bb.length) return 0;\n  const counts = new Map();\n  for (const x of ab) counts.set(x, (counts.get(x) || 0) + 1);\n  let hits = 0;\n  for (const x of bb) {\n    const c = counts.get(x) || 0;\n    if (c > 0) {\n      hits += 1;\n      counts.set(x, c - 1);\n    }\n  }\n  return (2 * hits) / (ab.length + bb.length);\n}\n\nfunction normalizeRequest(v) {\n  return normalize(v)\n    .replace(/\\b4 quesos\\b/g, 'cuatro quesos')\n    .replace(/\\bpeperoni\\b/g, 'pepperoni')\n    .replace(/\\bcocacola\\b/g, 'coca cola')\n    .replace(/\\bbbq pollo\\b/g, 'barbacoa pollo')\n    .replace(/\\bbbq\\b/g, 'barbacoa')\n    .replace(/\\bburger\\b/g, 'hamburguesa')\n    .replace(/\\bespagueti\\b/g, 'espaguetis')\n    .replace(/\\bspaghetti\\b/g, 'espaguetis')\n    .replace(/\\bbolonesa\\b/g, 'bolognesa')\n    .replace(/\\bclasica\\b/g, 'clasica')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction detectVariant(req) {\n  const t = normalizeRequest(req);\n  const variants = [\n    'unica','única','personal','mediana','familiar','estandar','estándar',\n    'lata','lata 330 ml','330 ml','botella','1 5 l','1.5 l','500 ml','sin gas','con gas'\n  ];\n  const found = variants.find(v => normalize(v) && t.includes(normalize(v)));\n  return found ? normalize(found) : null;\n}\n\nfunction baseProductName(row) {\n  const raw = String(row.producto || row.nombre || '').trim();\n  const fromNombre = String(row.nombre || '').split(' - ')[0].trim();\n  return fromNombre || raw;\n}\n\nfunction rowVariant(row) {\n  return normalize(row.variante || '');\n}\n\nfunction rowBase(row) {\n  return normalize(baseProductName(row));\n}\n\nfunction buildRowText(row) {\n  return uniq([\n    row.nombre,\n    row.producto,\n    baseProductName(row),\n    row.descripcion,\n    row.tags,\n    row.categoria,\n    row.variante,\n    row.producto_display,\n    row.extras_disponibles\n  ]).join(' ');\n}\n\nfunction canonicalChoice(req, rowText) {\n  const options = [\n    'carbonara','bolognesa','frutti di mari','maremonti','napolitana',\n    'colombiana','manzana','uva','sin gas','con gas','coca cola','pepsi',\n    'fanta','sprite','ajillo','gambas','bbq bacon','barbacoa','clasica','pollo'\n  ];\n  const rn = normalizeRequest(req);\n  const rt = normalizeRequest(rowText);\n  return options.find(opt => rn.includes(opt) && rt.includes(opt)) || null;\n}\n\nfunction prettyChoice(choice) {\n  const map = {\n    'carbonara': 'Carbonara',\n    'bolognesa': 'Boloñesa',\n    'frutti di mari': 'Frutti di mari',\n    'maremonti': 'Maremonti',\n    'napolitana': 'Napolitana',\n    'colombiana': 'Colombiana',\n    'manzana': 'Manzana',\n    'uva': 'Uva',\n    'sin gas': 'sin gas',\n    'con gas': 'con gas',\n    'coca cola': 'Coca-Cola',\n    'pepsi': 'Pepsi',\n    'fanta': 'Fanta',\n    'sprite': 'Sprite',\n    'ajillo': 'a ajillo con gambas',\n    'bbq bacon': 'BBQ Bacon',\n    'barbacoa': 'Barbacoa',\n    'clasica': 'Clásica',\n    'pollo': 'Pollo'\n  };\n  return map[choice] || choice;\n}\n\nfunction buildDisplayName(row, req) {\n  const baseNombre = String(row.nombre || row.producto || '').trim();\n  const rowText = buildRowText(row);\n  const choice = canonicalChoice(req, rowText);\n  const variante = row.variante ? ` - ${row.variante}` : '';\n  const prodNorm = normalize(row.producto || '');\n  const baseNorm = normalize(baseNombre);\n\n  if ((prodNorm.includes('salsa a elegir') || baseNorm.includes('salsa a elegir')) && choice) {\n    return `Espaguetis ${prettyChoice(choice)}${variante}`;\n  }\n  if (baseNorm.includes('postobon') && choice) {\n    return `Postobon ${prettyChoice(choice)}${variante}`;\n  }\n  return baseNombre;\n}\n\nfunction preferredVariantScore(row) {\n  const v = normalize(row.variante || '');\n  const base = normalize(baseProductName(row));\n  let score = 0;\n  if (!v || v === 'unica' || v === 'estandar') score += 40;\n  if (v.includes('500 ml')) score += 30;\n  if (v.includes('lata')) score += 20;\n  if (v.includes('personal')) score += 25;\n  if (base.includes('coca cola') || base.includes('pepsi') || base.includes('sprite') || base.includes('fanta')) {\n    if (v.includes('lata')) score += 20;\n  }\n  return score;\n}\n\nfunction parseExtras(raw) {\n  const text = String(raw || '').trim();\n  if (!text) return [];\n  const chunks = text.split(/\\),\\s*/).map((part, idx, arr) => {\n    const p = part.trim();\n    if (!p) return '';\n    if (p.includes('(') && !p.endsWith(')')) return p + ')';\n    return p;\n  }).filter(Boolean);\n  return chunks.map(chunk => {\n    const match = chunk.match(/^(.*?)\\s*\\((\\d+[\\.,]\\d+)€\\)$/i);\n    if (match) {\n      return {\n        nombre: match[1].trim(),\n        precio: Number(String(match[2]).replace(',', '.'))\n      };\n    }\n    return { nombre: chunk.trim(), precio: 0 };\n  });\n}\n\nfunction extractRequestedExtras(reqItem, row) {\n  const reqNorm = normalizeRequest(reqItem?.nombre || '');\n  const extras = parseExtras(row.extras_disponibles);\n  return extras.filter(extra => {\n    const extraNorm = normalizeRequest(extra.nombre);\n    return extraNorm && reqNorm.includes(extraNorm);\n  });\n}\n\nfunction formatExtraList(extras) {\n  return extras.map(x => x.precio > 0 ? `${x.nombre} (${String(x.precio.toFixed(2)).replace('.', ',')}€)` : x.nombre).join(', ');\n}\n\nfunction hasMeaningfulVariants(rows) {\n  const variants = uniq(rows.map(r => String(r.variante || '').trim()).filter(Boolean));\n  const meaningful = variants.filter(v => !['unica','única','estándar','estandar'].includes(normalize(v)));\n  return { all: variants, meaningful };\n}\n\nfunction chooseBestRow(rows, reqItem) {\n  if (!rows.length) return null;\n  const wantedVariant = detectVariant(reqItem.nombre || '');\n  if (wantedVariant) {\n    const byVariant = rows.filter(r => rowVariant(r).includes(wantedVariant));\n    if (byVariant.length) {\n      return byVariant\n        .slice()\n        .sort((a, b) => (b.__score + preferredVariantScore(b)) - (a.__score + preferredVariantScore(a)))[0];\n    }\n  }\n  return rows\n    .slice()\n    .sort((a, b) =>\n      (b.__score + preferredVariantScore(b) - toNumber(b.precio, 0) * 0.01) -\n      (a.__score + preferredVariantScore(a) - toNumber(a.precio, 0) * 0.01)\n    )[0];\n}\n\nfunction scoreCandidate(reqItem, row) {\n  const req = String(reqItem?.nombre || '');\n  const reqNorm = normalizeRequest(req);\n  const rowName = normalizeRequest(row.nombre || '');\n  const rowProd = normalizeRequest(row.producto || '');\n  const rowBaseName = normalizeRequest(baseProductName(row));\n  const rowVar = normalizeRequest(row.variante || '');\n  const rowDesc = normalizeRequest(row.descripcion || '');\n  const rowTags = normalizeRequest(row.tags || '');\n  const rowCat = normalizeRequest(row.categoria || '');\n  const rowText = uniq([rowName, rowProd, rowBaseName, rowVar, rowDesc, rowTags, rowCat]).join(' ');\n  const reqTokens = uniq(tokenize(reqNorm));\n  const rowTokens = uniq(tokenize(rowText));\n\n  let score = 0;\n  if (!row.disponible) score -= 300;\n  if (reqNorm === rowName || reqNorm === rowProd || reqNorm === rowBaseName) score += 180;\n  if (rowName.includes(reqNorm) || rowProd.includes(reqNorm) || rowBaseName.includes(reqNorm)) score += 80;\n  if (reqNorm.includes(rowName) || reqNorm.includes(rowProd) || reqNorm.includes(rowBaseName)) score += 55;\n\n  const overlap = reqTokens.filter(t => rowTokens.includes(t)).length;\n  score += overlap * 16;\n\n  // Sin ningún token en común Y dice bajo => coincidencia espuria (ej: 'ravioles ricotta' vs 'cavernicola')\n  // Si dice es alto (>= 0.4), es un typo real: 'pissa lansarote' => 'pizza lanzarote' — no penalizar\n  const significantReqTokens = reqTokens.filter(t => t.length > 2);\n  const diceVsBase = dice(reqNorm, rowBaseName);\n  if (significantReqTokens.length > 0 && overlap === 0 && diceVsBase < 0.40) {\n    score -= 80;\n  }\n\n  score += Math.round(diceVsBase * 60);\n  score += Math.round(dice(reqNorm, rowName) * 45);\n\n  if (reqNorm.includes('pizza') && row.is_pizza) score += 14;\n  if (reqNorm.includes('hamburguesa') && rowCat.includes('hamburguesa')) score += 14;\n  if ((reqNorm.includes('bebida') || reqNorm.includes('refresco')) && rowCat.includes('bebida')) score += 10;\n  if ((reqNorm.includes('pasta') || reqNorm.includes('espaguetis')) && rowCat.includes('pasta')) score += 10;\n\n  const wantedVariant = detectVariant(req);\n  if (wantedVariant) {\n    if (rowVar.includes(wantedVariant)) score += 35;\n    else score -= 15;\n  }\n\n  const choice = canonicalChoice(req, rowText);\n  if (choice) score += 24;\n\n  if (reqNorm.includes('pollo')) {\n    if (rowText.includes('pollo')) score += 55;\n    else score -= 45;\n  }\n  if (!reqNorm.includes('pollo') && reqNorm.includes('barbacoa') && rowText.includes('barbacoa pollo')) {\n    score -= 18;\n  }\n\n  if (reqNorm.includes('lanzarote') && rowText.includes('lanzarote')) score += 50;\n  if (reqNorm.includes('barbacoa') && rowText.includes('barbacoa')) score += 40;\n  if (reqNorm.includes('vegana') && rowText.includes('vegana')) score += 40;\n  if (reqNorm.includes('clasica') && rowText.includes('clasica')) score += 40;\n  if (reqNorm.includes('carbonara') && rowText.includes('carbonara')) score += 40;\n  if (reqNorm.includes('coca cola') && rowText.includes('coca cola')) score += 40;\n  if (reqNorm.includes('postobon') && rowText.includes('postobon')) score += 35;\n\n  return { score, row };\n}\n\nfunction buildProblem(nombre, problema, mensaje, opciones = [], obligatorio = true) {\n  return { nombre, problema, mensaje, opciones, obligatorio };\n}\n\nfunction categoryOptions(reqItem) {\n  const t = normalizeRequest(reqItem?.nombre);\n  if (!t) return null;\n  if (['pizza','pizzas'].includes(t)) return { categoria: 'Pizzas', texto: 'Qué pizza quieres? Puedo ofrecerte Lanzarote, Barbacoa, Barbacoa Pollo, Cuatro Quesos, Margarita, Pepperoni o Vegana Suprema.' };\n  if (['hamburguesa','hamburguesas'].includes(t)) return { categoria: 'Hamburguesas', texto: 'Qué hamburguesa quieres? Puedo ofrecerte BBQ Bacon, Clásica, Doble Veggie o Pollo Crispy.' };\n  if (['bebida','bebidas','refresco','refrescos'].includes(t)) return { categoria: 'Bebidas', texto: 'Qué bebida quieres? Puedo ofrecerte Agua Mineral, Coca-Cola, Pepsi, Fanta, Sprite, Postobon o Cerveza Tropical.' };\n  if (['pasta','pastas','espaguetis'].includes(t)) return { categoria: 'Pastas', texto: 'Qué pasta quieres? Puedes pedir Carbonara, Boloñesa, Napolitana o Espaguetis a ajillo con gambas.' };\n  return null;\n}\n\nfunction dedupeValidated(items) {\n  const map = new Map();\n  for (const item of items) {\n    const key = normalize(item.nombre + '|' + (item.notas || ''));\n    if (!map.has(key)) {\n      map.set(key, { ...item });\n    } else {\n      const cur = map.get(key);\n      cur.cantidad += toNumber(item.cantidad, 1);\n      cur.subtotal = Number((cur.cantidad * toNumber(cur.precio_unitario, 0)).toFixed(2));\n      map.set(key, cur);\n    }\n  }\n  return [...map.values()];\n}\n\nconst result = {\n  pedido_id: datos.pedido_id || null,\n  pedido_numero: datos.pedido_numero || null,\n  pedido_codigo: datos.pedido_codigo || null,\n  session_id: datos.session_id || null,\n  telefono: datos.telefono || null,\n  items_actuales: Array.isArray(datos.items_actuales) ? datos.items_actuales : [],\n  subtotal_actual: toNumber(datos.subtotal_actual, 0),\n  total_actual: toNumber(datos.total_actual, 0),\n  accion: datos.accion || 'consultar',\n  usuario_id: datos.usuario_id || null,\n  forzar_pedido_nuevo: datos.forzar_pedido_nuevo || false,\n  items_nuevos: Array.isArray(datos.items_nuevos) ? datos.items_nuevos : [],\n  items_validados: [],\n  items_problematicos: [],\n  necesita_aclaracion: false,\n  pregunta_aclaracion: null,\n  puede_continuar: true,\n  tiene_pendientes: false,\n  // Contexto del pedido — pasado para que nodos posteriores puedan usarlo\n  estado_actual: datos.estado_actual || null,\n  tipo_despacho_actual: datos.tipo_despacho_actual || null,\n  direccion_actual: datos.direccion_actual || null,\n  metodo_pago_actual: datos.metodo_pago_actual || null,\n  costo_envio_actual: toNumber(datos.costo_envio_actual, 0),\n  tiempo_estimado_actual: datos.tiempo_estimado_actual || null\n};\n\nif (String(result.accion).toLowerCase() === 'consultar') {\n  // Collect unique category names from menu\nresult.categorias_menu = [...new Set(menuRows.map(r => r.categoria || r.category_name || '').filter(Boolean))].sort();\n\nreturn [{ json: result }];\n}\n\nif (!result.items_nuevos.length) {\n  result.puede_continuar = false;\n  result.tiene_pendientes = true;\n  result.items_problematicos.push(buildProblem('pedido', 'sin_items', 'No encontré productos para procesar en tu mensaje.'));\n  // Collect unique category names from menu\nresult.categorias_menu = [...new Set(menuRows.map(r => r.categoria || r.category_name || '').filter(Boolean))].sort();\n\nreturn [{ json: result }];\n}\n\nfor (const reqItem of result.items_nuevos) {\n  const reqName = String(reqItem?.nombre || '').trim();\n  const reqNorm = normalizeRequest(reqName);\n  const qty = Math.max(1, toNumber(reqItem?.cantidad, 1));\n  if (!reqName) continue;\n\n  const catAmb = categoryOptions(reqItem);\n  if (catAmb) {\n    result.necesita_aclaracion = true;\n    result.tiene_pendientes = true;\n    result.items_problematicos.push(buildProblem(reqName, 'categoria_ambigua', catAmb.texto));\n    continue;\n  }\n\n  const scored = menuRows\n    .map(r => scoreCandidate(reqItem, r))\n    .filter(x => x.score > 45)\n    .sort((a, b) => b.score - a.score);\n\n  if (!scored.length) {\n    result.tiene_pendientes = true;\n    result.items_problematicos.push(buildProblem(reqName, 'no_existe', `No encontré \"${reqName}\" en el menú.`));\n    continue;\n  }\n\n  const groups = new Map();\n  for (const s of scored) {\n    const key = rowBase(s.row);\n    if (!groups.has(key)) groups.set(key, []);\n    s.row.__score = s.score;\n    groups.get(key).push(s.row);\n  }\n\n  let grouped = [...groups.entries()]\n    .map(([base, rows]) => ({\n      base,\n      rows,\n      bestScore: Math.max(...rows.map(r => toNumber(r.__score, 0))),\n      labels: uniq(rows.map(r => baseProductName(r)))\n    }))\n    .sort((a, b) => b.bestScore - a.bestScore);\n\n  if (!grouped.length) {\n    result.tiene_pendientes = true;\n    result.items_problematicos.push(buildProblem(reqName, 'no_existe', `No encontré \"${reqName}\" en el menú.`));\n    continue;\n  }\n\n  const exactGroup = grouped.find(g => reqNorm === g.base || reqNorm.includes(g.base) || g.base.includes(reqNorm));\n  if (exactGroup) {\n    grouped = [exactGroup, ...grouped.filter(g => g.base !== exactGroup.base)];\n  }\n\n  const bestGroup = grouped[0];\n  const secondGroup = grouped[1] || null;\n\n  if (!bestGroup || bestGroup.bestScore < 25) {\n    result.tiene_pendientes = true;\n    result.items_problematicos.push(buildProblem(reqName, 'no_existe', `No encontré \"${reqName}\" en el menú.`));\n    continue;\n  }\n\n  if (!exactGroup && secondGroup && secondGroup.bestScore > 45 && bestGroup.bestScore - secondGroup.bestScore <= 8 && bestGroup.base !== secondGroup.base) {\n    const opciones = uniq([baseProductName(bestGroup.rows[0]), baseProductName(secondGroup.rows[0])]).slice(0, 4);\n    result.necesita_aclaracion = true;\n    result.tiene_pendientes = true;\n    result.items_problematicos.push(buildProblem(\n      reqName,\n      'ambiguo',\n      `Quiero confirmar \"${reqName}\". ¿Te refieres a ${opciones.join(' o ')}?`,\n      opciones\n    ));\n    continue;\n  }\n\n  const variantsInfo = hasMeaningfulVariants(bestGroup.rows);\n  const wantedVariant = detectVariant(reqName);\n  if (!wantedVariant && variantsInfo.meaningful.length > 1) {\n    const producto = baseProductName(bestGroup.rows[0]);\n    const opciones = variantsInfo.meaningful;\n    result.necesita_aclaracion = true;\n    result.tiene_pendientes = true;\n    result.items_problematicos.push(buildProblem(\n      reqName,\n      'variante_requerida',\n      `Para ${producto} necesito el tamaño o variante. Opciones: ${opciones.join(', ')}.`,\n      opciones\n    ));\n    continue;\n  }\n\n  const bestRow = chooseBestRow(bestGroup.rows, reqItem);\n  if (!bestRow) {\n    result.tiene_pendientes = true;\n    result.items_problematicos.push(buildProblem(reqName, 'no_existe', `No encontré \"${reqName}\" en el menú.`));\n    continue;\n  }\n\n  const nombreFinal = buildDisplayName(bestRow, reqName);\n  const precioBase = toNumber(bestRow.precio, 0);\n\n  // ── Extras con extra_id desde extras_json (M-12) ──────────────\n  // Buscar extras mencionados en el nombre del ítem O en reqItem.notas\n  const searchText = normalizeRequest(\n    (reqItem?.nombre || '') + ' ' + (reqItem?.notas || '')\n  );\n  // extras_json puede llegar como array (n8n parsea JSONB) o como string en algunos entornos\n  let _rawExtrasJson = bestRow.extras_json;\n  if (typeof _rawExtrasJson === 'string' && _rawExtrasJson.trim()) {\n    try { _rawExtrasJson = JSON.parse(_rawExtrasJson); } catch(e) { _rawExtrasJson = []; }\n  }\n  const availableExtrasJson = Array.isArray(_rawExtrasJson) ? _rawExtrasJson : [];\n  // Matching robusto: cubre orden de palabras distinto (\"extra queso cheddar\" == \"Queso Cheddar Extra\")\n  const EXTRA_STOP_WORDS = new Set(['extra','de','la','el','los','las','con','sin','al','del','a','y']);\n  function matchesExtra(exName, search) {\n    const exNorm = normalizeRequest(exName);\n    if (!exNorm) return false;\n    // 1. Substring directo\n    if (search.includes(exNorm)) return true;\n    // 2. Quitar \"extra\" al inicio / final del nombre del extra y reintentar\n    const exCore = exNorm.replace(/^extra\\s+/, '').replace(/\\s+extra$/, '').trim();\n    if (exCore.length > 2 && search.includes(exCore)) return true;\n    // 3. Tokens significativos del extra presentes en el texto (>=60 % match)\n    const exToks = tokenize(exNorm).filter(t => !EXTRA_STOP_WORDS.has(t) && t.length > 2);\n    if (!exToks.length) return false;\n    const hits = exToks.filter(t => search.includes(t)).length;\n    return hits >= Math.max(1, Math.ceil(exToks.length * 0.6));\n  }\n  const matchedExtras = availableExtrasJson.filter(ex => matchesExtra(ex.name, searchText));\n\n  // Extras como array estructurado con extra_id\n  const extrasArray = matchedExtras.map(ex => ({\n    extra_id:   Number(ex.extra_id),\n    name:       String(ex.name),\n    quantity:   1,\n    unit_price: Number(ex.price || 0)\n  }));\n  const extrasTotal = extrasArray.reduce((acc, ex) => acc + ex.unit_price * ex.quantity, 0);\n  const precio = Number((precioBase + extrasTotal).toFixed(2));\n\n  // ── Notas: solo preferencias de cocina que NO sean extras del menú ─\n  // Si reqItem.notas coincide completamente con un extra detectado, no lo repetimos en notas\n  const notasTexto = reqItem.notas && String(reqItem.notas).trim()\n    ? String(reqItem.notas).trim()\n    : null;\n  // Usar matchesExtra (mismo algoritmo robusto) para decidir si notas == extra detectado\n  const notasNorm = normalizeRequest(notasTexto || '');\n  const notasEsExtra = notasTexto && matchedExtras.some(ex => matchesExtra(ex.name, notasNorm));\n  const notasItem = notasEsExtra ? null : notasTexto;\n\n  result.items_validados.push({\n    nombre:          nombreFinal,\n    cantidad:        qty,\n    precio_unitario: precio,\n    subtotal:        Number((qty * precio).toFixed(2)),\n    notas:           notasItem,\n    extras:          extrasArray,\n    categoria:       bestRow.categoria || bestRow.category_name || null\n  });\n\n  const availableExtras = availableExtrasJson.length\n    ? availableExtrasJson.map(ex => ({ nombre: ex.name, precio: Number(ex.price || 0) }))\n    : parseExtras(bestRow.extras_disponibles);  // fallback texto si extras_json vacío\n  if (availableExtras.length && matchedExtras.length === 0 && String(result.accion || '').toLowerCase() === 'agregar') {\n    if (!result.extras_sugeridos) result.extras_sugeridos = [];\n    result.extras_sugeridos.push({ item: nombreFinal, extras: availableExtras });\n  }\n}\n\nresult.items_validados = dedupeValidated(result.items_validados);\n\nconst blockingProblems = result.items_problematicos.filter(x => x.obligatorio !== false);\nif (!result.items_validados.length && (result.necesita_aclaracion || blockingProblems.length > 0)) {\n  result.puede_continuar = false;\n}\n\nif (!result.items_validados.length && !result.items_problematicos.length) {\n  result.puede_continuar = false;\n  result.tiene_pendientes = true;\n  result.items_problematicos.push(buildProblem('pedido', 'sin_coincidencias', 'No pude validar los productos que me pediste.'));\n}\n\nif (result.items_problematicos.length > 0 || result.necesita_aclaracion) {\n  result.tiene_pendientes = true;\n}\n\nif (result.items_validados.length > 0) {\n  result.puede_continuar = true;\n}\n\nif (result.necesita_aclaracion && !result.pregunta_aclaracion) {\n  const firstBlocking = result.items_problematicos.find(x => x.obligatorio !== false);\n  result.pregunta_aclaracion = firstBlocking?.mensaje || null;\n}\n\n// Collect unique category names from menu\nresult.categorias_menu = [...new Set(menuRows.map(r => r.categoria || r.category_name || '').filter(Boolean))].sort();\n\nreturn [{ json: result }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        0
+      ],
+      "id": "d149a90d-c89a-440c-850d-bf5be358e65b",
+      "name": "Agente Validador",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  categoria,\n  producto,\n  descripcion,\n  variante,\n  precio,\n  extras_disponibles,\n  disponible,\n  tags,\n  is_pizza,\n  producto_display AS nombre,\n  menu_item_id,\n  menu_variant_id,\n  extras_json\nFROM public.fn_menu_lookup(NULL, {{ $('When Executed by Another Workflow').first().json.restaurante_id }})\nORDER BY categoria, producto, precio",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1248,
+        224
+      ],
+      "id": "695a0f30-46fe-4de2-8aad-ee5245310e48",
+      "name": "consultar_menu",
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json || {};\n\nfunction normalize(v) {\n  return String(v || '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9\\s-]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction toNumber(v, d = 0) {\n  const n = Number(v);\n  return Number.isFinite(n) ? n : d;\n}\n\nfunction recalc(item) {\n  const cantidad = Math.max(0, toNumber(item?.cantidad, 1));\n  const precio = toNumber(item?.precio_unitario, 0);\n  return {\n    notas:           item?.notas ?? null,\n    nombre:          String(item?.nombre || '').trim(),\n    cantidad,\n    subtotal:        Number((cantidad * precio).toFixed(2)),\n    precio_unitario: precio,\n    extras:          Array.isArray(item?.extras) ? item.extras : []\n  };\n}\n\nfunction mergeExtras(existing, incoming) {\n  const base = Array.isArray(existing) ? existing : [];\n  const inc  = Array.isArray(incoming)  ? incoming  : [];\n  if (!inc.length) return base;\n  const map = new Map(base.map(e => [e.extra_id, { ...e }]));\n  for (const ex of inc) { map.set(ex.extra_id, { ...ex }); }\n  return [...map.values()];\n}\n\nconst accion = String(input.accion || 'consultar').toLowerCase().trim();\nconst itemsActuales = Array.isArray(input.items_actuales) ? input.items_actuales.map(recalc) : [];\nconst itemsValidados = Array.isArray(input.items_validados) ? input.items_validados.map(recalc) : [];\nconst itemsProblematicos = Array.isArray(input.items_problematicos) ? input.items_problematicos : [];\nconst tienePendientes = Boolean(input.tiene_pendientes || input.necesita_aclaracion || itemsProblematicos.length > 0);\n\nfunction findIndexByName(arr, nombre) {\n  const target = normalize(nombre);\n  return arr.findIndex(x => normalize(x?.nombre) === target);\n}\n\n// --- PROTECCIÓN PEDIDO PAGADO ---\n// estado_actual puede no llegar desde Agente Validador; leer Preparar Datos como fallback\nconst estadoActual = String(\n  input.estado_actual ||\n  (() => { try { return $('Preparar Datos').first().json.estado_actual; } catch { return ''; } })() ||\n  ''\n).toLowerCase().trim();\nconst ESTADOS_PAGADOS = ['pagado', 'paid', 'confirmado', 'en_preparacion'];\nconst pedidoPagado = ESTADOS_PAGADOS.includes(estadoActual);\n\nif (pedidoPagado && accion === 'agregar') {\n  return [{\n    json: {\n      success: false,\n      puede_continuar: false,\n      mutar_db: false,\n      crear_pedido_nuevo: true,\n      pedido_id: input.pedido_id || null,\n      pedido_numero: input.pedido_numero || null,\n      pedido_codigo: input.pedido_codigo || null,\n      session_id: input.session_id || null,\n      telefono: input.telefono || null,\n      tipo_despacho_actual: input.tipo_despacho_actual || null,\n      direccion_actual: input.direccion_actual || null,\n      metodo_pago_actual: input.metodo_pago_actual || null,\n      costo_envio_actual: toNumber(input.costo_envio_actual, 0),\n      estado_actual: estadoActual,\n      items_validados: itemsValidados,\n      accion_ejecutada: accion\n    }\n  }];\n}\n\nif (pedidoPagado && (accion === 'quitar' || accion === 'modificar')) {\n  return [{\n    json: {\n      success: false,\n      puede_continuar: false,\n      mutar_db: false,\n      derivar_humano: true,\n      motivo: 'pedido_pagado_modificacion',\n      pedido_id: input.pedido_id || null,\n      pedido_numero: input.pedido_numero || null,\n      pedido_codigo: input.pedido_codigo || null,\n      session_id: input.session_id || null,\n      telefono: input.telefono || null,\n      tipo_despacho_actual: input.tipo_despacho_actual || null,\n      direccion_actual: input.direccion_actual || null,\n      metodo_pago_actual: input.metodo_pago_actual || null,\n      estado_actual: estadoActual,\n      accion_ejecutada: accion\n    }\n  }];\n}\n// --- FIN PROTECCIÓN ---\n\nif (accion === 'consultar') {\n  return [{\n    json: {\n      success: true,\n      puede_continuar: true,\n      mutar_db: false,\n      pedido_id: input.pedido_id || null,\n      pedido_numero: input.pedido_numero || null,\n      pedido_codigo: input.pedido_codigo || null,\n      session_id: input.session_id || null,\n      telefono: input.telefono || null,\n      items_actualizados: itemsActuales,\n      subtotal: toNumber(input.subtotal_actual, 0),\n      total_actual: toNumber(input.total_actual, 0),\n      accion_ejecutada: accion,\n      tiene_pendientes: false,\n      items_problematicos: [],\n      notas_sql_frag: 'notas',\n      tipo_despacho_actual: input.tipo_despacho_actual || null,\n      direccion_actual: input.direccion_actual || null,\n      metodo_pago_actual: input.metodo_pago_actual || null,\n      estado_actual: input.estado_actual || null,\n      tiempo_estimado_actual: input.tiempo_estimado_actual || null,\n      costo_envio_actual: toNumber(input.costo_envio_actual, 0)\n    }\n  }];\n}\n\nif (!itemsValidados.length) {\n  return [{\n    json: {\n      success: false,\n      puede_continuar: false,\n      mutar_db: false,\n      pedido_id: input.pedido_id || null,\n      pedido_numero: input.pedido_numero || null,\n      pedido_codigo: input.pedido_codigo || null,\n      session_id: input.session_id || null,\n      telefono: input.telefono || null,\n      items_actuales: itemsActuales,\n      items_nuevos: Array.isArray(input.items_nuevos) ? input.items_nuevos : [],\n      subtotal: toNumber(input.subtotal_actual, 0),\n      total_actual: toNumber(input.total_actual, 0),\n      accion_ejecutada: accion,\n      necesita_aclaracion: Boolean(input.necesita_aclaracion),\n      pregunta_aclaracion: input.pregunta_aclaracion || null,\n      items_problematicos: itemsProblematicos,\n      tiene_pendientes: true,\n      notas_sql_frag: 'notas',\n      tipo_despacho_actual: input.tipo_despacho_actual || null,\n      direccion_actual: input.direccion_actual || null,\n      metodo_pago_actual: input.metodo_pago_actual || null,\n      estado_actual: input.estado_actual || null,\n      tiempo_estimado_actual: input.tiempo_estimado_actual || null,\n      costo_envio_actual: toNumber(input.costo_envio_actual, 0)\n    }\n  }];\n}\n\nconst itemsActualizados = [...itemsActuales];\n\nif (accion === 'agregar') {\n  for (const item of itemsValidados) {\n    const idx = findIndexByName(itemsActualizados, item.nombre);\n    if (idx >= 0) {\n      itemsActualizados[idx] = recalc({\n        ...itemsActualizados[idx],\n        cantidad:        toNumber(itemsActualizados[idx].cantidad, 0) + toNumber(item.cantidad, 1),\n        precio_unitario: toNumber(item.precio_unitario, itemsActualizados[idx].precio_unitario),\n        notas:           item.notas ?? itemsActualizados[idx].notas ?? null,\n        extras:          mergeExtras(itemsActualizados[idx].extras, item.extras)\n      });\n    } else {\n      itemsActualizados.push(recalc(item));\n    }\n  }\n} else if (accion === 'quitar') {\n  for (const item of itemsValidados) {\n    const idx = findIndexByName(itemsActualizados, item.nombre);\n    if (idx >= 0) {\n      const restante = toNumber(itemsActualizados[idx].cantidad, 0) - Math.max(1, toNumber(item.cantidad, 1));\n      if (restante <= 0) {\n        itemsActualizados.splice(idx, 1);\n      } else {\n        itemsActualizados[idx] = recalc({\n          ...itemsActualizados[idx],\n          cantidad: restante\n        });\n      }\n    }\n  }\n} else if (accion === 'modificar') {\n  for (const item of itemsValidados) {\n    const idx = findIndexByName(itemsActualizados, item.nombre);\n    if (idx >= 0) {\n      itemsActualizados[idx] = recalc({\n        ...itemsActualizados[idx],\n        cantidad:        Math.max(1, toNumber(item.cantidad, itemsActualizados[idx].cantidad)),\n        precio_unitario: toNumber(item.precio_unitario, itemsActualizados[idx].precio_unitario),\n        notas:           item.notas ?? itemsActualizados[idx].notas ?? null,\n        extras:          mergeExtras(itemsActualizados[idx].extras, item.extras)\n      });\n    } else {\n      itemsActualizados.push(recalc(item));\n    }\n  }\n}\n\nconst subtotal = Number(itemsActualizados.reduce((acc, item) => acc + toNumber(item.subtotal, 0), 0).toFixed(2));\n\n// Construir fragmento SQL para notas (evita comillas simples dentro de expresiones n8n)\nconst notasArray = itemsActualizados\n  .filter(i => i.notas && String(i.notas).trim() && String(i.notas) !== 'null')\n  .map(i => ({ item: String(i.nombre || '').trim(), nota: String(i.notas).trim() }));\n// Cuando hay notas produce: \"'[{...}]'::jsonb\"  |  Si no: \"notas\" (no-op)\nconst notas_sql_frag = notasArray.length > 0\n  ? \"'\" + JSON.stringify(notasArray).replace(/'/g, \"''\") + \"'::jsonb\"\n  : 'notas';\n\nreturn [{\n  json: {\n    success: true,\n    puede_continuar: true,\n    mutar_db: true,\n    pedido_id: input.pedido_id || null,\n    pedido_numero: input.pedido_numero || null,\n    pedido_codigo: input.pedido_codigo || null,\n    session_id: input.session_id || null,\n    telefono: input.telefono || null,\n    items_actualizados: itemsActualizados,\n    subtotal,\n    total_actual: toNumber(input.total_actual, 0),\n    accion_ejecutada: accion,\n    tiene_pendientes: tienePendientes,\n    necesita_aclaracion: Boolean(input.necesita_aclaracion),\n    pregunta_aclaracion: input.pregunta_aclaracion || null,\n    items_problematicos: itemsProblematicos,\n    items_validados: itemsValidados,\n    notas_sql_frag,\n    tipo_despacho_actual: input.tipo_despacho_actual || null,\n    direccion_actual: input.direccion_actual || null,\n    metodo_pago_actual: input.metodo_pago_actual || null,\n    estado_actual: input.estado_actual || null,\n    tiempo_estimado_actual: input.tiempo_estimado_actual || null,\n    costo_envio_actual: toNumber(input.costo_envio_actual, 0)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1936,
+        0
+      ],
+      "id": "c3ad1faa-ce5a-4e3a-8ced-809868312228",
+      "name": "Ejecutar Acción",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH current_row AS (\n  SELECT *\n  FROM pedidos\n  WHERE id = {{ $input.first().json.pedido_id }}\n),\nupdated AS (\n  UPDATE pedidos p\n  SET \n    items = '{{ JSON.stringify($input.first().json.items_actualizados || []).replace(/'/g, \"''\") }}'::jsonb,\n    subtotal = {{ Number($input.first().json.subtotal || 0) }},\n    total = CASE\n      WHEN lower(COALESCE(p.tipo_despacho,'')) = 'delivery' THEN {{ Number($input.first().json.subtotal || 0) }} + COALESCE(p.costo_envio,0)\n      ELSE {{ Number($input.first().json.subtotal || 0) }}\n    END,\n    notas = {{ $input.first().json.notas_sql_frag != null ? $input.first().json.notas_sql_frag : 'notas' }},\n    usuario_id = COALESCE(\n      p.usuario_id,\n      CASE\n        WHEN regexp_replace('{{ $('When Executed by Another Workflow').first().json.usuario_id || '' }}', '[^0-9]', '', 'g') <> ''\n        THEN regexp_replace('{{ $('When Executed by Another Workflow').first().json.usuario_id || '' }}', '[^0-9]', '', 'g')::int\n        ELSE NULL\n      END\n    ),\n    estado = CASE\n      WHEN lower(COALESCE(p.estado,'en_curso')) IN ('confirmado','pendiente_pago','pagado','paid') THEN 'en_curso'\n      ELSE COALESCE(p.estado,'en_curso')\n    END,\n    updated_at = NOW()\n  WHERE p.id = {{ $input.first().json.pedido_id }}\n    AND {{ $input.first().json.mutar_db === true ? 'true' : 'false' }}\n  RETURNING p.*\n)\nSELECT * FROM updated\nUNION ALL\nSELECT * FROM current_row\nWHERE NOT EXISTS (SELECT 1 FROM updated)",
+        "options": {}
+      },
+      "id": "303546e0-1dbb-4801-97da-6889d1761e3f",
+      "name": "Actualizar Pedido en DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        2208,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const pedidoDB = $json || {};\nconst ejecutado = (() => {\n  try { return $('Ejecutar Acción').first().json || {}; } catch { return {}; }\n})();\n\nlet carrito_expirado = false;\ntry {\n  carrito_expirado = Boolean($('Check Carrito Expirado').first().json.tenia_carrito_expirado);\n} catch (e) {\n  carrito_expirado = false;\n}\n\nconst moneda = '€';\n\nfunction formatearPrecio(valor, simbolo = moneda) {\n  return simbolo + Number(valor || 0).toFixed(2).replace('.', ',');\n}\n\nfunction listaItems(items, withSubtotal = false) {\n  return (Array.isArray(items) ? items : []).map(i => {\n    const base = `${Number(i.cantidad || 1)}x ${i.nombre}`;\n    return withSubtotal ? `${base} (${formatearPrecio(i.subtotal)})` : base;\n  });\n}\n\nfunction listaItemsConNotas(items) {\n  return (Array.isArray(items) ? items : []).map(i => {\n    const base = `${Number(i.cantidad || 1)}x ${i.nombre}`;\n    return i.notas ? `${base} (nota: ${i.notas})` : base;\n  });\n}\n\nconst items = Array.isArray(pedidoDB.items)\n  ? pedidoDB.items\n  : (() => {\n      try { return JSON.parse(pedidoDB.items || '[]'); } catch { return []; }\n    })();\n\nconst accion = String(ejecutado.accion_ejecutada || 'consultar').toLowerCase().trim();\nconst subtotal = Number(pedidoDB.subtotal ?? ejecutado.subtotal ?? 0);\nconst total = Number(pedidoDB.total ?? subtotal ?? 0);\nconst costoEnvio = Number(pedidoDB.costo_envio || 0);\nconst codigo = pedidoDB.pedido_codigo || ejecutado.pedido_codigo || null;\nconst tipoDespacho = String(pedidoDB.tipo_despacho || ejecutado.tipo_despacho_actual || '').toLowerCase().trim();\nconst metodoPago = String(pedidoDB.metodo_pago || ejecutado.metodo_pago_actual || '').toLowerCase().trim();\nconst tiempo = pedidoDB.tiempo_estimado || ejecutado.tiempo_estimado_actual || null;\n\n// --- PEDIDO PAGADO: casos especiales ---\nif (ejecutado.crear_pedido_nuevo === true) {\n  const itemsValidados = Array.isArray(ejecutado.items_validados) ? ejecutado.items_validados : [];\n  const codigoActual = ejecutado.pedido_codigo || null;\n  const tipoD = String(ejecutado.tipo_despacho_actual || '').toLowerCase().trim();\n  const dir   = ejecutado.direccion_actual || null;\n  const pago  = ejecutado.metodo_pago_actual || null;\n  const despachoMsg = tipoD === 'delivery'\n    ? ` con delivery${dir ? ` a ${dir}` : ''}`\n    : tipoD === 'retiro' ? ' con retiro en el local' : '';\n  const pagoMsg = pago ? `, mismo método de pago (${pago})` : '';\n\n  let mensajePagado;\n  if (itemsValidados.length > 0) {\n    // Tiene items específicos — pedir confirmación\n    const productosMsg = listaItems(itemsValidados, false).join(', ');\n    mensajePagado = `Tu pedido${codigoActual ? ' ' + codigoActual : ''} ya fue pagado y no puedo modificarlo. Abriré un pedido nuevo${despachoMsg}${pagoMsg} con ${productosMsg}. ¿Confirmas?`;\n  } else {\n    // Sin items aún — preguntar qué quiere agregar\n    mensajePagado = `Tu pedido${codigoActual ? ' ' + codigoActual : ''} ya fue pagado y no puedo modificarlo. Para agregar más productos te abro un pedido nuevo${despachoMsg}${pagoMsg}. ¿Qué quieres agregar?`;\n  }\n\n  return [{\n    json: {\n      success: false,\n      crear_pedido_nuevo: true,\n      items_validados_pendientes: itemsValidados,\n      respuesta_agente: mensajePagado,\n      pedido_id: ejecutado.pedido_id || null,\n      pedido_numero: ejecutado.pedido_numero || null,\n      pedido_codigo: codigoActual,\n      tipo_despacho_heredado: tipoD || null,\n      direccion_heredada: dir,\n      metodo_pago_heredado: pago\n    }\n  }];\n}\n\nif (ejecutado.derivar_humano === true && ejecutado.motivo === 'pedido_pagado_modificacion') {\n  const codigoActual = ejecutado.pedido_codigo || null;\n  return [{\n    json: {\n      success: false,\n      derivar_humano: true,\n      motivo: 'pedido_pagado_modificacion',\n      respuesta_agente: `Tu pedido${codigoActual ? ' ' + codigoActual : ''} ya está pagado. No puedo quitarle productos directamente. Te conecto con un agente para que te ayude.`,\n      pedido_id: ejecutado.pedido_id || null,\n      pedido_numero: ejecutado.pedido_numero || null,\n      pedido_codigo: codigoActual\n    }\n  }];\n}\n// --- FIN PEDIDO PAGADO ---\n\nif (ejecutado.success === false || ejecutado.puede_continuar === false) {\n  let mensaje = 'No pude actualizar el pedido.';\n  if (ejecutado.necesita_aclaracion && ejecutado.pregunta_aclaracion) {\n    mensaje = ejecutado.pregunta_aclaracion;\n  } else if (Array.isArray(ejecutado.items_problematicos) && ejecutado.items_problematicos.length > 0) {\n    mensaje = ejecutado.items_problematicos.map(x => x.mensaje).filter(Boolean).join(' ');\n  }\n\n  return [{\n    json: {\n      success: false,\n      respuesta_agente: mensaje,\n      pedido_id: pedidoDB.id || ejecutado.pedido_id || null,\n      pedido_numero: pedidoDB.pedido_numero || ejecutado.pedido_numero || null,\n      pedido_codigo: codigo,\n      items,\n      subtotal,\n      total,\n      tipo_despacho: tipoDespacho || null,\n      metodo_pago: metodoPago || null,\n      tiempo_estimado: tiempo || null\n    }\n  }];\n}\n\nconst itemsTexto = listaItems(items, false);\nconst itemsTextoConSubtotal = listaItems(items, true);\nconst itemsAgregados = listaItems(Array.isArray(ejecutado.items_validados) ? ejecutado.items_validados : [], false);\nconst pendientes = Array.isArray(ejecutado.items_problematicos) ? ejecutado.items_problematicos.map(x => x.mensaje).filter(Boolean) : [];\n\nlet mensaje = '';\n\nif (accion === 'consultar') {\n  const despachoTexto = tipoDespacho === 'delivery'\n    ? `Delivery${pedidoDB.direccion ? ` a ${pedidoDB.direccion}` : ''}${costoEnvio ? ` con envío de ${formatearPrecio(costoEnvio)}` : ''}.`\n    : tipoDespacho === 'retiro'\n      ? 'Retiro en el local.'\n      : 'Aún no has definido si será delivery o retiro.';\n  const pagoTexto = metodoPago ? `Pago: ${metodoPago}.` : 'Aún no has definido el método de pago.';\n  const tiempoTexto = tiempo ? `Tiempo estimado: ${tiempo}.` : '';\n  mensaje = items.length\n    ? `Tu pedido${codigo ? ` ${codigo}` : ''} lleva ${itemsTextoConSubtotal.join(', ')}. ${despachoTexto} ${pagoTexto} ${tiempoTexto}`.replace(/\\s+/g, ' ').trim()\n    : `Tu pedido${codigo ? ` ${codigo}` : ''} está vacío por ahora.`;\n} else {\n  const itemsAgregadosTexto = listaItemsConNotas(\n    Array.isArray(ejecutado.items_validados) ? ejecutado.items_validados : []\n  );\n  const encabezado = accion === 'agregar' && itemsAgregadosTexto.length\n    ? `Listo, agregué ${itemsAgregadosTexto.join(', ')}`\n    : accion === 'agregar'\n      ? 'Listo'\n      : accion === 'quitar'\n        ? 'Listo, actualicé tu pedido'\n        : accion === 'modificar'\n          ? 'Anotado, actualicé el pedido'\n          : 'Perfecto, actualicé tu pedido';\n\n  mensaje = items.length\n    ? `${encabezado}, tu pedido${codigo ? ` ${codigo}` : ''} ahora lleva ${itemsTexto.join(', ')}. Subtotal: ${formatearPrecio(subtotal)}.`\n    : `${encabezado}. Tu pedido quedó vacío.`;\n\n  if (ejecutado.tiene_pendientes && itemsAgregados.length && pendientes.length) {\n    mensaje += ` Agregué ${itemsAgregados.join(', ')}. Aún necesito confirmar esto: ${pendientes.join(' ')}`;\n  } else if (ejecutado.tiene_pendientes && pendientes.length) {\n    mensaje += ` ${pendientes.join(' ')}`;\n  }\n\n  if (tipoDespacho === 'retiro') {\n    mensaje += ` Mantengo retiro en el local${tiempo ? ` con tiempo estimado de ${tiempo}` : ''}.`;\n  } else if (tipoDespacho === 'delivery') {\n    mensaje += ` Mantengo delivery${pedidoDB.direccion ? ` a ${pedidoDB.direccion}` : ''}${tiempo ? ` con tiempo estimado de ${tiempo}` : ''}.`;\n  }\n\n  if (metodoPago) {\n    mensaje += ` Método de pago actual: ${metodoPago}.`;\n  }\n\n  // POST-AGREGADO: añadir pregunta que activa botones interactivos\n  if (accion === 'agregar' && items.length > 0) {\n    if (!tipoDespacho) {\n      mensaje += ' ¿Querés agregar algo más o pasamos al despacho?';\n    } else if (!metodoPago) {\n      mensaje += ' ¿Querés agregar algo más o ir al pago?';\n    }\n  }\n}\n\nif (carrito_expirado) {\n  mensaje = 'Tu carrito anterior expiró. Abrí un pedido nuevo. ' + mensaje;\n}\n\n// --- EXTRAS SUGERIDOS tras agregar ---\nlet botones = null;\nconst extrasSugeridos = Array.isArray(ejecutado.extras_sugeridos) ? ejecutado.extras_sugeridos : [];\nif (accion === 'agregar' && extrasSugeridos.length > 0) {\n  const extrasBloque = extrasSugeridos.map(es => {\n    const lista = es.extras.slice(0, 4).map(e =>\n      e.precio > 0 ? `${e.nombre} (+${formatearPrecio(e.precio)})` : e.nombre\n    ).join(', ');\n    return `Extras para ${es.item}: ${lista}.`;\n  }).join(' ');\n  mensaje += ` ${extrasBloque} ¿Quieres añadir extras, otro producto o pasar al despacho?`;\n  botones = [\n    { title: 'Añadir extras', value: 'quiero agregar extras' },\n    { title: 'Otro producto', value: 'quiero agregar otro producto' },\n    { title: 'Ir al despacho', value: 'quiero ir al despacho' }\n  ];\n}\n\n// Extraer categoría del último producto agregado y categorías únicas del menú\nlet categoria_ultimo = null;\nlet categorias_menu = [];\nif (accion === 'agregar' && Array.isArray(ejecutado.items_validados) && ejecutado.items_validados.length > 0) {\n  const lastItem = ejecutado.items_validados[ejecutado.items_validados.length - 1];\n  categoria_ultimo = lastItem.categoria || null;\n}\nif (Array.isArray(ejecutado.categorias_menu)) {\n  categorias_menu = ejecutado.categorias_menu;\n}\n\nreturn [{\n  json: {\n    success: true,\n    respuesta_agente: mensaje.replace(/\\s+/g, ' ').trim(),\n    botones,\n    pedido_id: pedidoDB.id || ejecutado.pedido_id || null,\n    pedido_numero: pedidoDB.pedido_numero || ejecutado.pedido_numero || null,\n    pedido_codigo: codigo,\n    items,\n    subtotal,\n    total,\n    tipo_despacho: tipoDespacho || null,\n    metodo_pago: metodoPago || null,\n    tiempo_estimado: tiempo || null,\n    categoria_ultimo,\n    categorias_menu\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2496,
+        0
+      ],
+      "id": "642e02d8-d775-4800-882e-66f9222c256f",
+      "name": "Generar Respuesta Final",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "3b7c3f70-5bff-48b1-ac72-57913f08d92b",
+      "name": "Merge Pedido1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $('When Executed by Another Workflow').first().json || {};\nconst pedido  = $('Merge Pedido1').first().json || {};\n\nfunction normalize(v) {\n  return String(v || '')\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction toNumber(v, d = 0) {\n  const n = Number(v);\n  return Number.isFinite(n) ? n : d;\n}\n\nfunction singularCategory(cat) {\n  const t = normalize(cat);\n  if (t.includes('pizza')) return 'pizza';\n  if (t.includes('hamburguesa')) return 'hamburguesa';\n  if (t.includes('bebida') || t.includes('refresco')) return 'bebida';\n  if (t.includes('pasta') || t.includes('espagueti') || t.includes('spaghetti')) return 'pasta';\n  return '';\n}\n\nfunction extractQtyAndName(texto, qtyFallback = 1) {\n  let t = String(texto || '').trim();\n  if (!t) return null;\n\n  // Nombres de producto que empiezan con palabra numérica — proteger de extracción de cantidad\n  const PROTECTED_STARTS = [\n    /^cuatro\\s+quesos\\b/i,\n    /^4\\s+quesos\\b/i,\n    /^tres\\s+leches\\b/i,\n  ];\n  const isProtected = PROTECTED_STARTS.some(rx => rx.test(t));\n\n  const patrones = [\n    [/^(una|un|uno)\\s+/i, 1],\n    [/^(dos|2)\\s+/i, 2],\n    [/^(tres|3)\\s+/i, 3],\n    [/^(cuatro|4)\\s+/i, 4],\n    [/^(cinco|5)\\s+/i, 5],\n  ];\n\n  let qty = Math.max(1, toNumber(qtyFallback, 1));\n  if (!isProtected) {\n    for (const [rx, value] of patrones) {\n      if (rx.test(t)) {\n        qty = value;\n        t = t.replace(rx, '').trim();\n        break;\n      }\n    }\n  }\n\n  t = t\n    .replace(/^(de|del)\\s+/i, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n\n  if (!t) return null;\n  return { nombre: t, cantidad: qty };\n}\n\nfunction splitCompositeItem(item) {\n  const nombreOriginal = String(item?.nombre || '').trim();\n  const qtyOriginal = Math.max(1, toNumber(item?.cantidad, 1));\n  // Preservar notas del item original a través del split\n  const notasOriginal = item?.notas && String(item.notas).trim() ? String(item.notas).trim() : null;\n\n  if (!nombreOriginal) return [];\n\n  const normalized = normalize(nombreOriginal);\n  // Solo separar por \"y/e\" cuando qty > 1 (lista explícita). Con qty === 1, \"y\" es parte del nombre del producto\n  // (ej: \"pan de ajo con queso y jamón\"). El LLM ya splitea items individuales; aquí solo manejamos el fallback.\n  const hasCommaOrSemicolon = /[,;]/.test(nombreOriginal);\n  const hasConjunction = /\\b(y|e)\\b/i.test(nombreOriginal);\n  const rawHasManyProducts = hasCommaOrSemicolon || (hasConjunction && qtyOriginal > 1);\n  const rawPluralCategory = /\\b(pizzas|hamburguesas|bebidas|refrescos|pastas)\\b/i.test(nombreOriginal);\n\n  if (!rawHasManyProducts || qtyOriginal > 1 && !rawPluralCategory) {\n    return [{ nombre: nombreOriginal, cantidad: qtyOriginal, notas: notasOriginal }];\n  }\n\n  let contextCategory = singularCategory(nombreOriginal);\n  let working = nombreOriginal\n    .replace(/\\s+/g, ' ')\n    .replace(/\\s+y\\s+/gi, '|')\n    .replace(/\\s+e\\s+/gi, '|')\n    .replace(/,/g, '|');\n\n  const parts = working\n    .split('|')\n    .map(x => x.trim())\n    .filter(Boolean);\n\n  const expanded = [];\n  for (let idx = 0; idx < parts.length; idx++) {\n    const part = parts[idx];\n    const parsed = extractQtyAndName(part, 1);\n    if (!parsed) continue;\n\n    let nombre = parsed.nombre;\n    const partNorm = normalize(nombre);\n\n    if (!contextCategory && idx === 0) {\n      contextCategory = singularCategory(nombre);\n    }\n\n    const alreadyHasCategory =\n      /\\bpizza\\b/i.test(nombre) ||\n      /\\bhamburguesa\\b/i.test(nombre) ||\n      /\\bbebida\\b/i.test(nombre) ||\n      /\\brefresco\\b/i.test(nombre) ||\n      /\\bpasta\\b/i.test(nombre);\n\n    if (contextCategory && !alreadyHasCategory) {\n      nombre = `${contextCategory} ${nombre}`.trim();\n    }\n\n    nombre = nombre\n      .replace(/\\b(de la casa|del local)\\b/gi, '')\n      .replace(/\\s+/g, ' ')\n      .trim();\n\n    expanded.push({\n      nombre,\n      cantidad: parsed.cantidad,\n      notas: notasOriginal\n    });\n  }\n\n  return expanded.length ? expanded : [{ nombre: nombreOriginal, cantidad: qtyOriginal, notas: notasOriginal }];\n}\n\nlet rawItems = trigger.items;\nlet itemsNuevos = [];\n\nif (Array.isArray(rawItems)) {\n  itemsNuevos = rawItems;\n} else if (typeof rawItems === 'string' && rawItems.trim() !== '') {\n  try {\n    const parsed = JSON.parse(rawItems);\n    itemsNuevos = Array.isArray(parsed) ? parsed : [parsed];\n  } catch (e) {\n    itemsNuevos = [];\n  }\n} else if (rawItems && typeof rawItems === 'object') {\n  itemsNuevos = [rawItems];\n}\n\nif (String(trigger.accion || '').toLowerCase().trim() === 'consultar') {\n  itemsNuevos = [];\n}\n\nitemsNuevos = itemsNuevos\n  .flatMap(splitCompositeItem)\n  .filter(x => String(x?.nombre || '').trim() !== '')\n  .map(x => ({\n    nombre: String(x.nombre || '').trim(),\n    cantidad: Math.max(1, toNumber(x.cantidad, 1)),\n    notas: x.notas && String(x.notas).trim() ? String(x.notas).trim() : null\n  }));\n\nlet itemsActuales = [];\ntry {\n  const raw = pedido.items;\n  itemsActuales = Array.isArray(raw) ? raw : JSON.parse(raw || '[]');\n} catch (e) {\n  itemsActuales = [];\n}\n\nlet carrito_expirado = false;\ntry {\n  carrito_expirado = Boolean($('Check Carrito Expirado').first().json.tenia_carrito_expirado);\n} catch (e) {\n  carrito_expirado = false;\n}\n\nreturn [{\n  json: {\n    pedido_id: pedido.id,\n    pedido_numero: pedido.pedido_numero,\n    pedido_codigo: pedido.pedido_codigo || null,\n    session_id: pedido.session_id,\n    telefono: pedido.telefono,\n    items_actuales: itemsActuales,\n    subtotal_actual: Number(pedido.subtotal || 0),\n    total_actual: Number(pedido.total || 0),\n    accion: trigger.accion,\n    usuario_id: trigger.usuario_id || null,\n    forzar_pedido_nuevo: trigger.forzar_pedido_nuevo || false,\n    carrito_expirado: carrito_expirado,\n    items_nuevos: itemsNuevos,\n    tipo_despacho_actual: pedido.tipo_despacho || null,\n    direccion_actual: pedido.direccion || null,\n    metodo_pago_actual: pedido.metodo_pago || null,\n    estado_actual: pedido.estado || null,\n    tiempo_estimado_actual: pedido.tiempo_estimado || null,\n    costo_envio_actual: Number(pedido.costo_envio || 0)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "7301147a-4b0e-43eb-93cf-8fa0ebee8465",
+      "name": "Preparar Datos"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": " SELECT EXISTS(\n  SELECT 1 FROM pedidos p\n  CROSS JOIN LATERAL (\n    SELECT COALESCE(config_value::int, 60) AS minutos\n    FROM restaurante_config\n    WHERE config_key = 'cart_expiry_minutes'\n      AND restaurante_id = {{ $('When Executed by Another Workflow').first().json.restaurante_id }}\n    LIMIT 1\n  ) cfg\n  WHERE p.telefono = '{{ $('When Executed by Another Workflow').first().json.telefono }}'\n    AND p.estado IN ('en_curso', 'recibido')\n    AND p.updated_at < NOW() - (cfg.minutos * INTERVAL '1 minute')\n    AND p.updated_at > NOW() - INTERVAL '24 hours' \n) AS tenia_carrito_expirado",
+        "options": {}
+      },
+      "id": "145f331f-3361-4e71-b89a-ec82d609e606",
+      "name": "Check Carrito Expirado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        128,
+        224
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo de catch global para Apertura\n// Se activa cuando cualquier nodo upstream falla (onError: continueErrorOutput)\nconst err = $input.first();\nconst origen = err?.json?.node || err?.json?.source || 'nodo desconocido';\nconst detalle = err?.json?.message || err?.json?.error || 'sin detalle';\nconst telefono = $('When Executed by Another Workflow').first().json?.telefono || '';\n\nreturn [{\n  json: {\n    success: false,\n    error: true,\n    tipo: 'sistema',\n    subflujo: 'Apertura',\n    mensaje: `Error técnico en Apertura (${origen}): ${detalle}`,\n    puede_continuar: false,\n    mutar_db: false,\n    telefono: telefono,\n    problema_escalacion: `Error técnico en Apertura (${origen}): ${detalle}`\n  }\n}];"
+      },
+      "id": "14badd85-c445-49aa-b787-7a959d588596",
+      "name": "Respuesta Error Sistema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2496,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalaciones\n  (restaurante_id, telefono, problema, contexto, conversation_id, account_id, contact_id, tipo_escalacion, estado)\nVALUES (\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }},\n  '{{ $input.first().json.telefono.replace(/'/g, \"''\") }}',\n  '{{ $input.first().json.problema_escalacion.replace(/'/g, \"''\") }}',\n  '{\"subflujo\": \"Apertura\", \"tipo\": \"error_sistema\"}'::jsonb,\n  '', '', '', 'error_sistema', 'pendiente'\n)",
+        "options": {}
+      },
+      "id": "27da2d4f-2157-4685-9ba1-8dcf4ae6cdf3",
+      "name": "Registrar Escalacion Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2800,
+        240
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reenviar la respuesta de error al Director sin modificar\nreturn [$(\"Respuesta Error Sistema\").first()];"
+      },
+      "id": "fa256f05-b2c6-46ca-9b78-a5a427b9a64d",
+      "name": "Devolver Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3104,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const trigger = $input.first().json || {};\nconst mensaje = String(trigger.mensaje || trigger.input || '');\n\n// Detectar tag [EASYORDER_REF:260812-1004]\nconst refMatch = mensaje.match(/\\[EASYORDER_REF:([A-Z0-9\\-]+)\\]/i);\nconst esMensajeWeb = !!refMatch;\nconst pedidoCodigoRef = refMatch ? refMatch[1] : null;\n\n// Limpiar el mensaje para el resto del flujo\nconst mensajeLimpio = mensaje.replace(/\\[EASYORDER_REF:[^\\]]+\\]\\n?/, '').trim();\n\nreturn [{\n  json: {\n    ...trigger,\n    mensaje: mensajeLimpio,\n    es_confirmacion_web: esMensajeWeb,\n    pedido_codigo_ref: pedidoCodigoRef\n  }\n}];"
+      },
+      "id": "f0ba4144-2d82-4047-a440-78c92956e8b5",
+      "name": "Detectar Ref Web",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b103c557-5791-4a75-bd93-70571bd2842f",
+              "leftValue": "={{ $json.es_confirmacion_web }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4d46f5c1-9a13-4201-b2c5-02ca709f2ae7",
+      "name": "¿Es Ref Web?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        272,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, pedido_codigo, estado, telefono, session_id\nFROM public.pedidos\nWHERE pedido_codigo = '{{ $('Detectar Ref Web').first().json.pedido_codigo_ref }}'\n  AND restaurante_id = {{ $('Detectar Ref Web').first().json.restaurante_id }}\nLIMIT 1",
+        "options": {}
+      },
+      "id": "e0dce115-485a-4dca-96a8-4e5c8ec40a29",
+      "name": "Buscar Pedido por Codigo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        384,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.pedidos\nSET session_id = '{{ $('Detectar Ref Web').first().json.session_id }}',\n    telefono   = '{{ $('Detectar Ref Web').first().json.telefono }}',\n    updated_at = NOW()\nWHERE pedido_codigo = '{{ $('Detectar Ref Web').first().json.pedido_codigo_ref }}'\n  AND restaurante_id = {{ $('Detectar Ref Web').first().json.restaurante_id }}\nRETURNING id, pedido_codigo, estado",
+        "options": {}
+      },
+      "id": "b451bffe-e8bf-4396-99b9-916428e55824",
+      "name": "Vincular Session WA",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        576,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const pedido = $('Buscar Pedido por Codigo').first().json || {};\nconst codigo = pedido.pedido_codigo || $('Detectar Ref Web').first().json.pedido_codigo_ref || '';\n\nreturn [{\n  json: {\n    respuesta: `✅ Tu pedido *#${codigo}* ha sido registrado. Te notificaremos por aquí cuando cambie el estado. ¡Gracias por elegirnos!`,\n    pedido_id: pedido.id || null,\n    pedido_codigo: codigo,\n    accion: 'confirmacion_web',\n    mutar_db: false\n  }\n}];"
+      },
+      "id": "55db34bd-5e14-40ad-a2b2-7118b6da41fb",
+      "name": "Respuesta Confirmacion Web",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.fn_restaurante_acepta_pedidos({{ Number($('When Executed by Another Workflow').first().json.restaurante_id) }}) AS acepta_pedidos,\n       public.fn_telefono_bloqueado({{ Number($('When Executed by Another Workflow').first().json.restaurante_id) }}, '{{ String($('When Executed by Another Workflow').first().json.telefono || '').replace(/'/g, \"''\") }}') AS telefono_bloqueado",
+        "options": {}
+      },
+      "id": "65425bad-fbda-49bb-ab5a-17c51217e731",
+      "name": "Verificar Puede Pedir",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        384,
+        544
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "eae49301-dc8e-435e-9892-7e8239dbdd34",
+              "leftValue": "={{ $json.acepta_pedidos }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "8d30c450-86e4-406e-8277-e30c38fdf8ed",
+              "leftValue": "={{ $json.telefono_bloqueado }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2af0c5e0-ee34-4551-bb86-3e950861861b",
+      "name": "¿Puede Pedir?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        432,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// El restaurante no acepta pedidos (prueba vencida o pendiente) o el teléfono está bloqueado\n// (antifraude). Mensaje neutro: no se dice el motivo al cliente. No se crea ni toca ningún pedido.\nconst entrada = $('When Executed by Another Workflow').first().json;\nconst chequeo = $('Verificar Puede Pedir').first().json;\nreturn [{\n  json: {\n    success: false,\n    error: false,\n    tipo: chequeo.telefono_bloqueado ? 'telefono_bloqueado' : 'restaurante_no_acepta_pedidos',\n    subflujo: 'Apertura',\n    puede_continuar: false,\n    mutar_db: false,\n    telefono: entrada.telefono || '',\n    respuesta_agente: \"Ahora mismo no podemos tomar tu pedido por aquí. Si lo necesitas, llama directamente al local.\",\n    instruccion_agente: 'No tomes pedidos en esta conversación. Responde al cliente exactamente con respuesta_agente, sin dar motivos.'\n  }\n}];"
+      },
+      "id": "d701a7b3-7ddd-4b6e-a04c-5f29507979a3",
+      "name": "Respuesta No Acepta Pedidos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        320
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Detectar Ref Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pedido Activo": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Merge Pedido1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Carrito Expirado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Siguiente Número": {
+      "main": [
+        [
+          {
+            "node": "Crear Pedido Nuevo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Pedido Nuevo": {
+      "main": [
+        [
+          {
+            "node": "Merge Pedido1",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "consultar_menu": {
+      "main": [
+        [
+          {
+            "node": "Agente Validador",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente Validador": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar Acción",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Acción": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Pedido en DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Pedido en DB": {
+      "main": [
+        [
+          {
+            "node": "Generar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Pedido1": {
+      "main": [
+        [
+          {
+            "node": "Preparar Datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Datos": {
+      "main": [
+        [
+          {
+            "node": "consultar_menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Carrito Expirado": {
+      "main": [
+        [
+          {
+            "node": "Obtener Siguiente Número",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Respuesta Final": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Error Sistema": {
+      "main": [
+        [
+          {
+            "node": "Registrar Escalacion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Escalacion Error": {
+      "main": [
+        [
+          {
+            "node": "Devolver Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar Ref Web": {
+      "main": [
+        [
+          {
+            "node": "¿Es Ref Web?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Ref Web?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Pedido por Codigo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verificar Puede Pedir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pedido por Codigo": {
+      "main": [
+        [
+          {
+            "node": "Vincular Session WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vincular Session WA": {
+      "main": [
+        [
+          {
+            "node": "Respuesta Confirmacion Web",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Confirmacion Web": {
+      "main": [
+        [
+          {
+            "node": "Generar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Puede Pedir": {
+      "main": [
+        [
+          {
+            "node": "¿Puede Pedir?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Puede Pedir?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Pedido Activo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta No Acepta Pedidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "2855fb0b-132d-4f78-bfbe-9000162b5182",
+  "meta": {
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "GXPueVJ0gJMzQz4g",
+  "tags": []
+}

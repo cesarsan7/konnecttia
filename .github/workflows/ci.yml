@@ -21,6 +21,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Flujos de n8n sin URLs escritas a mano
+        run: python3 integrations/n8n/scripts/renderizar.py --comprobar
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

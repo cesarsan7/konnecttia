@@ -1,0 +1,202 @@
+{
+  "name": "[MVP] Perfil Cliente",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "accion"
+            },
+            {
+              "name": "telefono"
+            },
+            {
+              "name": "nombre"
+            },
+            {
+              "name": "direccion"
+            },
+            {
+              "name": "tipo_despacho"
+            },
+            {
+              "name": "restaurante_id"
+            }
+          ]
+        }
+      },
+      "id": "d011f88f-8531-4d79-a239-7437e7e8e5a3",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.fn_upsert_usuario_perfil(\n  '{{ String($('When Executed by Another Workflow').first().json.telefono || '').replace(/'/g, \"''\") }}',\n  {{ (() => { const v = String($('When Executed by Another Workflow').first().json.nombre || '').trim(); return v ? \"'\" + v.replace(/'/g, \"''\") + \"'\" : 'NULL'; })() }},\n  {{ (() => { const v = String($('When Executed by Another Workflow').first().json.direccion || '').trim(); return v ? \"'\" + v.replace(/'/g, \"''\") + \"'\" : 'NULL'; })() }},\n  {{ (() => { const v = String($('When Executed by Another Workflow').first().json.tipo_despacho || '').trim(); return v ? \"'\" + v.replace(/'/g, \"''\") + \"'\" : 'NULL'; })() }},\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }}\n)",
+        "options": {}
+      },
+      "id": "2fdebf60-a5f6-4cba-a09c-cd2f22377bfd",
+      "name": "Guardar Perfil",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        240,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $json || {};\nconst trigger = $('When Executed by Another Workflow').first().json || {};\nconst nombre = row.nombre || trigger.nombre || null;\nconst direccion = row.direccion_frecuente || trigger.direccion || null;\nlet respuesta = 'Perfil actualizado.';\nif (nombre && direccion && ['delivery','domicilio'].includes(String(trigger.tipo_despacho || '').toLowerCase())) respuesta = `Perfecto, lo dejo a nombre de ${nombre} y guardo esta dirección para futuras entregas.`;\nelse if (nombre) respuesta = `Perfecto, lo dejo a nombre de ${nombre}.`;\nelse if (direccion) respuesta = 'Perfecto, guardo esta dirección para futuras entregas.';\nreturn [{json:{success:true,respuesta_agente:respuesta,id:row.id || null,nombre,direccion_frecuente:direccion,updated_name:row.updated_name || false,updated_address:row.updated_address || false}}];"
+      },
+      "id": "f6379c11-0146-4f10-8cfb-6340334347b4",
+      "name": "Respuesta Perfil",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo de catch global para Perfil Cliente\n// Se activa cuando cualquier nodo upstream falla (onError: continueErrorOutput)\nconst err = $input.first();\nconst origen = err?.json?.node || err?.json?.source || 'nodo desconocido';\nconst detalle = err?.json?.message || err?.json?.error || 'sin detalle';\nconst telefono = $('When Executed by Another Workflow').first().json?.telefono || '';\n\nreturn [{\n  json: {\n    success: false,\n    error: true,\n    tipo: 'sistema',\n    subflujo: 'Perfil Cliente',\n    mensaje: `Error técnico en Perfil Cliente (${origen}): ${detalle}`,\n    puede_continuar: false,\n    mutar_db: false,\n    telefono: telefono,\n    problema_escalacion: `Error técnico en Perfil Cliente (${origen}): ${detalle}`\n  }\n}];"
+      },
+      "id": "0a906a87-d5d1-48dd-a197-82f2257e7bf2",
+      "name": "Respuesta Error Sistema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalaciones\n  (restaurante_id, telefono, problema, contexto, conversation_id, account_id, contact_id, tipo_escalacion, estado)\nVALUES (\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }},\n  '{{ $input.first().json.telefono.replace(/'/g, \"''\") }}',\n  '{{ $input.first().json.problema_escalacion.replace(/'/g, \"''\") }}',\n  '{\"subflujo\": \"Perfil Cliente\", \"tipo\": \"error_sistema\"}'::jsonb,\n  '', '', '', 'error_sistema', 'pendiente'\n)",
+        "options": {}
+      },
+      "id": "22a2f15b-40b7-41e3-880d-efe833d88105",
+      "name": "Registrar Escalacion Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        128,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reenviar la respuesta de error al Director sin modificar\nreturn [$(\"Respuesta Error Sistema\").first()];"
+      },
+      "id": "c68b82fd-24f5-49d6-9f93-a32549a022ae",
+      "name": "Devolver Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        640
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Guardar Perfil",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Perfil": {
+      "main": [
+        [
+          {
+            "node": "Respuesta Perfil",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Perfil": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Error Sistema": {
+      "main": [
+        [
+          {
+            "node": "Registrar Escalacion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Escalacion Error": {
+      "main": [
+        [
+          {
+            "node": "Devolver Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d2914511-53b1-4e8f-bc88-697e3b272024",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "bWbJQPndHG56RRHn",
+  "tags": []
+}
