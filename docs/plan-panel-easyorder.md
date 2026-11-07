@@ -1,29 +1,31 @@
 # Plan del panel de EasyOrder (lo que falta para el MVP)
 
 Documento de traspaso: cualquier sesión de trabajo (persona o agente) puede retomar desde aquí.
-Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 4 de noviembre de 2026.
+Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 6 de noviembre de 2026 (noche).
 
 ## Hecho
 
-| Pieza                                                                                | Dónde                                                                                                                        |
-| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| Carta pública, checkout, seguimiento                                                 | `apps/easyorder/src/app/[slug]`                                                                                              |
-| Acceso (Supabase Auth), selector de restaurante                                      | `/panel`, `GET /me/restaurantes`                                                                                             |
-| Tablero de pedidos en directo, cobro, cancelar, tarjetas plegables                   | `/panel/[slug]`                                                                                                              |
-| Modo ocupado configurable (`modo_ocupado_opciones`, `modo_ocupado_duracion_minutos`) | 0009                                                                                                                         |
-| Estadísticas                                                                         | `/panel/[slug]/estadisticas`, `GET /panel/:slug/reports/overview`                                                            |
-| Cotización para n8n (Despacho v2)                                                    | `POST /public/:slug/cotizacion`                                                                                              |
-| **Carta (pieza 1)**: PR #23 (fusionado), CORS PR #24                                 | `/panel/[slug]/carta`, `/panel/:slug/carta/*`, migración 0011                                                                |
-| **Ajustes, parte 1 (pieza 3)**: PR #25 (fusionado)                                   | `/panel/[slug]/ajustes`, `/panel/:slug/ajustes/*`, sin migraciones                                                           |
-| **Ajustes, parte 2**: zonas y tarifas de reparto, horas punta, suplementos. PR #26   | pestaña Reparto, `/panel/:slug/reparto/zonas`, `/panel/:slug/ajustes/franjas`, `suplementos` en `PATCH /ajustes/restaurante` |
-| **Equipo y roles (pieza 4)**: PR #27, migración 0012                                 | `/panel/[slug]/equipo`, `/panel/unirse/[token]`, `/panel/:slug/equipo/*`, `/me/invitaciones/:token`                          |
-| **Pedido manual (pieza 2)**: PR #28                                                  | «Nuevo pedido» en el tablero, `POST /panel/:slug/orders`, `repositories/place-order.ts`                                      |
-| **Clientes (pieza 5)**: PR #29                                                       | `/panel/[slug]/clientes`, `/panel/:slug/clientes/*` (lista, ficha, exportar CSV)                                             |
-| **Tiempo real (pieza 6)**: PR #30                                                    | `GET /panel/:slug/orders/stream` (SSE)                                                                                       |
-| **Mesas** (post-MVP, módulo `tables`): PR #31                                        | `/panel/[slug]/mesas`, `/panel/:slug/mesas/*`, pedidos `tipo_despacho = mesa`                                                |
-| **Gestión de mesas** y opción «Mesa» en el pedido manual: PR #33, migración 0013     | ventana de mesa (pedidos, cuenta, ocupar, liberar), `PATCH /panel/:slug/mesas/:id/estado`                                    |
-| **Repetir pedido** por teléfono en el pedido manual: PR #34                          | `GET /panel/:slug/orders/anteriores`, `lib/panel/reorder.ts`, `lookup_pedidos_limit`                                         |
-| **Invitación por email** (Resend): PR #35                                            | `lib/mailer.ts`, `RESEND_API_KEY`, `RESEND_FROM`, `PANEL_PUBLIC_URL`                                                         |
+| Pieza                                                                                      | Dónde                                                                                                                        |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| Carta pública, checkout, seguimiento                                                       | `apps/easyorder/src/app/[slug]`                                                                                              |
+| Acceso (Supabase Auth), selector de restaurante                                            | `/panel`, `GET /me/restaurantes`                                                                                             |
+| Tablero de pedidos en directo, cobro, cancelar, tarjetas plegables                         | `/panel/[slug]`                                                                                                              |
+| Modo ocupado configurable (`modo_ocupado_opciones`, `modo_ocupado_duracion_minutos`)       | 0009                                                                                                                         |
+| Estadísticas                                                                               | `/panel/[slug]/estadisticas`, `GET /panel/:slug/reports/overview`                                                            |
+| Cotización para n8n (Despacho v2)                                                          | `POST /public/:slug/cotizacion`                                                                                              |
+| **Carta (pieza 1)**: PR #23 (fusionado), CORS PR #24                                       | `/panel/[slug]/carta`, `/panel/:slug/carta/*`, migración 0011                                                                |
+| **Ajustes, parte 1 (pieza 3)**: PR #25 (fusionado)                                         | `/panel/[slug]/ajustes`, `/panel/:slug/ajustes/*`, sin migraciones                                                           |
+| **Ajustes, parte 2**: zonas y tarifas de reparto, horas punta, suplementos. PR #26         | pestaña Reparto, `/panel/:slug/reparto/zonas`, `/panel/:slug/ajustes/franjas`, `suplementos` en `PATCH /ajustes/restaurante` |
+| **Equipo y roles (pieza 4)**: PR #27, migración 0012                                       | `/panel/[slug]/equipo`, `/panel/unirse/[token]`, `/panel/:slug/equipo/*`, `/me/invitaciones/:token`                          |
+| **Pedido manual (pieza 2)**: PR #28                                                        | «Nuevo pedido» en el tablero, `POST /panel/:slug/orders`, `repositories/place-order.ts`                                      |
+| **Clientes (pieza 5)**: PR #29                                                             | `/panel/[slug]/clientes`, `/panel/:slug/clientes/*` (lista, ficha, exportar CSV)                                             |
+| **Tiempo real (pieza 6)**: PR #30                                                          | `GET /panel/:slug/orders/stream` (SSE)                                                                                       |
+| **Mesas** (post-MVP, módulo `tables`): PR #31                                              | `/panel/[slug]/mesas`, `/panel/:slug/mesas/*`, pedidos `tipo_despacho = mesa`                                                |
+| **Gestión de mesas** y opción «Mesa» en el pedido manual: PR #33, migración 0013           | ventana de mesa (pedidos, cuenta, ocupar, liberar), `PATCH /panel/:slug/mesas/:id/estado`                                    |
+| **Repetir pedido** por teléfono en el pedido manual: PR #34                                | `GET /panel/:slug/orders/anteriores`, `lib/panel/reorder.ts`, `lookup_pedidos_limit`                                         |
+| **Invitación por email** (Resend): PR #35                                                  | `lib/mailer.ts`, `RESEND_API_KEY`, `RESEND_FROM`, `PANEL_PUBLIC_URL`                                                         |
+| Requerimientos A–F del 4/11 (tabla, mesas, roles, meseros, repartidores), comanda: #37–#43 | ver sección «Requerimientos del promotor (4/11)»                                                                             |
+| Requerimientos G–S del 6/11 y extras: #44–#62                                              | ver sección «Requerimientos del promotor (6/11)»                                                                             |
 
 ### Notas de la pieza 1 (Carta)
 
@@ -97,18 +99,18 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 4 de noviembre de 2026.
 
 ## Pendiente, en orden
 
-| #   | Pieza                                       | Qué incluye                                                                                                                      | Tablas                                          | Permisos                   | Fase     |
-| --- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------- | -------- |
-| 1   | ~~Carta~~                                   | Hecha en el PR #23 (fusionado, 0011 aplicada en staging)                                                                         | —                                               | `menu.*`                   | MVP      |
-| 2   | ~~Pedido manual~~                           | Hecho en el PR #28                                                                                                               | —                                               | `orders.create`            | MVP      |
-| 3   | ~~Configuración~~                           | Hecha: parte 1 (PR #25) y parte 2 (zonas, horas punta, suplementos)                                                              | —                                               | `settings.*`, `delivery.*` | MVP      |
-| 4   | ~~Equipo y roles~~                          | Hecho: invitación por enlace (opcionalmente para un email), rol y locales, cambiar y quitar acceso. Roles propios: panel interno | —                                               | `team.*`                   | MVP      |
-| 5   | ~~Clientes~~                                | Hecho en el PR #29                                                                                                               | —                                               | `customers.*`              | MVP      |
-| 6   | ~~Tiempo real~~                             | Hecho en el PR #30 (huella del tablero, también detecta cambios de n8n)                                                          | —                                               | `orders.view`              | MVP      |
-| 7   | **Avisos por email**                        | Worker que lee `outbox_evento` y envía al cliente y al local (el mailer de Resend ya existe, PR #35)                             | `outbox_evento`                                 | —                          | Fase 3   |
-| 8   | **Panel interno Konnecttia** (`apps/admin`) | Alta de restaurante, plan, módulos y complementos, roles por restaurante                                                         | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
-| 9   | **Derivar a humano en el panel**            | Ver conversaciones derivadas por el agente y responder                                                                           | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |
-| 10  | **Cobro online**                            | ADR y pasarela                                                                                                                   | —                                               | —                          | Post-MVP |
+| #   | Pieza                                     | Qué incluye                                                                                                                      | Tablas                                          | Permisos                   | Fase     |
+| --- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------- | -------- |
+| 1   | ~~Carta~~                                 | Hecha en el PR #23 (fusionado, 0011 aplicada en staging)                                                                         | —                                               | `menu.*`                   | MVP      |
+| 2   | ~~Pedido manual~~                         | Hecho en el PR #28                                                                                                               | —                                               | `orders.create`            | MVP      |
+| 3   | ~~Configuración~~                         | Hecha: parte 1 (PR #25) y parte 2 (zonas, horas punta, suplementos)                                                              | —                                               | `settings.*`, `delivery.*` | MVP      |
+| 4   | ~~Equipo y roles~~                        | Hecho: invitación por enlace (opcionalmente para un email), rol y locales, cambiar y quitar acceso. Roles propios: panel interno | —                                               | `team.*`                   | MVP      |
+| 5   | ~~Clientes~~                              | Hecho en el PR #29                                                                                                               | —                                               | `customers.*`              | MVP      |
+| 6   | ~~Tiempo real~~                           | Hecho en el PR #30 (huella del tablero, también detecta cambios de n8n)                                                          | —                                               | `orders.view`              | MVP      |
+| 7   | ~~Avisos por email~~                      | Hecho en el PR #61 (`apps/worker`, 0025): aviso al local; al cliente, preparado sin email del cliente                            | `outbox_evento`                                 | —                          | Fase 3   |
+| 8   | ~~Panel interno Konnecttia~~ (`/interno`) | Hecho en el PR #54 (ADR 0009, 0022): alta, plan, módulos, métodos de pago. Pendiente: roles por restaurante                      | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
+| 9   | **Derivar a humano en el panel**          | Ver conversaciones derivadas por el agente y responder                                                                           | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |
+| 10  | **Cobro online**                          | ADR y pasarela                                                                                                                   | —                                               | —                          | Post-MVP |
 
 ## Requerimientos del promotor (4/11), aterrizados
 
@@ -209,8 +211,29 @@ Se retoman cuando el promotor tenga estos datos:
   - si hay un proveedor de reparto externo en mente (M);
   - si hay presupuesto para enviar códigos por SMS o WhatsApp (capa 3 de Q).
 - Despliegue: si las migraciones se aplican solas al desplegar o se deja un aviso en `AGENTS.md`.
+- Avisos por email al cliente: pedir (opcional) el email en el checkout para activarlos.
+- ¿Las estadísticas por mesero y repartidor deben verlas todos los que ven estadísticas?
 
-Hechos el 6/11: H (#47, 0018 aplicada en staging), I (#45), J (#46), documentación comercial (#44).
+### Estado del 6/11 (noche)
+
+| Pieza                                               | PR       | Migración | Estado                                                                    |
+| --------------------------------------------------- | -------- | --------- | ------------------------------------------------------------------------- |
+| Documentación comercial                             | #44, #48 | —         | Fusionado                                                                 |
+| I · Mesero en la comanda                            | #45      | —         | Fusionado                                                                 |
+| J · Aviso en el seguimiento                         | #46      | —         | Fusionado                                                                 |
+| H · Nombre y apodo                                  | #47      | 0018      | Fusionado, aplicada                                                       |
+| S · Auditoría de seguridad                          | #49      | —         | Fusionado; pendiente la lista de `docs/seguridad/auditoria-2026-11.md`    |
+| L · Concepto y justificante de pago                 | #50      | 0020      | Fusionado, aplicada                                                       |
+| R · Consentimiento y borrado de datos               | #51, #53 | 0019      | Fusionado, aplicada; el borrado conserva el bloqueo antifraude sin motivo |
+| Q · Antifraude (capas 1 y 2)                        | #52      | 0021      | Fusionado, aplicada. n8n: PR #9 de `easyorder` sin importar               |
+| 8 + K · Panel interno y métodos de pago permitidos  | #54      | 0022      | Fusionado, aplicada                                                       |
+| G · Alta autoservicio con prueba                    | #55      | 0023      | Fusionado, aplicada; el alta queda apagada hasta activarla en `/interno`  |
+| Recuperar contraseña (Resend, `/panel/restablecer`) | #56, #57 | —         | Fusionado; probado en staging                                             |
+| Ajustes de privacidad y antifraude, CSV de clientes | #58      | —         | Fusionado                                                                 |
+| Filtros y estadísticas por mesero y repartidor      | #59      | —         | Fusionado                                                                 |
+| N · Foto de entrega                                 | #60      | 0024      | Fusionado; confirmar la migración en staging                              |
+| 7 · Avisos por email (worker)                       | #61      | 0025      | Fusionado; confirmar la migración y crear el servicio del worker          |
+| Guía en el panel y centro de ayuda `/ayuda`         | #62      | —         | Fusionado                                                                 |
 
 ## Requerimientos del promotor (6/11), aterrizados
 
@@ -344,3 +367,5 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
   del atributo `p_restaurante_id` con el valor 11 por defecto.
 - Revisar el resto de subflujos con datos de La Isla escritos a mano.
 - Leer `sucursal_item_no_disponible` (agotados por local) y `alergenos` en la consulta de carta.
+- Apertura: comprobar `fn_restaurante_acepta_pedidos` y `fn_telefono_bloqueado` antes de tomar el
+  pedido. Preparado en el PR #9 de `cesarsan7/easyorder`; falta importarlo en staging y probarlo.
