@@ -1,0 +1,278 @@
+{
+  "name": "[MVP] Notificacion Estado Pedido",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notificacion-estado-pedido",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "9ee4e16d-900a-4a61-8d20-08ec50b04605",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "aa000001-0000-0000-0000-000000000001"
+    },
+    {
+      "parameters": {
+        "url": "__CHATWOOT_URL__/api/v1/accounts/__CHATWOOT_CUENTA__/contacts/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.body.telefono }}"
+            },
+            {
+              "name": "include_contacts",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc1098c6-0f4b-441b-a6dd-7ff06859e86c",
+      "name": "Buscar Contacto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-contact",
+              "leftValue": "={{ Array.isArray($json.payload) && $json.payload.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b89af0e5-0bd7-47ac-9a0c-9e83e91c55f8",
+      "name": "¿Contacto Encontrado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=__CHATWOOT_URL__/api/v1/accounts/__CHATWOOT_CUENTA__/contacts/{{ $json.payload[0].id }}/conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "f4341fba-3462-4548-a755-76270588b8b1",
+      "name": "Obtener Conversaciones",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook = $(\"Webhook\").first().json.body || {};\nconst convData = $(\"Obtener Conversaciones\").first().json;\n\nconst conversaciones = Array.isArray(convData.payload) ? convData.payload : [];\nconst ultimaConv = conversaciones.length > 0\n  ? conversaciones.slice().sort(function(a, b) { return (b.id || 0) - (a.id || 0); })[0]\n  : null;\nconst conversationId = ultimaConv ? ultimaConv.id : null;\n\nconst eventType      = String(webhook.event_type || '');\nconst codigo         = String(webhook.pedido_codigo || '?');\nconst tipoDespacho   = String(webhook.tipo_despacho || 'retiro');\nconst tiempoEstimado = webhook.tiempo_estimado ? String(webhook.tiempo_estimado) : null;\n\n// ── helpers ────────────────────────────────────────────────────────────────\nfunction money(v) {\n  return '€' + Number(v || 0).toFixed(2).replace('.', ',');\n}\n\n// ── Mensaje confirmado enriquecido (comanda) ───────────────────────────────\nfunction buildConfirmado() {\n  const nombre     = webhook.nombre_cliente || null;\n  const metodo     = String(webhook.metodo_pago || 'efectivo').toLowerCase();\n  const subtotal   = Number(webhook.subtotal   || 0);\n  const total      = Number(webhook.total      || 0);\n  const costoEnvio = Number(webhook.costo_envio || 0);\n  const direccion  = webhook.direccion || null;\n\n  // Items\n  let items = [];\n  try {\n    items = Array.isArray(webhook.items)\n      ? webhook.items\n      : JSON.parse(webhook.items || '[]');\n  } catch { items = []; }\n\n  // Despacho line\n  let despachoLinea = '';\n  if (tipoDespacho === 'delivery') {\n    despachoLinea = '🛵 *Delivery*' + (direccion ? ' — ' + direccion : '');\n    if (tiempoEstimado) despachoLinea += '\\n⏱ Tiempo estimado: ' + tiempoEstimado;\n  } else {\n    despachoLinea = '🏪 *Retiro en local*';\n    if (tiempoEstimado) despachoLinea += '\\n⏱ Tiempo estimado: ' + tiempoEstimado;\n  }\n\n  // Items lines\n  const itemsLineas = items.map(function(i) {\n    const cantidad = Number(i.cantidad || i.quantity || 1);\n    const nombre_item = String(i.nombre || i.name || '');\n    const precio = Number(i.subtotal || (i.precio_unitario || i.unit_price || 0) * cantidad);\n    let linea = cantidad + 'x ' + nombre_item + '  ' + money(precio);\n    // Extras\n    const extras = Array.isArray(i.extras) ? i.extras : [];\n    if (extras.length > 0) {\n      linea += '\\n   + ' + extras.map(function(e) {\n        return String(e.nombre || e.name || e.extra_nombre || '');\n      }).filter(Boolean).join(', ');\n    }\n    return linea;\n  }).join('\\n');\n\n  // Totales\n  let totalesLineas = '';\n  if (tipoDespacho === 'delivery' && costoEnvio > 0) {\n    totalesLineas = 'Subtotal: ' + money(subtotal) + '\\nEnvío: ' + money(costoEnvio) + '\\n*TOTAL: ' + money(total) + '*';\n  } else {\n    totalesLineas = '*TOTAL: ' + money(total || subtotal) + '*';\n  }\n\n  // Método pago\n  const metodosEmoji = { efectivo: '💵 Efectivo', tarjeta: '💳 Tarjeta', transferencia: '🏦 Transferencia', bizum: '📲 Bizum' };\n  const metodoPagoLinea = metodosEmoji[metodo] || metodo;\n\n  const partes = [\n    '✅ *Pedido #' + codigo + ' CONFIRMADO*',\n    nombre ? '👤 ' + nombre : null,\n    despachoLinea,\n    '',\n    itemsLineas || '(sin detalle)',\n    '',\n    totalesLineas,\n    metodoPagoLinea\n  ].filter(function(x) { return x !== null; });\n\n  return partes.join('\\n');\n}\n\n// ── Mensajes estándar ──────────────────────────────────────────────────────\nlet despachoTexto = '';\nif (tipoDespacho === 'delivery') {\n  despachoTexto = tiempoEstimado\n    ? 'Lo recibirás en aproximadamente ' + tiempoEstimado + '.'\n    : 'Pronto lo recibirás en tu dirección.';\n} else {\n  despachoTexto = 'Hemos recibido tu pedido. Te avisaremos cuando esté listo para retirar.';\n}\n\nconst mensajes = {\n  confirmado:      buildConfirmado(),\n  listo:           '🔔 ¡Tu pedido #' + codigo + ' está listo para retirar! Te esperamos en el local.',\n  en_camino:       '🛵 Tu pedido #' + codigo + ' ya está en camino. ¡Pronto llega!',\n  entregado:       '📦 Tu pedido #' + codigo + ' fue entregado. ¡Gracias por elegirnos!',\n  cancelado:       '❌ Tu pedido #' + codigo + ' ha sido cancelado. Escríbenos si tienes alguna duda.',\n  pago_confirmado: '✅ Confirmamos el pago de tu pedido #' + codigo + '. ¡Gracias!'\n};\n\nconst mensaje = mensajes[eventType] || null;\n\nreturn [{ json: { conversation_id: conversationId !== null ? String(conversationId) : null, mensaje: mensaje, event_type: eventType } }];\n"
+      },
+      "id": "827a244f-be3d-4e17-bee4-4044242078aa",
+      "name": "Construir Mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-conv",
+              "leftValue": "={{ String($json.conversation_id) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "check-msg",
+              "leftValue": "={{ $json.mensaje }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "621f525b-f2f0-4a61-a504-3d0686d83495",
+      "name": "¿Hay Conversación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=__CHATWOOT_URL__/api/v1/accounts/__CHATWOOT_CUENTA__/conversations/{{ $json.conversation_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": {{ JSON.stringify($json.mensaje) }},\n  \"message_type\": \"outgoing\",\n  \"private\": false\n}",
+        "options": {}
+      },
+      "id": "6b59dfc9-64c0-4ee0-ad27-7d337035389c",
+      "name": "Enviar Mensaje",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging chatwoot"
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Buscar Contacto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Contacto": {
+      "main": [
+        [
+          {
+            "node": "¿Contacto Encontrado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Contacto Encontrado?": {
+      "main": [
+        [
+          {
+            "node": "Obtener Conversaciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Conversaciones": {
+      "main": [
+        [
+          {
+            "node": "Construir Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir Mensaje": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Conversación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Conversación?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "382c7b4f-4e21-4997-8f41-a5bbe74f89a5",
+  "meta": {
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "K0ShLP7KBMd6fO6l",
+  "tags": []
+}

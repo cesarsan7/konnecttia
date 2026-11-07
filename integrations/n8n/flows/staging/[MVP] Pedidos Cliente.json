@@ -1,0 +1,313 @@
+{
+  "name": "[MVP] Pedidos Cliente",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "accion"
+            },
+            {
+              "name": "telefono"
+            },
+            {
+              "name": "referencia"
+            },
+            {
+              "name": "restaurante_id"
+            }
+          ]
+        }
+      },
+      "id": "6a7f29e7-1d1c-4279-a30b-9895779fc22d",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -480,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ['resolver','consultar'].includes(String($('When Executed by Another Workflow').first().json.accion || 'listar_modificables')) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9a491cde-418e-4068-a2c1-a3ba75af46fb",
+      "name": "¿Resolver?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -240,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.fn_listar_pedidos_modificables('{{ $('When Executed by Another Workflow').first().json.telefono }}', {{ $('When Executed by Another Workflow').first().json.restaurante_id }}) WHERE es_modificable ORDER BY updated_at DESC LIMIT 5",
+        "options": {}
+      },
+      "id": "caf8f77e-35b7-43c7-9a2a-871577e573c1",
+      "name": "Listar Modificables",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        0,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT *\nFROM public.fn_resolver_pedido_referencia(\n  '{{ $('When Executed by Another Workflow').first().json.telefono }}',\n  '{{ String($('When Executed by Another Workflow').first().json.referencia || '').replace(/'/g, \"''\") }}',\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }}\n)",
+        "options": {}
+      },
+      "id": "1d9b3f0f-9a99-4182-8605-26d8ec77e4c2",
+      "name": "Resolver Pedido",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        0,
+        192
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const all = $input.all().map(i => i.json).filter(x => x && Object.keys(x).length);\nif (!all.length) {\n  return [{json:{success:false,respuesta_agente:'No encontré pedidos modificables vigentes para tu número.', pedidos:[]}}];\n}\nif (all.length === 1) {\n  const p = all[0];\n  return [{\n    json: {\n      success: true,\n      seleccion_requerida: false,\n      pedido_id: p.pedido_id,\n      pedido_codigo: p.pedido_codigo,\n      respuesta_agente: `Puedo modificar el pedido ${p.pedido_codigo}. ¿Qué cambio quieres hacer?`,\n      pedido: p\n    }\n  }];\n}\nconst texto = all.map(p => `${p.pedido_codigo} (${p.tipo_despacho || 'sin despacho'}, total €${Number(p.total || 0).toFixed(2).replace('.',',')})`).join(', ');\nreturn [{\n  json: {\n    success: true,\n    seleccion_requerida: true,\n    pedidos: all,\n    respuesta_agente: `Tienes varios pedidos aún modificables: ${texto}. ¿Cuál quieres modificar?`\n  }\n}];"
+      },
+      "id": "9f9fec84-a07a-456f-bf15-43ca2ea3aeac",
+      "name": "Respuesta Lista",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $json || {};\nconst trigger = $('When Executed by Another Workflow').first().json || {};\nconst accion = String(trigger.accion || 'resolver').toLowerCase().trim();\n\nfunction money(v) {\n  return '€' + Number(v || 0).toFixed(2).replace('.', ',');\n}\n\nlet items = [];\ntry {\n  items = Array.isArray(p.items) ? p.items : JSON.parse(p.items || '[]');\n} catch {\n  items = [];\n}\nconst itemsTexto = items.length ? items.map(i => `${Number(i.cantidad || 1)}x ${i.nombre}`).join(', ') : 'sin detalle disponible';\nconst tiempo = p.tiempo_estimado ? ` Tiempo estimado: ${p.tiempo_estimado}.` : '';\nconst despacho = p.tipo_despacho === 'delivery'\n  ? `Delivery${p.direccion ? ` a ${p.direccion}` : ''}.`\n  : p.tipo_despacho === 'retiro'\n    ? 'Retiro en el local.'\n    : 'Despacho aún no definido.';\nconst pago = p.metodo_pago ? ` Pago: ${p.metodo_pago}.` : '';\n\nif (!p.pedido_id) {\n  return [{json:{success:false,respuesta_agente:'No pude identificar ese pedido. Envíame el código exacto, por ejemplo 260418-1006.'}}];\n}\n\nif (accion === 'consultar') {\n  return [{\n    json: {\n      success: true,\n      seleccion_requerida: false,\n      pedido_id: p.pedido_id,\n      pedido_codigo: p.pedido_codigo,\n      es_modificable: Boolean(p.es_modificable),\n      respuesta_agente: `El pedido ${p.pedido_codigo} lleva ${itemsTexto}. Estado: ${p.estado}. ${despacho} Total: ${money(p.total || 0)}.${tiempo}${pago}`.replace(/\\s+/g, ' ').trim(),\n      pedido: p\n    }\n  }];\n}\n\nif (!p.es_modificable) {\n  // Diferenciar motivo: en_preparacion (estado operativo) vs ventana de tiempo expirada\n  const enPreparacion = ['en_preparacion', 'listo', 'en_camino'].includes(\n    String(p.estado || '').toLowerCase()\n  );\n\n  const motivo = enPreparacion\n    ? 'pedido_en_preparacion'\n    : 'ventana_modificacion_expirada';\n\n  const respuesta = enPreparacion\n    ? `Tu pedido ${p.pedido_codigo} ya está en preparación y no puede modificarse automáticamente. Te paso con el equipo para que te ayuden.`\n    : `El pedido ${p.pedido_codigo} ya no puede modificarse (la ventana de cambios expiró). Te paso con el equipo.`;\n\n  return [{\n    json: {\n      success: false,\n      derivar_humano: true,\n      motivo_derivacion: motivo,\n      seleccion_requerida: false,\n      pedido_id: p.pedido_id,\n      pedido_codigo: p.pedido_codigo,\n      es_modificable: false,\n      respuesta_agente: respuesta,\n      pedido: p\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    success: true,\n    seleccion_requerida: false,\n    pedido_id: p.pedido_id,\n    pedido_codigo: p.pedido_codigo,\n    es_modificable: true,\n    respuesta_agente: `Perfecto, trabajaré sobre el pedido ${p.pedido_codigo}. ¿Qué cambio quieres hacer?`,\n    pedido: p\n  }\n}];"
+      },
+      "id": "7e76e4ac-69e4-4e2b-9cf0-d055348a2ef1",
+      "name": "Respuesta Resolver",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        192
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Nodo de catch global para Pedidos Cliente\n// Se activa cuando cualquier nodo upstream falla (onError: continueErrorOutput)\nconst err = $input.first();\nconst origen = err?.json?.node || err?.json?.source || 'nodo desconocido';\nconst detalle = err?.json?.message || err?.json?.error || 'sin detalle';\nconst telefono = $('When Executed by Another Workflow').first().json?.telefono || '';\n\nreturn [{\n  json: {\n    success: false,\n    error: true,\n    tipo: 'sistema',\n    subflujo: 'Pedidos Cliente',\n    mensaje: `Error técnico en Pedidos Cliente (${origen}): ${detalle}`,\n    puede_continuar: false,\n    mutar_db: false,\n    telefono: telefono,\n    problema_escalacion: `Error técnico en Pedidos Cliente (${origen}): ${detalle}`\n  }\n}];"
+      },
+      "id": "5d741826-ab54-44ca-b2b6-1ed6120a6b48",
+      "name": "Respuesta Error Sistema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalaciones\n  (restaurante_id, telefono, problema, contexto, conversation_id, account_id, contact_id, tipo_escalacion, estado)\nVALUES (\n  {{ $('When Executed by Another Workflow').first().json.restaurante_id }},\n  '{{ $input.first().json.telefono.replace(/'/g, \"''\") }}',\n  '{{ $input.first().json.problema_escalacion.replace(/'/g, \"''\") }}',\n  '{\"subflujo\": \"Pedidos Cliente\", \"tipo\": \"error_sistema\"}'::jsonb,\n  '', '', '', 'error_sistema', 'pendiente'\n)",
+        "options": {}
+      },
+      "id": "d09a7880-285c-453f-98da-4a5bb1926dba",
+      "name": "Registrar Escalacion Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1104,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Reenviar la respuesta de error al Director sin modificar\nreturn [$(\"Respuesta Error Sistema\").first()];"
+      },
+      "id": "e9acf3b4-2d0c-4b05-9aeb-7e45ca36b2bb",
+      "name": "Devolver Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        400
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "¿Resolver?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Resolver?": {
+      "main": [
+        [
+          {
+            "node": "Resolver Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Listar Modificables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar Modificables": {
+      "main": [
+        [
+          {
+            "node": "Respuesta Lista",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Pedido": {
+      "main": [
+        [
+          {
+            "node": "Respuesta Resolver",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Lista": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Resolver": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Respuesta Error Sistema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Error Sistema": {
+      "main": [
+        [
+          {
+            "node": "Registrar Escalacion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Escalacion Error": {
+      "main": [
+        [
+          {
+            "node": "Devolver Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "45a8b173-6351-4987-8481-72dc165a362c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "CXSyNqVqMk3gHzSm",
+  "tags": []
+}

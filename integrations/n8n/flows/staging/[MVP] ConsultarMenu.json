@@ -1,0 +1,100 @@
+{
+  "name": "[MVP] ConsultarMenu",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "categoria"
+            },
+            {
+              "name": "restaurante_id"
+            }
+          ]
+        }
+      },
+      "id": "81e84e43-1ae9-4bd3-976b-9bc32abcff25",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  mc.name AS category_name,\n  mi.name AS item_name,\n  mi.description,\n  mi.is_active,\n  mv.variant_name,\n  mv.price\nFROM menu_item mi\nJOIN menu_category mc ON mi.menu_category_id = mc.menu_category_id\nLEFT JOIN menu_variant mv ON mi.menu_item_id = mv.menu_item_id AND mv.is_active = true\nWHERE mi.restaurante_id = {{ $json.restaurante_id }}\n  AND mi.is_active = true\n  AND mc.is_active = true\n  AND (\n    '{{ $json.categoria }}' = ''\n    OR lower(mc.name) ILIKE '%' || lower('{{ $json.categoria }}') || '%'\n  )\nORDER BY mc.sort_order NULLS LAST, mc.name, mi.name, mv.price NULLS LAST",
+        "options": {}
+      },
+      "id": "e4c05cf1-8b8d-4b09-ab61-b684f88e0d9d",
+      "name": "Consultar Items DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging postgres"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const WA_LIMIT = 3800; // margen seguro bajo el límite real de 4096\n\nconst rows = $input.all().map(r => r.json);\nconst categoria = ($('When Executed by Another Workflow').first().json.categoria || '').trim();\n\n// Si el nodo DB falló\nif (!rows || rows.length === 0 || rows[0].error) {\n  return [{ json: {\n    respuesta_agente: 'En este momento no puedo consultar el menú. Intenta en unos segundos o dime qué quieres pedir.',\n    total_items: 0\n  }}];\n}\n\nconst ABREV = {\n  'personal': 'P.', 'personal (25 cm)': 'P. 25cm',\n  'mediana': 'M.', 'mediana (32 cm)': 'M. 32cm',\n  'familiar': 'F.', 'familiar (45 cm)': 'F. 45cm',\n  'única': 'Única', 'unica': 'Única',\n  'pequena': 'Peq.', 'pequeña': 'Peq.', 'pequeño': 'Peq.',\n  'grande': 'G.', 'extra grande': 'XL', 'xl': 'XL',\n  'small': 'S.', 'estándar': 'Std.', 'estandar': 'Std.',\n  'individual': 'Ind.',\n  'ración': 'Rac.', 'racion': 'Rac.',\n  'ración individual': 'Rac. Ind.', 'racion individual': 'Rac. Ind.',\n  'ración grande': 'Rac. G.', 'racion grande': 'Rac. G.',\n  'ración grande (14 uds)': 'Rac. G. 14u', 'racion grande (14 uds)': 'Rac. G. 14u',\n  'ración (6 uds)': 'Rac. 6u', 'racion (6 uds)': 'Rac. 6u',\n  'ración (8 uds)': 'Rac. 8u', 'racion (8 uds)': 'Rac. 8u',\n  'lata 330 ml': 'Lata', 'botella 500 ml': '500ml',\n  'botella 1.5 l': '1,5L', 'botella 1,5 l': '1,5L',\n};\n\nfunction abreviar(nombre) {\n  return ABREV[nombre.trim().toLowerCase()] || nombre;\n}\n\n// Agrupar por categoría\nconst cats = {};\nfor (const row of rows) {\n  const cat = row.category_name || 'Otros';\n  if (!cats[cat]) cats[cat] = {};\n  const item = row.item_name;\n  if (!cats[cat][item]) cats[cat][item] = { available: row.is_active !== false, variants: [] };\n  if (row.variant_name && row.price != null) {\n    cats[cat][item].variants.push({ name: row.variant_name, price: row.price });\n  }\n}\n\nconst catNames = Object.keys(cats);\nconst totalItems = Object.values(cats).reduce((acc, items) => acc + Object.keys(items).length, 0);\n\nif (catNames.length === 0) {\n  const msg = categoria\n    ? `No encontré productos en la categoría \"${categoria}\".`\n    : 'No hay productos disponibles en este momento.';\n  return [{ json: { respuesta_agente: msg, total_items: 0 } }];\n}\n\n// Construir bloque de texto para una categoría\nfunction buildCatBlock(catName) {\n  const items = cats[catName];\n  const lines = [`*${catName}*`];\n  for (const [itemName, data] of Object.entries(items)) {\n    const avail = data.available ? '' : ' _(no disp.)_';\n    if (data.variants.length === 0) {\n      lines.push(`- ${itemName}${avail}`);\n    } else {\n      const vStr = data.variants\n        .map(v => `${abreviar(v.name)} €${Number(v.price).toFixed(2).replace('.', ',')}`)\n        .join(' / ');\n      lines.push(`- ${itemName}: ${vStr}${avail}`);\n    }\n  }\n  return lines.join('\\n');\n}\n\n// Si se pidió categoría específica, devolver solo esa\nif (categoria) {\n  const blocks = catNames.map(buildCatBlock).join('\\n\\n');\n  const truncated = blocks.length > WA_LIMIT\n    ? blocks.slice(0, WA_LIMIT) + '\\n_(lista recortada por longitud)_'\n    : blocks;\n  return [{ json: { respuesta_agente: truncated, total_items: totalItems } }];\n}\n\n// Sin categoría: intentar devolver todo el menú\nconst fullBlocks = catNames.map(buildCatBlock).join('\\n\\n');\n\nif (fullBlocks.length <= WA_LIMIT) {\n  // Cabe completo\n  return [{ json: { respuesta_agente: fullBlocks, total_items: totalItems } }];\n}\n\n// No cabe completo → devolver lista de categorías y pedir que elija\nconst catList = catNames.map(c => `• ${c}`).join('\\n');\nconst respuesta =\n  `Tenemos las siguientes categorías:\\n\\n${catList}\\n\\n` +\n  `¿Sobre cuál quieres ver los productos y precios?`;\n\nreturn [{ json: { respuesta_agente: respuesta, total_items: totalItems, modo: 'categorias' } }];"
+      },
+      "id": "703f7a65-758a-4ea7-98f2-343dbf6b23d9",
+      "name": "Formatear Respuesta Menu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Consultar Items DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Items DB": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0dab6eb9-b636-4847-b3df-6c03e8b4a6fc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3e9e2731a8d5bb19fd4086b1e0521bd627f7d1fd4fb35cc0a5387b699bc723b0"
+  },
+  "nodeGroups": [],
+  "id": "0YnaRqq5dGuuQ9tw",
+  "tags": []
+}
