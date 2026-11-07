@@ -28,7 +28,6 @@ Una ficha por cada local (si tienen varios, repetir).
 - [ ] **Teléfono del local** — obligatorio
 - [ ] **Horario por día**, con dos turnos si cierran a mediodía — obligatorio
 - [ ] **Días de cierre y festivos** previstos — recomendado
-- [ ] **¿Aceptan pedidos programados** (para más tarde u otro día)? — opcional
 
 | Día       | Turno 1 | Turno 2 |
 | --------- | ------- | ------- |
@@ -91,7 +90,7 @@ Es lo que más tiempo lleva. Vale cualquier formato: la carta en PDF, fotos de l
 
 **Equipo** (todos los planes)
 
-- [ ] Email de cada persona que usará el panel, su **rol** (dueño, encargado, personal, mesero, repartidor) y en qué local trabaja
+- [ ] Email de cada persona que usará el panel, su **rol** (dueño, encargado, personal, mesero, repartidor), en qué local trabaja y su nombre o apodo (es lo que verá el resto del equipo)
 
 **Mesas** (Premium)
 
@@ -102,6 +101,7 @@ Es lo que más tiempo lleva. Vale cualquier formato: la carta en PDF, fotos de l
 **Reparto con repartidores propios**
 
 - [ ] Email de cada repartidor, para que vea en el móvil sus pedidos asignados y los marque «en camino» y «entregado»
+- [ ] **Foto de entrega**: ¿el repartidor debe hacer una foto al entregar? (no, opcional u obligatoria)
 
 **Comandas impresas**
 
@@ -110,6 +110,12 @@ Es lo que más tiempo lleva. Vale cualquier formato: la carta en PDF, fotos de l
 **WhatsApp** (si contratan el complemento)
 
 - [ ] **Número de WhatsApp** del negocio en el que recibirán pedidos, y quién lo atiende
+
+**Avisos y datos**
+
+- [ ] **Emails para avisos** de pedidos nuevos (uno o varios), si quieren recibirlos por correo
+- [ ] **Política de privacidad propia** (enlace), si la tienen; si no, usamos nuestra plantilla
+- [ ] ¿Quieren **limitar los pedidos por teléfono** (pedidos a la vez y por hora) para evitar pedidos falsos?
 
 ## Antes de publicar
 
