@@ -108,7 +108,7 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 6 de noviembre de 2026 
 | 5   | ~~Clientes~~                              | Hecho en el PR #29                                                                                                               | —                                               | `customers.*`              | MVP      |
 | 6   | ~~Tiempo real~~                           | Hecho en el PR #30 (huella del tablero, también detecta cambios de n8n)                                                          | —                                               | `orders.view`              | MVP      |
 | 7   | ~~Avisos por email~~                      | Hecho en el PR #61 (`apps/worker`, 0025): aviso al local; al cliente, preparado sin email del cliente                            | `outbox_evento`                                 | —                          | Fase 3   |
-| 8   | ~~Panel interno Konnecttia~~ (`/interno`) | Hecho en el PR #54 (ADR 0009, 0022): alta, plan, módulos, métodos de pago. Pendiente: roles por restaurante                      | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
+| 8   | ~~Panel interno Konnecttia~~ (`/interno`) | Hecho en el PR #54 (ADR 0009, 0022): alta, plan, módulos, métodos de pago. Roles por restaurante hechos en #70                   | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
 | 9   | **Derivar a humano en el panel**          | Ver conversaciones derivadas por el agente y responder                                                                           | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |
 | 10  | **Cobro online**                          | ADR y pasarela                                                                                                                   | —                                               | —                          | Post-MVP |
 
@@ -225,7 +225,7 @@ Se retoman cuando el promotor tenga estos datos:
 | S · Auditoría de seguridad                          | #49      | —         | Fusionado; pendiente la lista de `docs/seguridad/auditoria-2026-11.md`    |
 | L · Concepto y justificante de pago                 | #50      | 0020      | Fusionado, aplicada                                                       |
 | R · Consentimiento y borrado de datos               | #51, #53 | 0019      | Fusionado, aplicada; el borrado conserva el bloqueo antifraude sin motivo |
-| Q · Antifraude (capas 1 y 2)                        | #52      | 0021      | Fusionado, aplicada. n8n: PR #9 de `easyorder` sin importar               |
+| Q · Antifraude (capas 1 y 2)                        | #52      | 0021      | Fusionado, aplicada. n8n: hecho en el flujo Apertura de staging           |
 | 8 + K · Panel interno y métodos de pago permitidos  | #54      | 0022      | Fusionado, aplicada                                                       |
 | G · Alta autoservicio con prueba                    | #55      | 0023      | Fusionado, aplicada; el alta queda apagada hasta activarla en `/interno`  |
 | Recuperar contraseña (Resend, `/panel/restablecer`) | #56, #57 | —         | Fusionado; probado en staging                                             |
@@ -234,6 +234,19 @@ Se retoman cuando el promotor tenga estos datos:
 | N · Foto de entrega                                 | #60      | 0024      | Fusionado; confirmar la migración en staging                              |
 | 7 · Avisos por email (worker)                       | #61      | 0025      | Fusionado; confirmar la migración y crear el servicio del worker          |
 | Guía en el panel y centro de ayuda `/ayuda`         | #62      | —         | Fusionado                                                                 |
+
+### Estado del 9/11
+
+| Pieza                                                           | PR  | Migración | Estado                                    |
+| --------------------------------------------------------------- | --- | --------- | ----------------------------------------- |
+| Alta de Arepa's Factory y su carta                              | #68 | —         | Fusionado; aplicar el seed en staging     |
+| Alta completa desde `/interno` con importación de la carta      | #69 | —         | Fusionado                                 |
+| Roles por restaurante en `/interno`                             | #70 | —         | Fusionado                                 |
+| V · Personalizar plantillas de rol en el panel                  | #71 | —         | Fusionado                                 |
+| U · Actividad de repartidores y meseros                         | #72 | —         | Fusionado                                 |
+| Arreglo del typecheck de `panel-roles` tras #70 y #71           | #73 | —         | Fusionado                                 |
+| Plantillas de rol propias de Konnecttia (`/interno/plantillas`) | #74 | —         | Abierto, pendiente de revisión            |
+| Q · Antifraude capa 3: propuesta (ADR 0011)                     | #75 | —         | Abierto; falta elegir canal y presupuesto |
 
 ## Requerimientos del promotor (6/11), aterrizados
 
@@ -355,11 +368,11 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
   (emails, WhatsApp, IA del agente, SMS) y horas de alta. Necesita los importes reales de los
   servicios contratados.
 
-## Requerimientos del promotor (6/11, noche), sin implementar
+## Requerimientos del promotor (6/11, noche)
 
-Solo planificados; se implementan cuando el promotor lo pida. Letras a continuación de la T.
+U y V están hechas; el resto solo está planificado y se implementa cuando el promotor lo pida. Letras a continuación de la T.
 
-### U · Historial de actividad de repartidores y meseros (post-MVP)
+### U · Historial de actividad de repartidores y meseros (hecho en #72)
 
 - Ficha por repartidor y por mesero con su historia: repartos asignados, salida y entrega con
   horas, fotos de entrega, cobros pendientes que llevaba; pedidos y mesas atendidos, importes,
@@ -371,7 +384,7 @@ Solo planificados; se implementan cuando el promotor lo pida. Letras a continuac
 - Permisos: lo ven quien gestiona el equipo y el encargado del local; cada repartidor o mesero ve
   solo lo suyo.
 
-### V · Editar los permisos de los roles del restaurante (MVP)
+### V · Editar los permisos de los roles del restaurante (hecho en #71)
 
 - Hoy: los roles propios del restaurante se crean y editan en Equipo → Roles (#39), pero las
   plantillas (Propietario, Encargado, Personal, Consulta, Mesero, Repartidor) no se pueden tocar
