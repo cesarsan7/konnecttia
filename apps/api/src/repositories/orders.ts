@@ -3,6 +3,7 @@ import {
   canClientCancel,
   canReportIncident,
   DEFERRED_PAYMENT_METHODS,
+  effectiveBrandColor,
   MAX_OPEN_INCIDENTS_PER_ORDER,
   ORDER_STATUS,
   PAYMENT_METHOD,
@@ -254,6 +255,9 @@ export type TrackedOrder = {
   readonly contactoTelefono: string | null;
   readonly pedidoCodigo: string | null;
   readonly restaurante: string;
+  /** Marca (pieza AA): color de acento y logo para que el seguimiento se parezca a la carta. */
+  readonly colorMarca: string | null;
+  readonly logoUrl: string | null;
   /** Local que prepara o despacha (dirección del local, nunca la del cliente). */
   readonly local: { readonly nombre: string; readonly direccion: string | null } | null;
   readonly estado: string;
@@ -325,6 +329,8 @@ export async function findOrderByTrackingToken(
       datos_bancarios: unknown;
       justificantes: number;
       justificantes_max: string | null;
+      brand_color: string | null;
+      logo_url: string | null;
       contacto_telefono: string | null;
       incidencias_abiertas: number;
       email_cliente: string | null;
@@ -335,6 +341,7 @@ export async function findOrderByTrackingToken(
     SELECT p.pedido_codigo, r.nombre AS restaurante, p.estado, p.estado_pago, p.tipo_despacho,
            p.tiempo_estimado, p.items, p.subtotal, p.costo_envio, p.total, p.metodo_pago,
            r.datos_bancarios, p.created_at, p.updated_at, p.email_cliente,
+           r.brand_color, r.logo_url,
            (SELECT count(*)::int FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
              AS justificantes,
            (SELECT c.config_value FROM public.restaurante_config c
@@ -372,6 +379,8 @@ export async function findOrderByTrackingToken(
     incidenciasAbiertas: row.incidencias_abiertas,
     pedidoCodigo: row.pedido_codigo,
     restaurante: row.restaurante,
+    colorMarca: effectiveBrandColor(row.brand_color),
+    logoUrl: /^https:\/\//.test(row.logo_url?.trim() ?? "") ? (row.logo_url?.trim() ?? null) : null,
     local: row.local_nombre ? { nombre: row.local_nombre, direccion: row.local_direccion } : null,
     estado: row.estado,
     estadoPago: row.estado_pago,

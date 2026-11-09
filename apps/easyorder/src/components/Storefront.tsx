@@ -4,7 +4,7 @@ import { centsFromDecimal } from "@konnecttia/domain";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createApi } from "@/lib/api";
-import { publicLogo, publicSocialLinks } from "@/lib/brand";
+import { brandStyle, publicLogo, publicSocialLinks } from "@/lib/brand";
 import { addLine, type CartLine, itemCount, parseStoredCart, subtotalCents } from "@/lib/cart";
 import { acceptsOnlineOrders, RESTAURANT_UNAVAILABLE_MESSAGE } from "@/lib/checkout";
 import { eurosFromCents } from "@/lib/format";
@@ -132,7 +132,7 @@ export function Storefront({
 
   if (view === "checkout") {
     return (
-      <main className="shell">
+      <main className="shell" style={brandStyle(restaurant.color_marca)}>
         <Checkout
           api={api}
           slug={slug}
@@ -160,7 +160,7 @@ export function Storefront({
   }
 
   return (
-    <main className="shell">
+    <main className="shell" style={brandStyle(restaurant.color_marca)}>
       <header className="store-head">
         {logo && (
           // biome-ignore lint/performance/noImgElement: logo del restaurante en una URL externa (Storage)

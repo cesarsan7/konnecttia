@@ -47,3 +47,27 @@
 .k-brand-add {
   max-width: 280px;
 }
+
+.k-brand-color {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.k-brand-swatch {
+  width: 48px;
+  height: 40px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+}
+
+.k-brand-preview {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+}

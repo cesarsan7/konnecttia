@@ -155,4 +155,72 @@ describe.skipIf(!TEST_DATABASE_URL)("marca: logo y redes sociales (pieza Z)", ()
     });
     expect(denied.status).toBe(403);
   });
+
+  it("el color de marca se guarda normalizado, sale en la carta y en el seguimiento", async () => {
+    const settings = await call("ownerA", "GET", "/panel/prueba-a/ajustes");
+    expect(settings.body.restaurante.color_marca).toBeNull();
+
+    const saved = await call("ownerA", "PATCH", "/panel/prueba-a/ajustes/restaurante", {
+      color_marca: "#0A7",
+    });
+    expect(saved.status).toBe(200);
+    const after = await call("ownerA", "GET", "/panel/prueba-a/ajustes");
+    expect(after.body.restaurante.color_marca).toBe("#00aa77");
+
+    const menu = (await (await ctx.app.request("/public/prueba-a/menu")).json()) as Json;
+    expect(menu.restaurante.color_marca).toBe("#00aa77");
+
+    const order = await ctx.app.request("/public/prueba-a/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-real-ip": "203.0.113.231",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        nombre: "Marta",
+        email: "marta@example.com",
+        telefono: "+34600007001",
+        tipo_despacho: "retiro",
+        metodo_pago: "efectivo",
+        privacidad_aceptada: true,
+        items: [{ menu_item_id: 1101, menu_variant_id: 1201, quantity: 1 }],
+      }),
+    });
+    const { tracking_token: token } = (await order.json()) as Json;
+    const tracked = (await (await ctx.app.request(`/public/orders/${token}`)).json()) as Json;
+    expect(tracked.colorMarca).toBe("#00aa77");
+
+    const reset = await call("ownerA", "PATCH", "/panel/prueba-a/ajustes/restaurante", {
+      color_marca: null,
+    });
+    expect(reset.status).toBe(200);
+    const menuAfter = (await (await ctx.app.request("/public/prueba-a/menu")).json()) as Json;
+    expect(menuAfter.restaurante.color_marca).toBeNull();
+  });
+
+  it("rechaza colores inválidos y no cambia nada para quien no puede editar", async () => {
+    for (const bad of ["rojo", "#12", "#gggggg", "url(x)", 5]) {
+      const result = await call("ownerA", "PATCH", "/panel/prueba-a/ajustes/restaurante", {
+        color_marca: bad,
+      });
+      expect(result.status).toBe(400);
+    }
+    const denied = await call("viewerA", "PATCH", "/panel/prueba-a/ajustes/restaurante", {
+      color_marca: "#00aa77",
+    });
+    expect(denied.status).toBe(403);
+  });
+
+  it("el rojo por defecto de la versión anterior cuenta como «sin color propio»", async () => {
+    await ctx.sql`UPDATE public.restaurante SET brand_color = '#E63946' WHERE id = 101`;
+    try {
+      const menu = (await (await ctx.app.request("/public/prueba-a/menu")).json()) as Json;
+      expect(menu.restaurante.color_marca).toBeNull();
+      const settings = await call("ownerA", "GET", "/panel/prueba-a/ajustes");
+      expect(settings.body.restaurante.color_marca).toBeNull();
+    } finally {
+      await ctx.sql`UPDATE public.restaurante SET brand_color = NULL WHERE id = 101`;
+    }
+  });
 });

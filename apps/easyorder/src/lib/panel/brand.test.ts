@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { checkLogoFile, freeNetworks, logoError, rowsFrom, socialPayload } from "./brand";
+import {
+  checkLogoFile,
+  colorFeedback,
+  freeNetworks,
+  logoError,
+  rowsFrom,
+  socialPayload,
+} from "./brand";
 
 describe("marca del restaurante (pieza Z)", () => {
   it("ofrece solo las redes que faltan", () => {
@@ -43,5 +50,14 @@ describe("marca del restaurante (pieza Z)", () => {
     expect(checkLogoFile({ type: "image/svg+xml", size: 1000 })).toContain("PNG");
     expect(checkLogoFile({ type: "image/png", size: 3 * 1024 * 1024 })).toContain("2 MB");
     expect(logoError(503)).toContain("no está activada");
+  });
+
+  it("da el texto legible y avisa de un color demasiado claro", () => {
+    expect(colorFeedback("#1a7f5a")).toEqual({ color: "#1a7f5a", ink: "#ffffff", warning: null });
+    expect(colorFeedback("1A7F5A")?.color).toBe("#1a7f5a");
+    expect(colorFeedback("#ffee00")?.ink).toBe("#000000");
+    expect(colorFeedback("#ffee00")?.warning).toContain("muy claro");
+    expect(colorFeedback("verde")).toBeNull();
+    expect(colorFeedback("")).toBeNull();
   });
 });

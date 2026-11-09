@@ -42,6 +42,8 @@ export type Menu = {
     readonly privacidad_url: string | null;
     /** Marca (pieza Z): logo y redes sociales. Ausentes en respuestas antiguas. */
     readonly logo_url?: string | null;
+    /** Color de acento propio (`#rrggbb`); null o ausente = el de EasyOrder (pieza AA). */
+    readonly color_marca?: string | null;
     readonly redes_sociales?: readonly { readonly red: string; readonly url: string }[];
   };
   readonly local: { readonly id: number; readonly nombre: string } | null;
@@ -101,6 +103,9 @@ export type CreatedOrder = {
 export type TrackedOrder = {
   readonly pedidoCodigo: string | null;
   readonly restaurante: string;
+  /** Marca del restaurante (pieza AA): color de acento y logo. Ausentes en respuestas antiguas. */
+  readonly colorMarca?: string | null;
+  readonly logoUrl?: string | null;
   readonly local: { readonly nombre: string; readonly direccion: string | null } | null;
   readonly estado: string;
   readonly estadoPago: string;

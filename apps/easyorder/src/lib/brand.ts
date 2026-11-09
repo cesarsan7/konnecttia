@@ -1,4 +1,11 @@
-import { readSocialLinks, SOCIAL_LABEL, type SocialNetwork } from "@konnecttia/domain";
+import {
+  effectiveBrandColor,
+  readableInk,
+  readSocialLinks,
+  SOCIAL_LABEL,
+  type SocialNetwork,
+} from "@konnecttia/domain";
+import type { CSSProperties } from "react";
 
 export type PublicSocialLink = {
   readonly red: SocialNetwork;
@@ -24,4 +31,14 @@ export function publicSocialLinks(
 export function publicLogo(url: string | null | undefined): string | null {
   const value = url?.trim() ?? "";
   return /^https:\/\//.test(value) ? value : null;
+}
+
+/**
+ * Estilo con el color de marca para la carta y el seguimiento: cambia el acento y calcula el color
+ * del texto de los botones (blanco o negro, el que mejor se lea). Sin color propio no se toca nada.
+ */
+export function brandStyle(color: string | null | undefined): CSSProperties | undefined {
+  const valid = effectiveBrandColor(color);
+  if (!valid) return undefined;
+  return { "--accent": valid, "--accent-ink": readableInk(valid) } as CSSProperties;
 }

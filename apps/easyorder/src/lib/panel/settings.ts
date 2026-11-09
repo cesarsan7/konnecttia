@@ -31,6 +31,8 @@ export type RestaurantSettings = {
   readonly eslogan: string | null;
   /** Logo (URL pública) y redes sociales del restaurante (pieza Z). */
   readonly logo_url?: string | null;
+  /** Color de marca propio (`#rrggbb`); null = el de EasyOrder (pieza AA). */
+  readonly color_marca?: string | null;
   readonly redes_sociales?: readonly SocialLink[];
   readonly zona_horaria: string | null;
   readonly recogida: boolean;
