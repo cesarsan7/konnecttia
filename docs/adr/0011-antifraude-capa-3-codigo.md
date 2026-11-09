@@ -1,6 +1,6 @@
 # ADR 0011 — Antifraude capa 3: código de verificación solo con riesgo
 
-- Estado: propuesta (2026-11-08), pendiente de que el promotor elija proveedor y tope de gasto
+- Estado: aceptada en lo esencial (2026-11-09): el promotor pidió ambos canales a elegir por restaurante y un tope de 10 € al mes; faltan por confirmar el umbral de importe y el proveedor de SMS
 - Desarrolla: plan del panel, pieza Q (capas 1 y 2 ya en producción, migración 0021)
 
 ## Contexto
@@ -22,15 +22,19 @@ Las tarifas son de consulta pública (noviembre de 2026) y pueden cambiar; confi
 
 ## Decisión propuesta
 
-1. **Canal:** WhatsApp (plantilla de autenticación) por el mismo número y proveedor del agente
-   (ADR 0005); SMS solo como alternativa si WhatsApp no entrega. Es unas cinco veces más barato.
+1. **Canal a elegir por restaurante:** WhatsApp (plantilla de autenticación) o SMS. Se escoge al
+   dar de alta el restaurante en `/interno` y se puede cambiar después (clave de configuración del
+   restaurante; sin clave, la capa 3 queda apagada). WhatsApp es unas cinco veces más barato y es
+   el valor recomendado.
 2. **Cuándo se pide el código** (cualquiera de estas):
    - teléfono sin ningún pedido entregado en ese restaurante,
    - reparto con pago en efectivo,
    - importe por encima de un umbral por restaurante (clave de configuración, sin clave = sin regla).
 3. **Cuándo no:** el cliente con un pedido entregado antes no repite el código.
-4. **Tope de gasto:** clave de configuración con un máximo mensual de códigos por restaurante; al
-   llegar al tope, se bloquea el pedido de riesgo y se avisa al local.
+4. **Tope de gasto:** 10 € al mes por restaurante por defecto (clave de configuración, ajustable
+   desde `/interno`). Equivale a unos 600 códigos por WhatsApp o unos 120 por SMS. Al llegar al
+   tope, el pedido de riesgo no se bloquea en seco: se pide pagar con tarjeta o llamar al local, y
+   se avisa al local y a Konnecttia.
 5. **Alcance:** el pedido por WhatsApp no lo necesita (el número ya está verificado por Meta); solo
    el checkout web.
 
@@ -46,5 +50,5 @@ Las tarifas son de consulta pública (noviembre de 2026) y pueden cambiar; confi
 
 ## Pendiente del promotor
 
-1. Elegir canal (WhatsApp o SMS) y presupuesto mensual.
-2. Confirmar las reglas de riesgo y el umbral de importe.
+1. Confirmar el umbral de importe (por restaurante; sin clave, la regla no se aplica).
+2. Elegir proveedor de SMS (Twilio u otro) cuando se active ese canal.
