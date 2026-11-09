@@ -55,3 +55,40 @@
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+
+.cancel-box {
+  display: grid;
+  gap: 10px;
+}
+
+.cancel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.issue-box,
+.issue-form {
+  display: grid;
+  gap: 10px;
+}
+
+.issue-types {
+  display: grid;
+  gap: 6px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.issue-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.issue-text {
+  width: 100%;
+  font: inherit;
+  padding: 10px;
+}

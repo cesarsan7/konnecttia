@@ -45,6 +45,21 @@ export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatu
   [S.Expired]: [],
 };
 
+/**
+ * Regla de cancelación por el cliente (pieza O): solo mientras el local no ha aceptado el pedido.
+ * «Aceptar» es pasar de «recibido» a «confirmado» (o confirmar el cobro). Con el cobro pendiente
+ * (transferencia, Bizum) el cliente cancela hasta que sube un justificante, en «recibido» o en
+ * «pendiente de pago»: con justificante el
+ * local puede estar ya verificando el pago y decide él («Contactar con el local»).
+ */
+export function canClientCancel(input: {
+  readonly estado: string;
+  readonly justificantes: number;
+}): boolean {
+  if (input.justificantes > 0) return false;
+  return input.estado === S.Received || input.estado === S.PendingPayment;
+}
+
 export const TRANSITION_ERROR = {
   UnknownStatus: "unknown_status",
   NotAllowed: "transition_not_allowed",

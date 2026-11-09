@@ -1,0 +1,44 @@
+.k-qr-section {
+  display: grid;
+  gap: 12px;
+}
+
+.k-qr-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.k-qr-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.k-qr-img {
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.k-qr-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.k-qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 560px) {
+  .k-qr-card {
+    grid-template-columns: 1fr;
+  }
+}

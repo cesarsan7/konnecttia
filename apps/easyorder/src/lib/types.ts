@@ -120,6 +120,13 @@ export type TrackedOrder = {
   readonly emailAvisos?: string | null;
   /** El cliente puede corregirlo mientras el pedido no esté entregado, cancelado o expirado. */
   readonly emailEditable?: boolean;
+  /** El local aún no aceptó el pedido: el cliente puede cancelarlo (pieza O). */
+  readonly puedeCancelar?: boolean;
+  /** Se puede abrir una incidencia (pieza P) y cuántas hay abiertas. */
+  readonly puedeReportar?: boolean;
+  readonly incidenciasAbiertas?: number;
+  /** Teléfono del restaurante para «Contactar con el local». */
+  readonly contactoTelefono?: string | null;
   readonly createdAt: string;
   readonly updatedAt: string | null;
 };

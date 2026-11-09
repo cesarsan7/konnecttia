@@ -7,8 +7,10 @@ import { euros } from "@/lib/format";
 import { needsPaymentInfo } from "@/lib/payment-proof";
 import { copyText, isClosed } from "@/lib/tracking";
 import type { TrackedOrder } from "@/lib/types";
+import { CancelOrder } from "./CancelOrder";
 import { EmailAvisos } from "./EmailAvisos";
 import { PaymentProof } from "./PaymentProof";
+import { ReportIssue } from "./ReportIssue";
 import "./tracking.css";
 
 const REFRESH_MS = 15_000;
@@ -155,6 +157,10 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
       {needsPaymentInfo(order) && (
         <PaymentProof api={api} token={token} order={order} onUploaded={refresh} />
       )}
+
+      <CancelOrder api={api} token={token} order={order} onChanged={refresh} />
+
+      <ReportIssue api={api} token={token} order={order} onSent={refresh} />
 
       <EmailAvisos api={api} token={token} order={order} onSaved={refresh} />
 

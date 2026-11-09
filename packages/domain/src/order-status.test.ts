@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { FULFILLMENT } from "./delivery";
-import { checkTransition, ORDER_STATUS, PAYMENT_STATUS, TRANSITION_ERROR } from "./order-status";
+import {
+  canClientCancel,
+  checkTransition,
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+  TRANSITION_ERROR,
+} from "./order-status";
 
 const base = { fulfillment: FULFILLMENT.Pickup, paymentStatus: PAYMENT_STATUS.NotApplicable };
 
@@ -67,5 +73,28 @@ describe("pedidos en mesa", () => {
     const base = { fulfillment: "mesa" as const, paymentStatus: "no_aplica" };
     expect(checkTransition({ ...base, from: "listo", to: "entregado" })).toEqual({ ok: true });
     expect(checkTransition({ ...base, from: "listo", to: "en_camino" }).ok).toBe(false);
+  });
+});
+
+describe("canClientCancel", () => {
+  it("cancela mientras el local no acepta", () => {
+    expect(canClientCancel({ estado: ORDER_STATUS.Received, justificantes: 0 })).toBe(true);
+    expect(canClientCancel({ estado: ORDER_STATUS.PendingPayment, justificantes: 0 })).toBe(true);
+  });
+
+  it("con justificante subido o ya aceptado, decide el local", () => {
+    expect(canClientCancel({ estado: ORDER_STATUS.PendingPayment, justificantes: 1 })).toBe(false);
+    expect(canClientCancel({ estado: ORDER_STATUS.Received, justificantes: 2 })).toBe(false);
+    for (const estado of [
+      ORDER_STATUS.Confirmed,
+      ORDER_STATUS.Paid,
+      ORDER_STATUS.Preparing,
+      ORDER_STATUS.Ready,
+      ORDER_STATUS.OnTheWay,
+      ORDER_STATUS.Delivered,
+      ORDER_STATUS.Cancelled,
+    ]) {
+      expect(canClientCancel({ estado, justificantes: 0 })).toBe(false);
+    }
   });
 });

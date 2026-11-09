@@ -34,6 +34,7 @@ import { BrandSection } from "./BrandSection";
 import { DeliveryPhotoSetting } from "./DeliveryPhotoSetting";
 import { DeliverySection } from "./DeliverySection";
 import { PeakTimes } from "./PeakTimes";
+import { QrLinks } from "./QrLinks";
 
 const TAB = {
   General: "general",
@@ -43,6 +44,7 @@ const TAB = {
   Delivery: "reparto",
   Branches: "locales",
   Brand: "marca",
+  Links: "enlaces",
 } as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
 
@@ -161,6 +163,7 @@ export function SettingsView() {
         ...(canDelivery ? [{ id: TAB.Delivery, label: "Reparto" }] : []),
         { id: TAB.Branches, label: data.locales.length > 1 ? "Locales" : "Local" },
         { id: TAB.Brand, label: "Marca" },
+        { id: TAB.Links, label: "Enlaces y QR" },
       ]
     : [
         { id: TAB.Branches, label: "Mis locales" },
@@ -244,6 +247,7 @@ export function SettingsView() {
       {current === TAB.Brand ? (
         <BrandSection restaurant={data.restaurante} editable={editRestaurant} save={save} />
       ) : null}
+      {current === TAB.Links ? <QrLinks /> : null}
       {current === TAB.Branches ? (
         <>
           {data.locales.map((branch) => (

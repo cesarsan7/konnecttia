@@ -1,4 +1,5 @@
 import {
+  canClientCancel,
   checkTransition,
   type Fulfillment,
   ORDER_STATUS,
@@ -35,6 +36,8 @@ export async function changeOrderStatus(
       sucursal_id: number | null;
       tipo_despacho: Fulfillment;
     }) => boolean;
+    /** Si se indica, solo se cambia un pedido que esté ahora en uno de estos estados. */
+    readonly onlyFrom?: readonly string[];
     /** Se ejecuta dentro de la misma transacción tras el cambio (p. ej. horas del reparto). */
     readonly after?: (tx: Tx) => Promise<void>;
   },
@@ -58,6 +61,10 @@ export async function changeOrderStatus(
     const order = rows[0];
     if (!order) return { kind: "not_found" as const };
     if (!input.allowed(order)) return { kind: "out_of_scope" as const, from: order.estado };
+
+    if (input.onlyFrom && !input.onlyFrom.includes(order.estado)) {
+      return { kind: "rejected" as const, from: order.estado, error: "not_allowed_from" };
+    }
 
     const check = checkTransition({
       from: order.estado,
@@ -90,4 +97,36 @@ export async function changeOrderStatus(
     if (input.after) await input.after(tx);
     return { kind: "updated" as const, from: order.estado };
   });
+}
+
+export type ClientCancel = "cancelled" | "not_found" | "not_cancellable";
+
+/**
+ * El cliente cancela su pedido desde el seguimiento (pieza O). Usa el mismo cambio de estado que el
+ * tablero, con origen «cliente», y solo vale mientras el local no haya aceptado el pedido.
+ */
+export async function cancelTrackedOrder(sql: Sql, token: string): Promise<ClientCancel> {
+  const [order] = await sql<
+    { id: number; restaurante_id: number; estado: string; justificantes: number }[]
+  >`
+    SELECT p.id, p.restaurante_id, p.estado,
+           (SELECT count(*)::int FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
+             AS justificantes
+    FROM   public.pedidos p
+    WHERE  p.tracking_token = ${token}::uuid
+  `;
+  if (!order) return "not_found";
+  if (!canClientCancel({ estado: order.estado, justificantes: order.justificantes })) {
+    return "not_cancellable";
+  }
+  const result = await changeOrderStatus(sql, {
+    restaurantId: order.restaurante_id,
+    orderId: order.id,
+    target: ORDER_STATUS.Cancelled,
+    origin: "cliente",
+    actor: "cliente",
+    allowed: () => true,
+    onlyFrom: [ORDER_STATUS.Received, ORDER_STATUS.PendingPayment],
+  });
+  return result.kind === "updated" ? "cancelled" : "not_cancellable";
 }
