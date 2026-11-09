@@ -785,6 +785,159 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
     });
   });
 
+  describe("plantillas de Konnecttia", () => {
+    const BASE = ["owner", "manager", "staff", "viewer", "waiter", "driver"];
+    const list = () => call("platformSupport", "GET", "/plataforma/plantillas");
+    const create = (nombre: string, permisos = ["orders.view", "orders.create"]) =>
+      call("platformAdmin", "POST", "/plataforma/plantillas", { nombre, permisos });
+
+    it("lista las seis base (solo lectura) y el catálogo de permisos por módulo", async () => {
+      const result = await list();
+      expect(result.status).toBe(200);
+      const base = result.body.plantillas.filter((t: { base: boolean }) => t.base);
+      expect(base.map((t: { code: string }) => t.code)).toEqual(expect.arrayContaining(BASE));
+      expect(base.every((t: { editable: boolean }) => !t.editable)).toBe(true);
+      const orders = result.body.catalogo.find(
+        (group: { modulo: string }) => group.modulo === "core.orders",
+      );
+      expect(orders.permisos[0]).toMatchObject({ code: "orders.view" });
+    });
+
+    it("solo el equipo de Konnecttia entra; soporte lee pero no escribe", async () => {
+      expect((await call("ownerA", "GET", "/plataforma/plantillas")).status).toBe(403);
+      expect((await call(null, "GET", "/plataforma/plantillas")).status).toBe(401);
+      const denied = await call("platformSupport", "POST", "/plataforma/plantillas", {
+        nombre: "Nada",
+        permisos: ["orders.view"],
+      });
+      expect(denied.status).toBe(403);
+    });
+
+    it("crea, ve desde un restaurante, edita y borra una plantilla, con auditoría global", async () => {
+      const created = await create("Cajero Konnecttia");
+      expect(created.status).toBe(201);
+      const id = created.body.id as number;
+      const mine = (await list()).body.plantillas.find((t: { id: number }) => t.id === id);
+      expect(mine).toMatchObject({
+        code: "t_cajero_konnecttia",
+        base: false,
+        editable: true,
+        permisos: ["orders.create", "orders.view"],
+        miembros: 0,
+      });
+
+      // Todos los restaurantes la ven como plantilla y el propietario puede personalizarla.
+      const roles = await call("ownerA", "GET", "/panel/prueba-a/equipo/roles");
+      expect(roles.body.roles.find((r: { id: number }) => r.id === id)).toMatchObject({
+        plantilla: true,
+        editable: false,
+        personalizable: true,
+      });
+
+      const edited = await call("platformAdmin", "PUT", `/plataforma/plantillas/${id}`, {
+        nombre: "Cajero Konnecttia",
+        permisos: ["orders.view", "orders.create", "orders.change_status"],
+      });
+      expect(edited.status).toBe(200);
+      expect(edited.body).toMatchObject({ id, miembros_afectados: 0 });
+      expect((await call("platformAdmin", "DELETE", `/plataforma/plantillas/${id}`)).status).toBe(
+        200,
+      );
+      const trail = await ctx.sql<{ accion: string; restaurante_id: number | null }[]>`
+        SELECT accion, restaurante_id FROM public.auditoria
+        WHERE  recurso_tipo = 'rol_plantilla' AND recurso_id = ${String(id)} ORDER BY id
+      `;
+      expect(trail.map((row) => row.accion)).toEqual([
+        "plataforma.plantilla.crear",
+        "plataforma.plantilla.editar",
+        "plataforma.plantilla.borrar",
+      ]);
+      expect(trail.every((row) => row.restaurante_id === null)).toBe(true);
+    });
+
+    it("valida el cuerpo y rechaza nombres repetidos (plantillas y roles de restaurantes)", async () => {
+      expect((await create("x")).status).toBe(400);
+      expect((await create("Bien", [])).status).toBe(400);
+      expect((await create("Bien", ["no.existe"])).status).toBe(400);
+      expect((await create("consulta")).body.reason).toBe("duplicate_name");
+      const own = await call("ownerA", "POST", "/panel/prueba-a/equipo/roles", {
+        nombre: "Rol de la casa",
+        permisos: ["orders.view"],
+      });
+      expect(own.status).toBe(201);
+      expect((await create("rol de la casa")).body.reason).toBe("duplicate_name");
+      await call("ownerA", "DELETE", `/panel/prueba-a/equipo/roles/${own.body.id}`);
+      // Con el mismo nombre dos veces, la segunda falla.
+      const first = await create("Turno de noche");
+      expect(first.status).toBe(201);
+      expect((await create("Turno de noche")).status).toBe(409);
+      await call("platformAdmin", "DELETE", `/plataforma/plantillas/${first.body.id}`);
+    });
+
+    it("las seis base no se editan ni se borran", async () => {
+      const all = (await list()).body.plantillas as { id: number; code: string }[];
+      for (const code of ["owner", "viewer"]) {
+        const base = all.find((t) => t.code === code);
+        const put = await call("platformAdmin", "PUT", `/plataforma/plantillas/${base?.id}`, {
+          nombre: "Cambiada",
+          permisos: ["orders.view"],
+        });
+        expect(put.status).toBe(422);
+        expect(put.body.reason).toBe("base_template");
+        const del = await call("platformAdmin", "DELETE", `/plataforma/plantillas/${base?.id}`);
+        expect(del.status).toBe(422);
+      }
+      expect(
+        (
+          await call("platformAdmin", "PUT", "/plataforma/plantillas/999999", {
+            nombre: "Nada",
+            permisos: ["orders.view"],
+          })
+        ).status,
+      ).toBe(404);
+    });
+
+    it("al editar dice a cuánta gente afecta y no borra una plantilla en uso", async () => {
+      const created = await create("Plantilla de apoyo");
+      expect(created.body).toMatchObject({ id: expect.any(Number) });
+      const id = created.body.id as number;
+      const [member] = await ctx.sql<{ id: number }[]>`
+        SELECT id::int AS id FROM public.local_memberships
+        WHERE  user_id = '00000000-0000-0000-0000-0000000000a2'
+      `;
+      await ctx.sql`INSERT INTO public.membresia_rol (membership_id, rol_id) VALUES (${member?.id ?? 0}, ${id})`;
+      const edited = await call("platformAdmin", "PUT", `/plataforma/plantillas/${id}`, {
+        nombre: "Plantilla de apoyo",
+        permisos: ["orders.view"],
+      });
+      expect(edited.body.miembros_afectados).toBe(1);
+      expect((await list()).body.plantillas.find((t: { id: number }) => t.id === id)).toMatchObject(
+        {
+          miembros: 1,
+          restaurantes: 1,
+        },
+      );
+      const blocked = await call("platformAdmin", "DELETE", `/plataforma/plantillas/${id}`);
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.reason).toBe("role_in_use");
+
+      await ctx.sql`DELETE FROM public.membresia_rol WHERE rol_id = ${id}`;
+      const invite = await call("ownerA", "POST", "/panel/prueba-a/equipo/invitaciones", {
+        rol_id: id,
+        email: null,
+        sucursal_ids: [],
+      });
+      expect(invite.status).toBe(201);
+      expect(
+        (await call("platformAdmin", "DELETE", `/plataforma/plantillas/${id}`)).body.reason,
+      ).toBe("pending_invites");
+      await call("ownerA", "DELETE", `/panel/prueba-a/equipo/invitaciones/${invite.body.id}`);
+      expect((await call("platformAdmin", "DELETE", `/plataforma/plantillas/${id}`)).status).toBe(
+        200,
+      );
+    });
+  });
+
   describe("plan y módulos", () => {
     it("cambiar de plan conserva los complementos y las cortesías", async () => {
       const created = await call(

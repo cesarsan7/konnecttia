@@ -48,6 +48,7 @@ import {
 } from "../repositories/roles";
 import { TRIAL_PLAN } from "../repositories/trial";
 import { legacyRole, rolesOf } from "./panel-team";
+import { registerPlatformTemplateRoutes } from "./plataforma-plantillas";
 import { registerPlatformTrialRoutes } from "./plataforma-pruebas";
 
 /**
@@ -778,6 +779,7 @@ export function plataformaRoutes(deps: AppDeps) {
   });
 
   registerPlatformTrialRoutes(app, deps);
+  registerPlatformTemplateRoutes(app, deps);
 
   return app;
 }

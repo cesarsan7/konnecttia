@@ -14,6 +14,7 @@ import {
   samePaymentSelection,
   slugMessage,
   suggestSlug,
+  templateImpact,
   toNewRestaurantBody,
   validateNewRestaurant,
   validateRoleForm,
@@ -326,5 +327,23 @@ describe("métodos de pago permitidos", () => {
   it("avisa de lo activo que se quitaría", () => {
     expect(methodsThatWouldBeRemoved(["efectivo", "bizum"], ["efectivo"])).toEqual(["bizum"]);
     expect(methodsThatWouldBeRemoved(["efectivo", "bizum"], null)).toEqual([]);
+  });
+});
+
+describe("templateImpact", () => {
+  it("avisa de a quién afecta cambiar una plantilla", () => {
+    expect(templateImpact({ miembros: 0, invitaciones: 0, restaurantes: 0 })).toContain(
+      "Nadie la usa",
+    );
+    expect(templateImpact({ miembros: 3, invitaciones: 0, restaurantes: 2 })).toBe(
+      "Afecta al instante a 3 personas en 2 restaurantes.",
+    );
+    expect(templateImpact({ miembros: 1, invitaciones: 1, restaurantes: 1 })).toBe(
+      "Afecta al instante a 1 persona en 1 restaurante y 1 invitación pendiente.",
+    );
+  });
+
+  it("traduce el rechazo de las plantillas base", () => {
+    expect(platformErrorMessage(422, { reason: "base_template" } as never)).toContain("código");
   });
 });

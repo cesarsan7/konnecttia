@@ -233,3 +233,25 @@ export type MenuImportSummary = {
   readonly productos: number;
   readonly precios: number;
 };
+
+/** Plantilla de rol global (GET /plataforma/plantillas). `base`: la define el código. */
+export type TemplateInfo = {
+  readonly id: number;
+  readonly code: string;
+  readonly nombre: string;
+  readonly permisos: readonly string[];
+  readonly miembros: number;
+  readonly invitaciones: number;
+  readonly restaurantes: number;
+  readonly base: boolean;
+  readonly editable: boolean;
+};
+
+export type TemplatesInfo = {
+  readonly plantillas: readonly TemplateInfo[];
+  readonly catalogo: readonly {
+    readonly modulo: string;
+    readonly nombre: string;
+    readonly permisos: readonly { readonly code: string; readonly nombre: string }[];
+  }[];
+};
