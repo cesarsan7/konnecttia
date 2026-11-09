@@ -1,9 +1,13 @@
 import {
   ALL_PERMISSIONS,
   MODULES,
+  PERMISSION,
   PERMISSION_LABEL,
   PERMISSION_MODULE,
+  type PermissionCode,
   ROLE_TEMPLATE,
+  ROLE_TEMPLATE_PERMISSIONS,
+  type RoleTemplateCode,
 } from "@konnecttia/access";
 import { PLATFORM_ROLE } from "@konnecttia/domain";
 import type { Context, Hono } from "hono";
@@ -20,8 +24,11 @@ import { replaceRole, roleSchema, roleUsage } from "../repositories/roles";
  * asignar, como Encargado o Mesero, pero que el equipo de Konnecttia crea y ajusta sin migración.
  * - «soporte» lee y «admin» escribe; toda escritura se audita con actor «plataforma» y sin
  *   restaurante (es global).
- * - Las seis plantillas base (`ROLE_TEMPLATE`) las define el código y varias reglas dependen de
- *   su código (propietario, encargado): aquí solo se leen.
+ * - Las seis plantillas base (`ROLE_TEMPLATE`) conservan su código y su nombre (varias reglas
+ *   dependen del código: propietario, encargado) y no se borran, pero sus permisos sí se pueden
+ *   quitar o añadir. Los permisos con los que nacen (`ROLE_TEMPLATE_PERMISSIONS`) quedan como
+ *   referencia para «restaurar». Propietario conserva siempre los permisos mínimos para que un
+ *   restaurante no se quede sin nadie que gestione el equipo y los ajustes.
  * - Cambiar los permisos de una plantilla afecta al instante a quien la tenga en cualquier
  *   restaurante: la respuesta dice cuántas personas y restaurantes.
  * - No se borra una plantilla en uso (personas o invitaciones pendientes).
@@ -30,6 +37,17 @@ import { replaceRole, roleSchema, roleUsage } from "../repositories/roles";
 type Ctx = Context<AppEnv>;
 
 const BASE_CODES: ReadonlySet<string> = new Set(Object.values(ROLE_TEMPLATE));
+
+/** Permisos que Propietario no puede perder: sin ellos nadie podría gestionar equipo ni ajustes. */
+export const OWNER_REQUIRED_PERMISSIONS: readonly PermissionCode[] = [
+  PERMISSION.TeamView,
+  PERMISSION.TeamManage,
+  PERMISSION.SettingsView,
+  PERMISSION.SettingsUpdate,
+];
+
+const defaultsOf = (code: string): readonly PermissionCode[] | null =>
+  BASE_CODES.has(code) ? ROLE_TEMPLATE_PERMISSIONS[code as RoleTemplateCode] : null;
 
 /** Código estable a partir del nombre: «Cajero de noche» → «t_cajero_de_noche». */
 export function templateCode(nombre: string): string {
@@ -118,7 +136,11 @@ export function registerPlatformTemplateRoutes(app: Hono<AppEnv>, deps: AppDeps)
       plantillas: templates.map((template) => ({
         ...template,
         base: BASE_CODES.has(template.code),
-        editable: !BASE_CODES.has(template.code),
+        // Las base también se editan (solo permisos); no se renombran ni se borran.
+        editable: true,
+        borrable: !BASE_CODES.has(template.code),
+        por_defecto: defaultsOf(template.code),
+        minimos: template.code === ROLE_TEMPLATE.Owner ? OWNER_REQUIRED_PERMISSIONS : [],
       })),
       catalogo: MODULES.map((module) => ({
         modulo: module.code,
@@ -176,21 +198,27 @@ export function registerPlatformTemplateRoutes(app: Hono<AppEnv>, deps: AppDeps)
   app.put("/plantillas/:id", writer, async (c) => {
     const template = await templateFromUrl(c);
     if (!template) return fail(c, 404, API_ERROR.NotFound);
-    if (BASE_CODES.has(template.code)) {
-      return fail(c, 422, API_ERROR.Unprocessable, { reason: "base_template" });
-    }
+    const isBase = BASE_CODES.has(template.code);
     const parsed = roleSchema.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) {
       return fail(c, 400, API_ERROR.InvalidBody, { field: parsed.error.issues[0]?.path.join(".") });
     }
-    const input = parsed.data;
-    if (await nameConflict(input.nombre, template.id)) {
+    // Una base conserva su nombre: solo cambian sus permisos.
+    const input = isBase ? { ...parsed.data, nombre: template.nombre } : parsed.data;
+    if (template.code === ROLE_TEMPLATE.Owner) {
+      const missing = OWNER_REQUIRED_PERMISSIONS.filter((code) => !input.permisos.includes(code));
+      if (missing.length > 0) {
+        return fail(c, 422, API_ERROR.Unprocessable, { reason: "owner_locked", missing });
+      }
+    }
+    if (!isBase && (await nameConflict(input.nombre, template.id))) {
       return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
     }
     await sql.begin((tx) => replaceRole(tx, template.id, input.nombre, input.permisos));
     const usage = await roleUsage(sql, template.id);
     await record(c, "plataforma.plantilla.editar", template.id, {
       nombre: input.nombre,
+      base: isBase,
       antes: template.permisos,
       despues: input.permisos,
       miembros_afectados: usage.miembros,

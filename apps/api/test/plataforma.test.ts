@@ -791,12 +791,13 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
     const create = (nombre: string, permisos = ["orders.view", "orders.create"]) =>
       call("platformAdmin", "POST", "/plataforma/plantillas", { nombre, permisos });
 
-    it("lista las seis base (solo lectura) y el catálogo de permisos por módulo", async () => {
+    it("lista las seis base (editables, no borrables) y el catálogo de permisos por módulo", async () => {
       const result = await list();
       expect(result.status).toBe(200);
       const base = result.body.plantillas.filter((t: { base: boolean }) => t.base);
       expect(base.map((t: { code: string }) => t.code)).toEqual(expect.arrayContaining(BASE));
-      expect(base.every((t: { editable: boolean }) => !t.editable)).toBe(true);
+      expect(base.every((t: { editable: boolean }) => t.editable)).toBe(true);
+      expect(base.every((t: { borrable: boolean }) => !t.borrable)).toBe(true);
       const orders = result.body.catalogo.find(
         (group: { modulo: string }) => group.modulo === "core.orders",
       );
@@ -874,19 +875,21 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
       await call("platformAdmin", "DELETE", `/plataforma/plantillas/${first.body.id}`);
     });
 
-    it("las seis base no se editan ni se borran", async () => {
+    it("las seis base no se borran y Propietario conserva equipo y ajustes", async () => {
       const all = (await list()).body.plantillas as { id: number; code: string }[];
       for (const code of ["owner", "viewer"]) {
         const base = all.find((t) => t.code === code);
-        const put = await call("platformAdmin", "PUT", `/plataforma/plantillas/${base?.id}`, {
-          nombre: "Cambiada",
-          permisos: ["orders.view"],
-        });
-        expect(put.status).toBe(422);
-        expect(put.body.reason).toBe("base_template");
         const del = await call("platformAdmin", "DELETE", `/plataforma/plantillas/${base?.id}`);
         expect(del.status).toBe(422);
+        expect(del.body.reason).toBe("base_template");
       }
+      const owner = all.find((t) => t.code === "owner");
+      const locked = await call("platformAdmin", "PUT", `/plataforma/plantillas/${owner?.id}`, {
+        nombre: "Propietario",
+        permisos: ["orders.view"],
+      });
+      expect(locked.status).toBe(422);
+      expect(locked.body.reason).toBe("owner_locked");
       expect(
         (
           await call("platformAdmin", "PUT", "/plataforma/plantillas/999999", {
@@ -895,6 +898,40 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
           })
         ).status,
       ).toBe(404);
+    });
+
+    it("una base admite quitar y añadir permisos, conserva el nombre y se audita", async () => {
+      const before = (await list()).body.plantillas as {
+        id: number;
+        code: string;
+        nombre: string;
+        permisos: string[];
+        por_defecto: string[];
+        editable: boolean;
+        borrable: boolean;
+      }[];
+      const viewer = before.find((t) => t.code === "viewer");
+      if (!viewer) throw new Error("falta viewer");
+      expect(viewer.editable).toBe(true);
+      expect(viewer.borrable).toBe(false);
+      const changed = [...viewer.permisos.filter((p) => p !== "tables.view"), "customers.view"];
+      try {
+        const put = await call("platformAdmin", "PUT", `/plataforma/plantillas/${viewer.id}`, {
+          nombre: "Otro nombre",
+          permisos: changed,
+        });
+        expect(put.status).toBe(200);
+        const after = (await list()).body.plantillas.find(
+          (t: { code: string }) => t.code === "viewer",
+        );
+        expect(after.nombre).toBe(viewer.nombre);
+        expect([...after.permisos].sort()).toEqual([...changed].sort());
+      } finally {
+        await call("platformAdmin", "PUT", `/plataforma/plantillas/${viewer.id}`, {
+          nombre: viewer.nombre,
+          permisos: viewer.por_defecto,
+        });
+      }
     });
 
     it("al editar dice a cuánta gente afecta y no borra una plantilla en uso", async () => {

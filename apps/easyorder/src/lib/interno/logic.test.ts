@@ -350,7 +350,10 @@ describe("templateImpact", () => {
   });
 
   it("traduce el rechazo de las plantillas base", () => {
-    expect(platformErrorMessage(422, { reason: "base_template" } as never)).toContain("código");
+    expect(platformErrorMessage(422, { reason: "base_template" } as never)).toContain(
+      "no se borran",
+    );
+    expect(platformErrorMessage(422, { reason: "owner_locked" } as never)).toContain("Propietario");
   });
 });
 

@@ -13,8 +13,9 @@ type Draft = {
 };
 
 /**
- * Plantillas de rol globales de Konnecttia: las ven todos los restaurantes. Las seis base las
- * define el código (solo lectura); las demás se crean, editan y borran aquí, sin migración.
+ * Plantillas de rol globales de Konnecttia: las ven todos los restaurantes. En las seis base se
+ * quitan o añaden permisos (conservan nombre y no se borran); las demás se crean, editan y borran
+ * aquí, sin migración.
  */
 export function TemplatesView() {
   const { api, canWrite, toast } = usePlatform();
@@ -49,6 +50,7 @@ export function TemplatesView() {
   }
 
   function toggle(code: string) {
+    if (editing?.minimos.includes(code)) return;
     setDraft((current) => {
       if (!current) return current;
       const next = new Set(current.permisos);
@@ -147,7 +149,7 @@ export function TemplatesView() {
                   <button type="button" className="k-btn" onClick={() => startEdit(template)}>
                     Editar
                   </button>
-                  {confirmDelete === template.id ? (
+                  {!template.borrable ? null : confirmDelete === template.id ? (
                     <>
                       <button
                         type="button"
@@ -201,12 +203,30 @@ export function TemplatesView() {
               className="k-input"
               value={draft.nombre}
               maxLength={60}
+              disabled={editing?.base === true}
               onChange={(event) => setDraft({ ...draft, nombre: event.target.value })}
             />
             {errors.nombre && draft.nombre.length > 0 ? (
               <small className="k-alert">{errors.nombre}</small>
             ) : null}
           </label>
+          {editing?.base ? (
+            <p className="k-muted k-small">
+              Plantilla base: conserva su nombre y no se borra; aquí quitas o añades permisos.
+              {editing.minimos.length > 0
+                ? " Los permisos de equipo y ajustes no se pueden quitar a Propietario."
+                : ""}
+            </p>
+          ) : null}
+          {editing?.por_defecto ? (
+            <button
+              type="button"
+              className="k-btn"
+              onClick={() => setDraft({ ...draft, permisos: new Set(editing.por_defecto ?? []) })}
+            >
+              Restaurar permisos originales
+            </button>
+          ) : null}
           {info.catalogo.map((group) => (
             <fieldset key={group.modulo} className="k-tpl-group">
               <legend>{group.nombre}</legend>
@@ -215,6 +235,7 @@ export function TemplatesView() {
                   <input
                     type="checkbox"
                     checked={draft.permisos.has(permission.code)}
+                    disabled={editing?.minimos.includes(permission.code) === true}
                     onChange={() => toggle(permission.code)}
                   />
                   <span>{permission.nombre}</span>

@@ -260,7 +260,11 @@ export type MenuImportSummary = {
   readonly precios: number;
 };
 
-/** Plantilla de rol global (GET /plataforma/plantillas). `base`: la define el código. */
+/**
+ * Plantilla de rol global (GET /plataforma/plantillas). `base`: conserva código y nombre (solo se
+ * editan sus permisos y no se borra). `por_defecto`: permisos con los que nace una base.
+ * `minimos`: permisos que no se pueden quitar (Propietario).
+ */
 export type TemplateInfo = {
   readonly id: number;
   readonly code: string;
@@ -271,6 +275,9 @@ export type TemplateInfo = {
   readonly restaurantes: number;
   readonly base: boolean;
   readonly editable: boolean;
+  readonly borrable: boolean;
+  readonly por_defecto: readonly string[] | null;
+  readonly minimos: readonly string[];
 };
 
 export type TemplatesInfo = {
