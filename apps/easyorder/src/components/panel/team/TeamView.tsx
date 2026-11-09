@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { describePanelError } from "@/lib/panel/api";
 import {
@@ -73,6 +74,9 @@ export function TeamView() {
       </div>
       {canManage && state.kind === "ready" ? (
         <div className="k-head-tools">
+          <Link href={`/panel/${slug}/actividad`} className="k-btn k-btn-secondary">
+            Actividad
+          </Link>
           <button
             type="button"
             className="k-btn k-btn-primary"

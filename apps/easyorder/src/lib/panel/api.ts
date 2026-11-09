@@ -1,6 +1,7 @@
 import type { SignupBody, SignupResult } from "../alta/types";
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
+import type { ActivityPeople, DriverActivity, OrderTrace, WaiterActivity } from "./activity";
 import type { CustomerDetail, CustomerList } from "./customers";
 import type { DeliveryPhotoMode, OrderDeliveryPhotos } from "./delivery-photo";
 import type { Delivery, Driver } from "./drivers";
@@ -96,6 +97,13 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       path: string,
       body?: unknown,
     ) => send<T>(slug, `/equipo${path}`, method, body),
+    activityPeople: (slug: string) => request<ActivityPeople>(panel(slug, "/actividad/personas")),
+    driverActivity: (slug: string, id: number, query: string) =>
+      request<DriverActivity>(panel(slug, `/actividad/repartidor/${id}?${query}`)),
+    waiterActivity: (slug: string, id: number, query: string) =>
+      request<WaiterActivity>(panel(slug, `/actividad/mesero/${id}?${query}`)),
+    orderTrace: (slug: string, orderId: number) =>
+      request<OrderTrace>(panel(slug, `/actividad/pedido/${orderId}`)),
     roles: (slug: string) => request<RolesCatalog>(panel(slug, "/equipo/roles")),
     invite: (token: string) =>
       request<InvitePreview>(`/me/invitaciones/${encodeURIComponent(token)}`),

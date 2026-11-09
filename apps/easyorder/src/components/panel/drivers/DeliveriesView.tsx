@@ -1,6 +1,7 @@
 "use client";
 
 import "./deliveries.css";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { euros } from "@/lib/format";
 import { describePanelError } from "@/lib/panel/api";
@@ -86,6 +87,9 @@ export function DeliveriesView() {
       </div>
       {allowed ? (
         <div className="k-head-tools">
+          <Link href={`/panel/${slug}/actividad`} className="k-btn k-btn-secondary k-btn-sm">
+            Mi historial
+          </Link>
           <button
             type="button"
             className="k-btn k-btn-secondary k-btn-sm"
