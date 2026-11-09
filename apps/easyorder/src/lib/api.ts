@@ -2,6 +2,7 @@ import type { AltaConfig, SlugCheck } from "./alta/types";
 import type {
   ApiErrorBody,
   Branch,
+  CodeRequested,
   CreatedOrder,
   DeliveryZone,
   Menu,
@@ -62,6 +63,19 @@ export function createApi(baseUrl: string) {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey },
         body: JSON.stringify(body),
+      }),
+    /** Antifraude capa 3: pide el código de verificación del teléfono (por WhatsApp). */
+    requestCode: (slug: string, body: unknown) =>
+      request<CodeRequested>(`${base}/${segment(slug)}/verificacion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    confirmCode: (slug: string, telefono: string, codigo: string) =>
+      request<{ verificado: true }>(`${base}/${segment(slug)}/verificacion/confirmar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefono, codigo }),
       }),
     tracking: (token: string) => request<TrackedOrder>(`${base}/orders/${segment(token)}`),
     /** Corrige el email de avisos del pedido (con el token; solo mientras el pedido está abierto). */

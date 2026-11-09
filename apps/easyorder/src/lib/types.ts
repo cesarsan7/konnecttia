@@ -128,7 +128,23 @@ export type ApiErrorBody = {
   readonly errors?: readonly { readonly code: string; readonly detail?: string }[];
   readonly locales?: readonly { readonly id: number; readonly nombre: string }[];
   readonly issues?: readonly { readonly path: string; readonly message: string }[];
+  /** Código de verificación (capa 3): total del pedido calculado por el servidor, en euros. */
+  readonly importe?: number;
+  /** Segundos hasta poder pedir otro código. */
+  readonly reintentar_en?: number;
+  /** Intentos que quedan para escribir el código. */
+  readonly intentos_restantes?: number;
 };
+
+/** Respuesta de POST /public/:slug/verificacion. */
+export type CodeRequested =
+  | { readonly requerida: false }
+  | {
+      readonly requerida: true;
+      readonly canal: "whatsapp";
+      readonly expira_en: number;
+      readonly reenviar_en: number;
+    };
 
 /** Datos de /public/:slug/privacidad para la página genérica de privacidad. */
 export type PrivacyInfo = {

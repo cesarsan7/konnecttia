@@ -1,7 +1,7 @@
 "use client";
 
 import { addCents, type Cents, centsFromDecimal } from "@konnecttia/domain";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Api } from "@/lib/api";
 import { type CartLine, lineCents, setQuantity, toOrderItems } from "@/lib/cart";
 import {
@@ -20,6 +20,8 @@ import {
 import { eurosFromCents } from "@/lib/format";
 import { captchaFields, captchaProblem } from "@/lib/turnstile";
 import type { Branch, CreatedOrder, DeliveryZone, Fulfillment, Menu } from "@/lib/types";
+import { totalForCode } from "@/lib/verification";
+import { CodeVerification } from "./CodeVerification";
 import { TurnstileWidget } from "./TurnstileWidget";
 import "./checkout-consent.css";
 
@@ -81,6 +83,9 @@ export function Checkout(props: Props) {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaLoadFailed, setCaptchaLoadFailed] = useState(false);
   const [captchaReset, setCaptchaReset] = useState(0);
+  // Antifraude capa 3: el servidor pidió un código; `codeTotal` es el total con el que decidió.
+  const [codeTotal, setCodeTotal] = useState<number | null>(null);
+  const [submitWhenReady, setSubmitWhenReady] = useState(false);
   // Misma clave en los reintentos: si la red falla tras crear el pedido, no se duplica.
   const idempotencyKey = useRef(newKey());
 
@@ -149,6 +154,13 @@ export function Checkout(props: Props) {
     captchaLoadFailed,
   ]);
 
+  /** Pide un token de captcha nuevo (el anterior ya se usó) y espera a que llegue el siguiente. */
+  const spendCaptcha = useCallback(() => {
+    if (!captchaSiteKey) return;
+    setCaptchaToken(null);
+    setCaptchaReset((count) => count + 1);
+  }, [captchaSiteKey]);
+
   async function submit() {
     if (problem || sending) return;
     setSending(true);
@@ -178,18 +190,31 @@ export function Checkout(props: Props) {
     const result = await props.api.createOrder(props.slug, body, idempotencyKey.current);
     setSending(false);
     if (result.ok) {
+      setCodeTotal(null);
       rememberEmail(() => window.localStorage, normalizeEmail(email) ?? "");
       props.onCreated(result.data);
       return;
     }
     // El token del captcha es de un solo uso: el siguiente intento necesita uno nuevo.
-    if (captchaSiteKey) setCaptchaReset((count) => count + 1);
+    spendCaptcha();
+    if (result.body?.error === "verification_required") {
+      setCodeTotal(totalForCode(result.body, estimate / 100));
+      return;
+    }
     if (result.body?.error === "branch_required" && result.body.locales?.[0]) {
       setError("Elige en qué local quieres recoger el pedido.");
       return;
     }
     setError(describeApiError(result.status, result.body));
   }
+
+  // Teléfono verificado: el pedido se reenvía en cuanto el captcha tenga su token nuevo.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: submit se recrea en cada render
+  useEffect(() => {
+    if (!submitWhenReady || problem !== null || sending) return;
+    setSubmitWhenReady(false);
+    void submit();
+  }, [submitWhenReady, problem, sending]);
 
   return (
     <section className="checkout" aria-labelledby={`${formId}-title`}>
@@ -509,9 +534,37 @@ export function Checkout(props: Props) {
             {error ?? problem}
           </p>
         )}
-        <button type="submit" className="btn primary block" disabled={problem !== null || sending}>
-          {sending ? "Enviando…" : "Enviar pedido"}
-        </button>
+        {codeTotal !== null ? (
+          <CodeVerification
+            api={props.api}
+            slug={props.slug}
+            restaurantName={restaurant.nombre}
+            phone={normalizePhone(phone) ?? phone}
+            fulfillment={fulfillment}
+            payment={payment ?? ""}
+            totalEuros={codeTotal}
+            captchaToken={captchaToken}
+            captchaWaiting={captchaProblem(
+              captchaSiteKey !== null,
+              captchaToken,
+              captchaLoadFailed,
+            )}
+            onTokenSpent={spendCaptcha}
+            onVerified={() => {
+              setCodeTotal(null);
+              setSubmitWhenReady(true);
+            }}
+            onCancel={() => setCodeTotal(null)}
+          />
+        ) : (
+          <button
+            type="submit"
+            className="btn primary block"
+            disabled={problem !== null || sending}
+          >
+            {sending ? "Enviando…" : "Enviar pedido"}
+          </button>
+        )}
       </form>
     </section>
   );
