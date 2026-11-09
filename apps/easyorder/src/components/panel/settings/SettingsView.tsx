@@ -33,6 +33,7 @@ import { PERMISSION, useAccess } from "../PanelShell";
 import { DeliveryPhotoSetting } from "./DeliveryPhotoSetting";
 import { DeliverySection } from "./DeliverySection";
 import { PeakTimes } from "./PeakTimes";
+import { QrLinks } from "./QrLinks";
 
 const TAB = {
   General: "general",
@@ -41,6 +42,7 @@ const TAB = {
   Schedule: "horario",
   Delivery: "reparto",
   Branches: "locales",
+  Links: "enlaces",
 } as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
 
@@ -158,6 +160,7 @@ export function SettingsView() {
         { id: TAB.Schedule, label: "Horario" },
         ...(canDelivery ? [{ id: TAB.Delivery, label: "Reparto" }] : []),
         { id: TAB.Branches, label: data.locales.length > 1 ? "Locales" : "Local" },
+        { id: TAB.Links, label: "Enlaces y QR" },
       ]
     : [
         { id: TAB.Branches, label: "Mis locales" },
@@ -238,6 +241,7 @@ export function SettingsView() {
           <DeliverySection editable={can(PERMISSION.DeliveryManage)} notify={toast} />
         </>
       ) : null}
+      {current === TAB.Links ? <QrLinks /> : null}
       {current === TAB.Branches ? (
         <>
           {data.locales.map((branch) => (
