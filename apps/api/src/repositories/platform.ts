@@ -1,5 +1,9 @@
 import { MODULE_KIND, ROLE_TEMPLATE } from "@konnecttia/access";
-import { DEFERRED_PAYMENT_METHODS, PAYMENT_METHODS } from "@konnecttia/domain";
+import {
+  DEFERRED_PAYMENT_METHODS,
+  type ImportedCategory,
+  PAYMENT_METHODS,
+} from "@konnecttia/domain";
 import type { TransactionSql } from "postgres";
 import type { Sql } from "../lib/db";
 
@@ -48,6 +52,31 @@ export type NewRestaurant = {
   /** Si el restaurante ofrece recogida / reparto. Sin indicar: el valor por defecto de la tabla. */
   readonly recogida?: boolean | undefined;
   readonly reparto?: boolean | undefined;
+  /** Ubicación del local principal (el trigger de 0003 la copia al restaurante). */
+  readonly ubicacion?: { readonly lat: number; readonly lng: number } | undefined;
+  /** Horario general: un turno por día. Sin indicar, no se crean filas (el local queda sin horario). */
+  readonly horario?: readonly NewScheduleDay[] | undefined;
+  /** Minutos hasta que un pedido para recoger está listo (`pickup_eta_minutes`). */
+  readonly recogidaMinutos?: number | undefined;
+  /** Zona de reparto circular desde el local principal. */
+  readonly zonaReparto?: NewDeliveryZone | undefined;
+  /** Métodos de cobro iniciales. Sin indicar: `INITIAL_PAYMENT_METHODS`. */
+  readonly metodosPago?: readonly string[] | undefined;
+};
+
+export type NewScheduleDay = {
+  readonly dia: string;
+  readonly disponible: boolean;
+  readonly apertura: string | null;
+  readonly cierre: string | null;
+};
+
+export type NewDeliveryZone = {
+  readonly nombre: string;
+  readonly radioKm: number;
+  readonly tarifa: number;
+  readonly minimo: number;
+  readonly minutos: number;
 };
 
 /**
@@ -66,21 +95,51 @@ export async function createRestaurant(
   if (taken.length > 0) throw new SlugTaken();
   const [restaurant] = await tx<{ id: number }[]>`
     INSERT INTO public.restaurante
-      (nombre, slug, zona_horaria, direccion, telefono, payment_methods, pickup_enabled, delivery_enabled)
+      (nombre, slug, zona_horaria, direccion, telefono, lat, long, payment_methods,
+       pickup_enabled, delivery_enabled)
     VALUES (${input.nombre}, ${input.slug}, ${input.zonaHoraria},
             ${input.local.direccion || null}, ${input.local.telefono || null},
-            ${tx.json([...INITIAL_PAYMENT_METHODS])},
+            ${input.ubicacion?.lat ?? null}, ${input.ubicacion?.lng ?? null},
+            ${tx.json([...(input.metodosPago ?? INITIAL_PAYMENT_METHODS)])},
             COALESCE(${input.recogida ?? null}::boolean, true),
             COALESCE(${input.reparto ?? null}::boolean, true))
     RETURNING id
   `;
   if (!restaurant) throw new Error("No se pudo crear el restaurante");
   const [branch] = await tx<{ id: number }[]>`
-    UPDATE public.sucursal SET nombre = ${input.local.nombre}
+    UPDATE public.sucursal
+    SET    nombre = ${input.local.nombre},
+           acepta_recogida = COALESCE(${input.recogida ?? null}::boolean, acepta_recogida),
+           acepta_reparto = COALESCE(${input.reparto ?? null}::boolean, acepta_reparto)
     WHERE  restaurante_id = ${restaurant.id} AND es_principal
     RETURNING id
   `;
   if (!branch) throw new Error("No se creó el local principal");
+  for (const day of input.horario ?? []) {
+    await tx`
+      INSERT INTO public.horarios (restaurante_id, dia, disponible, apertura_1, cierre_1)
+      VALUES (${restaurant.id}, ${day.dia}, ${day.disponible},
+              ${day.disponible ? day.apertura : null}::time, ${day.disponible ? day.cierre : null}::time)
+    `;
+  }
+  if (input.recogidaMinutos !== undefined) {
+    await tx`
+      INSERT INTO public.restaurante_config (config_key, config_value, description, restaurante_id)
+      VALUES ('pickup_eta_minutes', ${String(input.recogidaMinutos)},
+              'Minutos hasta que un pedido para recoger está listo', ${restaurant.id})
+    `;
+  }
+  if (input.zonaReparto) {
+    const zone = input.zonaReparto;
+    await tx`
+      INSERT INTO public.delivery_zone
+        (zone_name, fee, min_order_amount, estimated_minutes_min, estimated_minutes_max,
+         restaurante_id, sucursal_id, lat_center, lng_center, radius_km, tipo_tarifa, is_active)
+      SELECT ${zone.nombre}, ${zone.tarifa}, ${zone.minimo}, ${zone.minutos}, ${zone.minutos},
+             s.restaurante_id, s.id, s.lat, s.lng, ${zone.radioKm}, 'fija', true
+      FROM   public.sucursal s WHERE s.id = ${branch.id}
+    `;
+  }
   await applyPlan(tx, restaurant.id, input.plan, now);
   const modules = await tx<{ modulo_code: string }[]>`
     SELECT modulo_code FROM public.restaurante_modulo
@@ -289,4 +348,55 @@ export async function changeModule(
     WHERE  restaurante_id = ${restauranteId} AND modulo_code = ${code}
   `;
   return { ok: true, estado: change.estado, origen: current.origen };
+}
+
+export class MenuAlreadyLoaded extends Error {}
+
+/**
+ * Carga una carta ya validada (`parseMenuImport`) en un restaurante que todavía no tiene
+ * categorías. Falla con `MenuAlreadyLoaded` si ya hay carta: la importación nunca pisa datos.
+ * Debe ejecutarse dentro de una transacción.
+ */
+export async function importMenu(
+  tx: Tx,
+  restauranteId: number,
+  categories: readonly ImportedCategory[],
+): Promise<{ categorias: number; productos: number; precios: number }> {
+  await tx`SELECT id FROM public.restaurante WHERE id = ${restauranteId} FOR UPDATE`;
+  const existing = await tx`
+    SELECT 1 FROM public.menu_category WHERE restaurante_id = ${restauranteId} LIMIT 1
+  `;
+  if (existing.length > 0) throw new MenuAlreadyLoaded();
+  let products = 0;
+  let prices = 0;
+  for (const [categoryIndex, category] of categories.entries()) {
+    const [row] = await tx<{ id: number }[]>`
+      INSERT INTO public.menu_category (name, sort_order, restaurante_id)
+      VALUES (${category.nombre}, ${categoryIndex + 1}, ${restauranteId})
+      RETURNING menu_category_id AS id
+    `;
+    if (!row) throw new Error("No se pudo crear la categoría");
+    for (const [itemIndex, item] of category.productos.entries()) {
+      const lowest = Math.min(...item.variantes.map((variant) => variant.precio));
+      const [created] = await tx<{ id: number }[]>`
+        INSERT INTO public.menu_item
+          (menu_category_id, name, description, restaurante_id, base_price, sort_order)
+        VALUES (${row.id}, ${item.nombre}, ${item.descripcion}, ${restauranteId},
+                ${(lowest / 100).toFixed(2)}, ${itemIndex + 1})
+        RETURNING menu_item_id AS id
+      `;
+      if (!created) throw new Error("No se pudo crear el producto");
+      products += 1;
+      for (const [variantIndex, variant] of item.variantes.entries()) {
+        await tx`
+          INSERT INTO public.menu_variant
+            (menu_item_id, variant_name, price, is_default, restaurante_id, sort_order)
+          VALUES (${created.id}, ${variant.nombre}, ${(variant.precio / 100).toFixed(2)},
+                  ${variant.porDefecto}, ${restauranteId}, ${variantIndex + 1})
+        `;
+        prices += 1;
+      }
+    }
+  }
+  return { categorias: categories.length, productos: products, precios: prices };
 }

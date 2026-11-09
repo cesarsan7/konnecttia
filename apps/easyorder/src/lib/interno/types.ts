@@ -53,6 +53,7 @@ export type RestaurantDetail = {
   readonly planes: readonly { readonly code: string; readonly nombre: string }[];
   readonly modulos: readonly ModuleRow[];
   readonly metodos_pago: PaymentMethodsInfo;
+  readonly carta: { readonly categorias: number; readonly productos: number };
   readonly locales: readonly {
     readonly id: number;
     readonly nombre: string;
@@ -94,6 +95,21 @@ export type NewRestaurantBody = {
     readonly telefono?: string;
   };
   readonly propietario_email: string;
+  readonly ubicacion?: { readonly lat: number; readonly lng: number };
+  readonly horario?: readonly {
+    readonly dia: string;
+    readonly disponible: boolean;
+    readonly apertura: string;
+    readonly cierre: string;
+  }[];
+  readonly recogida_minutos?: number;
+  readonly zona_reparto?: {
+    readonly radio_km: number;
+    readonly tarifa: number;
+    readonly minimo: number;
+    readonly minutos: number;
+  };
+  readonly metodos_pago?: readonly string[];
 };
 
 export type CreatedRestaurant = {
@@ -183,4 +199,11 @@ export type SignupSettings = {
 export type PlatformSettings = {
   readonly config: SignupSettings;
   readonly descripciones: Readonly<Record<string, string>>;
+};
+
+export type MenuImportSummary = {
+  readonly simulacion: boolean;
+  readonly categorias: number;
+  readonly productos: number;
+  readonly precios: number;
 };

@@ -27,6 +27,20 @@ export type NewRestaurantForm = {
   readonly direccion: string;
   readonly telefono: string;
   readonly propietarioEmail: string;
+  // Datos para abrir al público (todos opcionales).
+  readonly lat: string;
+  readonly lng: string;
+  readonly semanaApertura: string;
+  readonly semanaCierre: string;
+  readonly findeApertura: string;
+  readonly findeCierre: string;
+  readonly recogidaMinutos: string;
+  readonly radioKm: string;
+  readonly tarifa: string;
+  readonly minimo: string;
+  readonly repartoMinutos: string;
+  readonly efectivo: boolean;
+  readonly tarjeta: boolean;
 };
 
 export type FormErrors = Partial<Record<keyof NewRestaurantForm, string>>;
@@ -42,6 +56,91 @@ const SLUG_MESSAGES: Record<SlugError, string> = {
 export function slugMessage(slug: string): string | null {
   const problem = checkRestaurantSlug(slug);
   return problem ? SLUG_MESSAGES[problem] : null;
+}
+
+/** Valores iniciales de los datos opcionales para abrir al público. */
+export const EMPTY_OPENING_DATA = {
+  lat: "",
+  lng: "",
+  semanaApertura: "",
+  semanaCierre: "",
+  findeApertura: "",
+  findeCierre: "",
+  recogidaMinutos: "",
+  radioKm: "",
+  tarifa: "",
+  minimo: "",
+  repartoMinutos: "",
+  efectivo: true,
+  tarjeta: true,
+} as const;
+
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** «28,97», «28.97» o « 5 » → número; null si no es un número. */
+export function parseDecimal(text: string): number | null {
+  const clean = text.trim().replace(",", ".");
+  if (!/^-?\d+(\.\d+)?$/.test(clean)) return null;
+  const value = Number(clean);
+  return Number.isFinite(value) ? value : null;
+}
+
+const filled = (text: string) => text.trim() !== "";
+
+/** Valida los datos opcionales para abrir al público: cada grupo va completo o vacío. */
+function validateOpeningData(form: NewRestaurantForm): FormErrors {
+  const errors: { -readonly [K in keyof FormErrors]: string } = {};
+  const range = (value: string, min: number, max: number) => {
+    const number = parseDecimal(value);
+    return number !== null && number >= min && number <= max;
+  };
+  if (filled(form.lat) !== filled(form.lng)) {
+    errors[filled(form.lat) ? "lng" : "lat"] = "Indica latitud y longitud, o ninguna de las dos.";
+  } else if (filled(form.lat)) {
+    if (!range(form.lat, -90, 90)) errors.lat = "Latitud no válida (entre -90 y 90).";
+    if (!range(form.lng, -180, 180)) errors.lng = "Longitud no válida (entre -180 y 180).";
+  }
+  for (const [open, close] of [
+    ["semanaApertura", "semanaCierre"],
+    ["findeApertura", "findeCierre"],
+  ] as const) {
+    if (filled(form[open]) !== filled(form[close])) {
+      errors[filled(form[open]) ? close : open] = "Indica apertura y cierre, o ninguna de las dos.";
+    } else if (filled(form[open])) {
+      if (!TIME.test(form[open].trim())) errors[open] = "Hora no válida (por ejemplo, 08:00).";
+      if (!TIME.test(form[close].trim())) errors[close] = "Hora no válida (por ejemplo, 23:00).";
+    }
+  }
+  if (filled(form.recogidaMinutos)) {
+    const minutes = parseDecimal(form.recogidaMinutos);
+    if (minutes === null || !Number.isInteger(minutes) || minutes < 1 || minutes > 240) {
+      errors.recogidaMinutos = "Minutos enteros entre 1 y 240.";
+    }
+  }
+  const zone = [form.radioKm, form.tarifa, form.minimo, form.repartoMinutos];
+  if (zone.some(filled)) {
+    if (!zone.every(filled)) {
+      for (const [key, value] of [
+        ["radioKm", form.radioKm],
+        ["tarifa", form.tarifa],
+        ["minimo", form.minimo],
+        ["repartoMinutos", form.repartoMinutos],
+      ] as const) {
+        if (!filled(value)) errors[key] = "Completa los cuatro datos del reparto, o ninguno.";
+      }
+    } else {
+      if (!range(form.radioKm, 0.1, 100)) errors.radioKm = "Radio entre 0,1 y 100 km.";
+      if (!range(form.tarifa, 0, 100)) errors.tarifa = "Tarifa entre 0 y 100 €.";
+      if (!range(form.minimo, 0, 1000)) errors.minimo = "Mínimo entre 0 y 1000 €.";
+      const minutes = parseDecimal(form.repartoMinutos);
+      if (minutes === null || !Number.isInteger(minutes) || minutes < 1 || minutes > 240) {
+        errors.repartoMinutos = "Minutos enteros entre 1 y 240.";
+      }
+    }
+    if (!filled(form.lat)) errors.lat = "El reparto por radio necesita la ubicación del local.";
+  }
+  if (!form.efectivo && !form.tarjeta) errors.efectivo = "Elige al menos un método de cobro.";
+  return errors;
 }
 
 /** Valida el formulario de alta antes de enviarlo (la API repite las comprobaciones). */
@@ -63,14 +162,45 @@ export function validateNewRestaurant(form: NewRestaurantForm): FormErrors {
   if (!EMAIL.test(form.propietarioEmail.trim())) {
     errors.propietarioEmail = "Escribe un email válido para la persona propietaria.";
   }
-  return errors;
+  return { ...errors, ...validateOpeningData(form) };
 }
 
 /** Cuerpo de POST /plataforma/restaurantes a partir del formulario ya validado. */
 export function toNewRestaurantBody(form: NewRestaurantForm): NewRestaurantBody {
   const direccion = form.direccion.trim();
   const telefono = form.telefono.trim();
+  const lat = parseDecimal(form.lat);
+  const lng = parseDecimal(form.lng);
+  const week: [string, readonly string[]][] = [
+    [form.semanaApertura.trim(), ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]],
+    [form.findeApertura.trim(), ["Sábado", "Domingo"]],
+  ];
+  const closes = [form.semanaCierre.trim(), form.findeCierre.trim()];
+  const horario = week.flatMap(([apertura, days], index) =>
+    apertura
+      ? days.map((dia) => ({ dia, disponible: true, apertura, cierre: closes[index] ?? "" }))
+      : [],
+  );
+  const hasZone = filled(form.radioKm);
+  const recogida = parseDecimal(form.recogidaMinutos);
+  const metodos = [form.efectivo ? "efectivo" : null, form.tarjeta ? "tarjeta" : null].filter(
+    (method): method is string => method !== null,
+  );
   return {
+    ...(lat !== null && lng !== null ? { ubicacion: { lat, lng } } : {}),
+    ...(horario.length > 0 ? { horario } : {}),
+    ...(recogida !== null ? { recogida_minutos: recogida } : {}),
+    ...(hasZone
+      ? {
+          zona_reparto: {
+            radio_km: parseDecimal(form.radioKm) ?? 0,
+            tarifa: parseDecimal(form.tarifa) ?? 0,
+            minimo: parseDecimal(form.minimo) ?? 0,
+            minutos: parseDecimal(form.repartoMinutos) ?? 0,
+          },
+        }
+      : {}),
+    metodos_pago: metodos,
     nombre: form.nombre.trim(),
     slug: form.slug.trim(),
     zona_horaria: form.zonaHoraria.trim(),
@@ -129,6 +259,37 @@ export function platformErrorMessage(
   if (status === 404) return "No encontramos ese restaurante.";
   if (status === 400) return "Revisa los datos: alguno no es válido.";
   return "No se pudo completar la acción. Inténtalo de nuevo.";
+}
+
+const MENU_LINE_MESSAGES: Record<string, string> = {
+  empty: "No hay ninguna fila con datos.",
+  too_many_rows: "Demasiadas filas (máximo 1000).",
+  missing_columns:
+    "faltan columnas (hacen falta al menos categoría, producto, descripción, variante y precio).",
+  missing_category: "falta la categoría.",
+  missing_product: "falta el nombre del producto.",
+  invalid_price: "el precio no es válido (usa por ejemplo 4,90 y mayor que 0).",
+  too_long: "algún texto es demasiado largo.",
+  too_many_categories: "Demasiadas categorías (máximo 60).",
+  duplicate_variant: "la variante está repetida en ese producto.",
+  invalid_default: "«por defecto» solo admite sí o no.",
+};
+
+/** Frases para mostrar los problemas de una importación de carta (una por error). */
+export function menuImportMessage(
+  status: number,
+  body: (ApiErrorBody & { errores?: readonly { line: number; code: string }[] }) | null,
+): readonly string[] {
+  if (body?.reason === "invalid_menu" && body.errores?.length) {
+    return body.errores.map((error) => {
+      const text = MENU_LINE_MESSAGES[error.code] ?? "fila no válida.";
+      return error.line > 0 ? `Línea ${error.line}: ${text}` : text;
+    });
+  }
+  if (body?.reason === "menu_already_loaded") {
+    return ["Este restaurante ya tiene carta: la importación no la sobrescribe."];
+  }
+  return [platformErrorMessage(status, body)];
 }
 
 export const PLAN_NAME_FALLBACK = "Sin plan";

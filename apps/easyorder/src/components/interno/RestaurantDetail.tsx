@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { platformErrorMessage } from "@/lib/interno/logic";
 import type { RestaurantDetail as Detail } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
+import { MenuImportSection } from "./MenuImportSection";
 import { PaymentMethodsSection } from "./PaymentMethodsSection";
 import { PlanModulesSection } from "./PlanModulesSection";
 import "./restaurant-detail.css";
@@ -99,6 +100,7 @@ export function RestaurantDetail({ id }: { readonly id: number }) {
 
       <PlanModulesSection detail={detail} onChanged={load} />
       <PaymentMethodsSection detail={detail} onChanged={load} />
+      <MenuImportSection detail={detail} onChanged={load} />
 
       <section className="k-card k-rd-section" aria-labelledby="rd-locales">
         <h2 id="rd-locales" className="k-title">

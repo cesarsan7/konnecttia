@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
 import {
+  EMPTY_OPENING_DATA,
   type FormErrors,
   invitationLink,
   type NewRestaurantForm,
@@ -25,6 +26,7 @@ const EMPTY: NewRestaurantForm = {
   direccion: "",
   telefono: "",
   propietarioEmail: "",
+  ...EMPTY_OPENING_DATA,
 };
 
 type Plans = readonly { readonly code: string; readonly nombre: string }[];
@@ -116,7 +118,8 @@ export function NewRestaurant() {
           </h1>
           <p>
             Plan {created.plan}, con {created.modulos.length} módulos y su local principal. Falta
-            que la persona propietaria acepte la invitación para entrar a su panel.
+            que la persona propietaria acepte la invitación para entrar a su panel. Para cargar la
+            carta, abre la ficha.
           </p>
           <h2 className="k-subtitle">Invitación de {created.invitacion.email}</h2>
           <p className="k-muted k-small">
@@ -268,6 +271,119 @@ export function NewRestaurant() {
               {field("telefono")}
             </label>
           </div>
+        </fieldset>
+
+        <fieldset className="k-nr-group">
+          <legend className="k-title">
+            Para abrir al público <span className="k-optional">(opcional)</span>
+          </legend>
+          <p className="k-muted k-small k-nr-note">
+            Todo se puede completar después en el panel del restaurante. Lo que no rellenes no se
+            crea. Los festivos usan el horario del domingo.
+          </p>
+          <div className="k-nr-grid">
+            <label className="k-field">
+              <span>Latitud</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={form.lat}
+                onChange={(event) => set("lat", event.target.value)}
+              />
+              {field("lat")}
+            </label>
+            <label className="k-field">
+              <span>Longitud</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                value={form.lng}
+                onChange={(event) => set("lng", event.target.value)}
+              />
+              {field("lng")}
+            </label>
+          </div>
+          <span className="k-hint-text k-small k-muted">
+            Clic derecho sobre el pin en Google Maps para copiar las coordenadas.
+          </span>
+          <div className="k-nr-grid">
+            {(
+              [
+                ["semanaApertura", "Lunes a viernes: apertura"],
+                ["semanaCierre", "Lunes a viernes: cierre"],
+                ["findeApertura", "Sábado y domingo: apertura"],
+                ["findeCierre", "Sábado y domingo: cierre"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="k-field">
+                <span>{label}</span>
+                <input
+                  type="time"
+                  value={form[key]}
+                  onChange={(event) => set(key, event.target.value)}
+                />
+                {field(key)}
+              </label>
+            ))}
+          </div>
+          <label className="k-field">
+            <span>Minutos para recoger</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={form.recogidaMinutos}
+              onChange={(event) => set("recogidaMinutos", event.target.value)}
+            />
+            {field("recogidaMinutos")}
+          </label>
+          <div className="k-nr-grid">
+            {(
+              [
+                ["radioKm", "Reparto: radio (km)"],
+                ["tarifa", "Reparto: tarifa de envío (€)"],
+                ["minimo", "Reparto: pedido mínimo (€)"],
+                ["repartoMinutos", "Reparto: minutos"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="k-field">
+                <span>{label}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={form[key]}
+                  onChange={(event) => set(key, event.target.value)}
+                />
+                {field(key)}
+              </label>
+            ))}
+          </div>
+          <fieldset className="k-nr-checks">
+            <legend className="k-small k-muted">Métodos de cobro</legend>
+            <label className="k-nr-check">
+              <input
+                type="checkbox"
+                checked={form.efectivo}
+                onChange={(event) => set("efectivo", event.target.checked)}
+              />
+              <span>Efectivo</span>
+            </label>
+            <label className="k-nr-check">
+              <input
+                type="checkbox"
+                checked={form.tarjeta}
+                onChange={(event) => set("tarjeta", event.target.checked)}
+              />
+              <span>Tarjeta</span>
+            </label>
+          </fieldset>
+          <span className="k-hint-text k-small k-muted">
+            Transferencia y Bizum los configura el propietario en Ajustes, con su IBAN o teléfono.
+          </span>
+          {field("efectivo")}
         </fieldset>
 
         <fieldset className="k-nr-group">
