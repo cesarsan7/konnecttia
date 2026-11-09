@@ -3,10 +3,13 @@
 import { type ChangeEvent, type FormEvent, useRef, useState } from "react";
 import type { ApiResult } from "@/lib/api";
 import {
+  COLOR_INVALID,
   checkLogoFile,
+  colorFeedback,
   freeNetworks,
   LOGO_ACCEPT,
   logoError,
+  PREVIEW_DEFAULT,
   rowsFrom,
   type SocialRow,
   socialLabel,
@@ -35,6 +38,8 @@ export function BrandSection({ restaurant, editable, save }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<SocialRow[]>(() => rowsFrom(restaurant.redes_sociales));
   const [busy, setBusy] = useState(false);
+  const [colorText, setColorText] = useState(restaurant.color_marca ?? "");
+  const [colorMessage, setColorMessage] = useState<string | null>(null);
   const [logoMessage, setLogoMessage] = useState<string | null>(null);
   const [socialMessage, setSocialMessage] = useState<string | null>(null);
   const logo = restaurant.logo_url ?? null;
@@ -65,6 +70,24 @@ export function BrandSection({ restaurant, editable, save }: Props) {
     setLogoMessage(null);
     await save(() => api.removeLogo(slug), "Logo quitado");
     setBusy(false);
+  }
+
+  const feedback = colorFeedback(colorText);
+
+  async function saveColor(next: string | null) {
+    setColorMessage(null);
+    if (next !== null && !colorFeedback(next)) return setColorMessage(COLOR_INVALID);
+    setBusy(true);
+    const message = await save(
+      () =>
+        api.settingsChange(slug, "PATCH", "/restaurante", {
+          color_marca: next === null ? null : (colorFeedback(next)?.color ?? null),
+        }),
+      next === null ? "Color de EasyOrder restaurado" : "Color guardado",
+    );
+    setBusy(false);
+    setColorMessage(message);
+    if (!message && next === null) setColorText("");
   }
 
   async function submit(event: FormEvent) {
@@ -132,6 +155,83 @@ export function BrandSection({ restaurant, editable, save }: Props) {
           <p className="k-alert" role="alert">
             {logoMessage}
           </p>
+        ) : null}
+      </section>
+
+      <section className="k-card k-settings">
+        <header className="k-settings-head">
+          <h2 className="k-title">Color de la carta</h2>
+          <p className="k-muted k-small">
+            Tu carta online y el seguimiento de los pedidos usan este color en botones, bordes y
+            selección. El panel mantiene los colores de EasyOrder.
+          </p>
+        </header>
+        <div className="k-brand-color">
+          <input
+            type="color"
+            className="k-brand-swatch"
+            aria-label="Elegir color"
+            value={feedback?.color ?? restaurant.color_marca ?? PREVIEW_DEFAULT}
+            disabled={!editable}
+            onChange={(event) => setColorText(event.target.value)}
+          />
+          <label className="k-brand-field">
+            <span>Código del color</span>
+            <input
+              className="k-input"
+              value={colorText}
+              disabled={!editable}
+              maxLength={9}
+              placeholder={`${PREVIEW_DEFAULT} (el de EasyOrder)`}
+              onChange={(event) => setColorText(event.target.value)}
+            />
+          </label>
+          <span
+            className="k-brand-preview"
+            style={{
+              background: feedback?.color ?? PREVIEW_DEFAULT,
+              color: feedback?.ink ?? "#ffffff",
+            }}
+          >
+            Añadir al pedido
+          </span>
+        </div>
+        {colorText.trim() && !feedback ? (
+          <p className="k-alert" role="status">
+            {COLOR_INVALID}
+          </p>
+        ) : null}
+        {feedback?.warning ? (
+          <p className="k-warn k-small" role="status">
+            {feedback.warning}
+          </p>
+        ) : null}
+        {colorMessage ? (
+          <p className="k-alert" role="alert">
+            {colorMessage}
+          </p>
+        ) : null}
+        {editable ? (
+          <div className="k-brand-actions">
+            <button
+              type="button"
+              className="k-btn k-btn-go"
+              disabled={busy || !feedback}
+              onClick={() => void saveColor(colorText)}
+            >
+              Guardar color
+            </button>
+            {restaurant.color_marca ? (
+              <button
+                type="button"
+                className="k-btn k-btn-sm"
+                disabled={busy}
+                onClick={() => void saveColor(null)}
+              >
+                Usar el color de EasyOrder
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </section>
 

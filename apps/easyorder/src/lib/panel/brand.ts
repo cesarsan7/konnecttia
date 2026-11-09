@@ -1,4 +1,7 @@
 import {
+  BRAND_WARNING,
+  brandReport,
+  DEFAULT_ACCENT,
   parseSocialLinks,
   SOCIAL_ERROR,
   SOCIAL_LABEL,
@@ -69,3 +72,30 @@ export function checkLogoFile(file: {
   if (file.size > LOGO_MAX_BYTES) return logoError(413);
   return null;
 }
+
+/** Lo que el panel enseña al elegir el color de la carta (pieza AA). */
+export type ColorFeedback = {
+  readonly color: string;
+  readonly ink: string;
+  /** Aviso (no bloquea): el color apenas se vería como borde o selección. */
+  readonly warning: string | null;
+};
+
+export const COLOR_INVALID = "Escribe un color como #1a7f5a (con o sin la almohadilla).";
+
+export const COLOR_LOW_CONTRAST =
+  "Este color es muy claro: el texto de los botones se leerá bien, pero los bordes y la selección apenas se verán sobre el fondo. Prueba uno más oscuro.";
+
+/** Estado del color que se está escribiendo. `null` = no es un color válido todavía. */
+export function colorFeedback(value: string): ColorFeedback | null {
+  const report = brandReport(value);
+  if (!report) return null;
+  return {
+    color: report.color,
+    ink: report.ink,
+    warning: report.warnings.includes(BRAND_WARNING.LowEdgeContrast) ? COLOR_LOW_CONTRAST : null,
+  };
+}
+
+/** Color que se enseña como vista previa cuando el restaurante no tiene uno propio. */
+export const PREVIEW_DEFAULT = DEFAULT_ACCENT;

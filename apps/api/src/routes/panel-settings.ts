@@ -5,9 +5,11 @@ import {
   checkDaySchedule,
   checkPaymentSetup,
   type DaySchedule,
+  effectiveBrandColor,
   enabledPaymentMethods,
   FULFILLMENT,
   isValidIban,
+  normalizeHex,
   PAYMENT_METHODS,
   parseSocialLinks,
   readSocialLinks,
@@ -128,6 +130,12 @@ const restaurantSchema = z
       .max(PHONE_LIMIT_MAX)
       .nullable()
       .refine(isValidPhoneLimit),
+    /** Color de marca (pieza AA): `#rrggbb`/`#rgb`, o null para volver al de EasyOrder. */
+    color_marca: z
+      .string()
+      .max(9)
+      .nullable()
+      .refine((value) => value === null || normalizeHex(value) !== null),
     /** Redes sociales y web (pieza Z): `[{ red, url }]`, una por red. Vacío = ninguna. */
     redes_sociales: z
       .array(z.object({ red: z.string().max(20), url: z.string().max(400) }))
@@ -329,11 +337,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           datos_bancarios: unknown;
           logo_url: string | null;
           redes_sociales: unknown;
+          brand_color: string | null;
         }[]
       >`
         SELECT nombre, telefono, direccion, descripcion, eslogan, zona_horaria, pickup_enabled,
                delivery_enabled, payment_methods, metodos_pago_permitidos, datos_bancarios,
-               logo_url, redes_sociales
+               logo_url, redes_sociales, brand_color
         FROM   public.restaurante WHERE id = ${restauranteId}
       `,
       loadConfig(sql, restauranteId),
@@ -400,6 +409,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         eslogan: restaurant.eslogan,
         logo_url: restaurant.logo_url?.trim() || null,
         redes_sociales: readSocialLinks(restaurant.redes_sociales),
+        color_marca: effectiveBrandColor(restaurant.brand_color),
         zona_horaria: restaurant.zona_horaria,
         recogida: restaurant.pickup_enabled,
         reparto: restaurant.delivery_enabled,
@@ -554,6 +564,9 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                  direccion        = CASE WHEN ${has("direccion")} THEN ${body.direccion ?? null} ELSE direccion END,
                  descripcion      = CASE WHEN ${has("descripcion")} THEN ${body.descripcion ?? null} ELSE descripcion END,
                  eslogan          = CASE WHEN ${has("eslogan")} THEN ${body.eslogan ?? null} ELSE eslogan END,
+                 brand_color      = CASE WHEN ${has("color_marca")}
+                                         THEN ${body.color_marca == null ? null : normalizeHex(body.color_marca)}
+                                         ELSE brand_color END,
                  redes_sociales   = CASE WHEN ${has("redes_sociales")}
                                          THEN ${social?.ok && social.links.length > 0 ? tx.json([...social.links]) : null}::jsonb
                                          ELSE redes_sociales END,

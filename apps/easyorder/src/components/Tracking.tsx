@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createApi } from "@/lib/api";
+import { brandStyle, publicLogo } from "@/lib/brand";
 import { ORDER_STATUS_LABEL, paymentLabel, trackingSteps } from "@/lib/checkout";
 import { euros } from "@/lib/format";
 import { needsPaymentInfo } from "@/lib/payment-proof";
@@ -117,11 +118,16 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
   const items = (Array.isArray(order.items) ? (order.items as StoredItem[]) : []).map(
     (item, position) => ({ ...describeItem(item), position }),
   );
+  const logo = publicLogo(order.logoUrl);
   const cancelled = order.estado === "cancelado" || order.estado === "expirado";
 
   return (
-    <main className="shell">
+    <main className="shell" style={brandStyle(order.colorMarca)}>
       <header className="store-head">
+        {logo && (
+          // biome-ignore lint/performance/noImgElement: logo del restaurante en una URL externa (Storage)
+          <img className="store-logo" src={logo} alt={`Logo de ${order.restaurante}`} />
+        )}
         <p className="muted">{order.restaurante}</p>
         <h1 className="title">
           Pedido {order.pedidoCodigo ? `#${order.pedidoCodigo}` : "recibido"}
