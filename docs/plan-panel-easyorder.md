@@ -333,8 +333,10 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
   (`TURNSTILE_SECRET_KEY` en la API y `NEXT_PUBLIC_TURNSTILE_SITE_KEY` en la web) y teléfonos
   bloqueados por restaurante (permiso `customers.block`; «Bloquear» en la ficha del cliente y
   filtro «Solo bloqueados»). El pedido manual del panel avisa, pero deja continuar.
-- Pendiente en n8n: llamar a `fn_telefono_bloqueado(restaurante_id, telefono)` antes de abrir un
-  pedido por WhatsApp. La capa 3 (código por SMS/WhatsApp) sigue pendiente de presupuesto.
+- n8n: hecho en staging. El flujo `[MVP] Apertura` llama a `fn_restaurante_acepta_pedidos` y
+  `fn_telefono_bloqueado` («Verificar Puede Pedir») antes de abrir un pedido por WhatsApp; los
+  pedidos web lo saltan porque la API ya lo exige. La capa 3 (código por WhatsApp o SMS) tiene
+  propuesta en el ADR 0011 y sigue pendiente de proveedor y presupuesto.
 
 ### R · Tratamiento de datos (MVP, revisar con un abogado)
 
