@@ -324,8 +324,9 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
      bloqueados por restaurante (bloquear un teléfono desde la ficha del cliente).
   2. Los pedidos por WhatsApp ya vienen del propio número: no necesitan código.
   3. Código de verificación solo cuando hay riesgo: teléfono nuevo, reparto con pago en efectivo
-     o importe alto. Se envía por WhatsApp (plantilla de autenticación) o SMS; el proveedor y su
-     coste están por decidir.
+     o importe alto (30 € por defecto, ajustable por restaurante). Se envía por WhatsApp
+     (plantilla de autenticación) desde un número central de Konnecttia; el SMS se descarta por
+     ahora (ADR 0011).
 - Los clientes que ya pidieron y recibieron su pedido no vuelven a pasar por el código.
 - **Capas 1 y 2: en curso** (rama `feat/antifraude`, migración 0021). Límite de pedidos web por
   teléfono (claves `antifraude_pedidos_abiertos_por_telefono` y
@@ -335,8 +336,8 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
   filtro «Solo bloqueados»). El pedido manual del panel avisa, pero deja continuar.
 - n8n: hecho en staging. El flujo `[MVP] Apertura` llama a `fn_restaurante_acepta_pedidos` y
   `fn_telefono_bloqueado` («Verificar Puede Pedir») antes de abrir un pedido por WhatsApp; los
-  pedidos web lo saltan porque la API ya lo exige. La capa 3 (código por WhatsApp o SMS) tiene
-  propuesta en el ADR 0011 y sigue pendiente de proveedor y presupuesto.
+  pedidos web lo saltan porque la API ya lo exige. La capa 3 (código por WhatsApp) está
+  decidida en el ADR 0011; falta la aprobación de la plantilla en Meta.
 
 ### R · Tratamiento de datos (MVP, revisar con un abogado)
 
