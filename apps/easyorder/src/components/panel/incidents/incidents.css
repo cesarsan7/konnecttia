@@ -1,0 +1,48 @@
+.k-incidents {
+  display: grid;
+  gap: 14px;
+}
+
+.k-inc-filters {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.k-inc-filters,
+.k-inc-pages,
+.k-inc-actions,
+.k-inc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-inc-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.k-inc-item {
+  display: grid;
+  gap: 8px;
+}
+
+.k-inc-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.k-inc-actions .k-input {
+  flex: 1 1 220px;
+}
+
+.k-chip-alert {
+  background: var(--coral-tint);
+  color: var(--coral-text);
+}

@@ -5,6 +5,9 @@ import {
   ETA_SERVICE,
   FULFILLMENT,
   type GeoPoint,
+  INCIDENT_TEXT_MAX,
+  INCIDENT_TYPES,
+  type IncidentType,
   rankBranches,
 } from "@konnecttia/domain";
 import { Hono } from "hono";
@@ -27,6 +30,7 @@ import { loadBranches, openChecker, unavailableItems } from "../repositories/bra
 import { loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
+import { reportIncident } from "../repositories/incidents";
 import { cancelTrackedOrder } from "../repositories/order-status";
 import {
   findOrderByTrackingToken,
@@ -222,6 +226,11 @@ const QUOTE_REASON: Partial<Record<string, string>> = {
   [API_ERROR.PickupNotAvailable]: "recogida_no_disponible",
 };
 
+const incidentBodySchema = z.object({
+  tipo: z.enum(INCIDENT_TYPES as [IncidentType, ...IncidentType[]]),
+  descripcion: z.string().trim().min(3).max(INCIDENT_TEXT_MAX),
+});
+
 export function publicRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   const ordersLimited = createRateLimiter(ORDERS_PER_IP_PER_10_MIN, 10 * 60_000);
@@ -288,6 +297,35 @@ export function publicRoutes(deps: AppDeps) {
       return fail(c, 409, API_ERROR.InvalidTransition, { reason: "already_accepted" });
     }
     return c.json({ ok: true, estado: "cancelado" });
+  });
+
+  /**
+   * El cliente abre una incidencia sobre su pedido (pieza P): tipo y texto libre. El token es la
+   * credencial; hay un tope de incidencias abiertas por pedido. El local la ve en el tablero.
+   */
+  app.post("/orders/:token/incidencias", async (c) => {
+    if (trackingLimited(clientIp(c.req.header(deps.clientIpHeader)))) {
+      return fail(c, 429, API_ERROR.RateLimited);
+    }
+    const token = c.req.param("token");
+    if (!UUID_PATTERN.test(token)) return fail(c, 404, API_ERROR.OrderNotFound);
+    const parsed = incidentBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return fail(c, 400, API_ERROR.InvalidBody, {
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    }
+    const result = await reportIncident(deps.sql, token, parsed.data);
+    if (result === "not_found") return fail(c, 404, API_ERROR.OrderNotFound);
+    if (result === "not_allowed") {
+      return fail(c, 409, API_ERROR.InvalidTransition, { reason: "order_not_reportable" });
+    }
+    if (result === "too_many")
+      return fail(c, 429, API_ERROR.RateLimited, { reason: "too_many_open" });
+    return c.json({ ok: true }, 201);
   });
 
   /**

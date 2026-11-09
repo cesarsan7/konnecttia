@@ -10,6 +10,7 @@ import type { TrackedOrder } from "@/lib/types";
 import { CancelOrder } from "./CancelOrder";
 import { EmailAvisos } from "./EmailAvisos";
 import { PaymentProof } from "./PaymentProof";
+import { ReportIssue } from "./ReportIssue";
 import "./tracking.css";
 
 const REFRESH_MS = 15_000;
@@ -158,6 +159,8 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
       )}
 
       <CancelOrder api={api} token={token} order={order} onChanged={refresh} />
+
+      <ReportIssue api={api} token={token} order={order} onSent={refresh} />
 
       <EmailAvisos api={api} token={token} order={order} onSaved={refresh} />
 

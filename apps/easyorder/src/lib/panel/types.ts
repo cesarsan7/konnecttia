@@ -80,6 +80,8 @@ export type PanelOrder = {
   readonly fotos_entrega?: number;
   /** El cliente canceló el pedido desde el seguimiento (aviso en el tablero). */
   readonly cancelado_por_cliente?: boolean;
+  /** Incidencias del cliente aún sin resolver (pieza P). */
+  readonly incidencias_abiertas?: number;
 };
 
 export type BusyMode = {

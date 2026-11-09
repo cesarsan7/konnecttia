@@ -1,5 +1,6 @@
 "use client";
 
+import "../incidents/incidents.css";
 import "./order-card.css";
 import { euros } from "@/lib/format";
 import { type Driver, driversFor } from "@/lib/panel/drivers";
@@ -99,6 +100,9 @@ export function OrderCard({
           <span className={`k-chip k-chip-${order.estado}`}>
             {STATUS_LABEL[order.estado] ?? order.estado}
           </span>
+          {(order.incidencias_abiertas ?? 0) > 0 ? (
+            <span className="k-chip k-chip-alert">Incidencia abierta</span>
+          ) : null}
           {order.cancelado_por_cliente ? (
             <span className="k-chip k-chip-channel">Cancelado por el cliente</span>
           ) : null}
