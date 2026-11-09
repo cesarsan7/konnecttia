@@ -30,6 +30,7 @@ import { BusyModeHelp } from "../BusyModeControl";
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { BrandSection } from "./BrandSection";
 import { DeliveryPhotoSetting } from "./DeliveryPhotoSetting";
 import { DeliverySection } from "./DeliverySection";
 import { PeakTimes } from "./PeakTimes";
@@ -42,6 +43,7 @@ const TAB = {
   Schedule: "horario",
   Delivery: "reparto",
   Branches: "locales",
+  Brand: "marca",
   Links: "enlaces",
 } as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
@@ -160,6 +162,7 @@ export function SettingsView() {
         { id: TAB.Schedule, label: "Horario" },
         ...(canDelivery ? [{ id: TAB.Delivery, label: "Reparto" }] : []),
         { id: TAB.Branches, label: data.locales.length > 1 ? "Locales" : "Local" },
+        { id: TAB.Brand, label: "Marca" },
         { id: TAB.Links, label: "Enlaces y QR" },
       ]
     : [
@@ -240,6 +243,9 @@ export function SettingsView() {
           ) : null}
           <DeliverySection editable={can(PERMISSION.DeliveryManage)} notify={toast} />
         </>
+      ) : null}
+      {current === TAB.Brand ? (
+        <BrandSection restaurant={data.restaurante} editable={editRestaurant} save={save} />
       ) : null}
       {current === TAB.Links ? <QrLinks /> : null}
       {current === TAB.Branches ? (

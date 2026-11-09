@@ -11,4 +11,5 @@ export * from "./payment-methods";
 export * from "./platform";
 export * from "./pricing";
 export * from "./schedule";
+export * from "./social";
 export * from "./trial";

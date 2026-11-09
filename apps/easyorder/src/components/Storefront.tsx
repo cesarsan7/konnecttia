@@ -4,6 +4,7 @@ import { centsFromDecimal } from "@konnecttia/domain";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createApi } from "@/lib/api";
+import { publicLogo, publicSocialLinks } from "@/lib/brand";
 import { addLine, type CartLine, itemCount, parseStoredCart, subtotalCents } from "@/lib/cart";
 import { acceptsOnlineOrders, RESTAURANT_UNAVAILABLE_MESSAGE } from "@/lib/checkout";
 import { eurosFromCents } from "@/lib/format";
@@ -125,6 +126,8 @@ export function Storefront({
   const count = itemCount(lines);
   const subtotal = subtotalCents(lines);
   const restaurant = menu.restaurante;
+  const logo = publicLogo(restaurant.logo_url);
+  const socialLinks = publicSocialLinks(restaurant.redes_sociales);
   const branchName = branches.find((branch) => branch.id === branchId)?.nombre;
 
   if (view === "checkout") {
@@ -159,6 +162,10 @@ export function Storefront({
   return (
     <main className="shell">
       <header className="store-head">
+        {logo && (
+          // biome-ignore lint/performance/noImgElement: logo del restaurante en una URL externa (Storage)
+          <img className="store-logo" src={logo} alt={`Logo de ${restaurant.nombre}`} />
+        )}
         <h1 className="title">{restaurant.nombre}</h1>
         <p className="status-line">
           <span className={`badge ${menu.abierto ? "open" : "closed"}`}>
@@ -252,6 +259,16 @@ export function Storefront({
           </ul>
         </section>
       ))}
+
+      {socialLinks.length > 0 && (
+        <nav className="store-social" aria-label={`Redes de ${restaurant.nombre}`}>
+          {socialLinks.map((link) => (
+            <a key={link.red} href={link.url} target="_blank" rel="noopener noreferrer nofollow">
+              {link.label}
+            </a>
+          ))}
+        </nav>
+      )}
 
       <footer className="powered">Pedidos con EasyOrder · Konnecttia</footer>
 

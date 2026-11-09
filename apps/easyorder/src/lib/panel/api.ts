@@ -204,6 +204,16 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       path: string,
       body?: unknown,
     ) => send(slug, `/mesas${path}`, method, body),
+    /** Sube el logo del restaurante (multipart, campo `logo`; PNG, JPG o WebP, hasta 2 MB). */
+    uploadLogo: (slug: string, file: File) => {
+      const form = new FormData();
+      form.append("logo", file);
+      return request<{ logo_url: string }>(panel(slug, "/ajustes/logo"), {
+        method: "POST",
+        body: form,
+      });
+    },
+    removeLogo: (slug: string) => send<{ logo_url: null }>(slug, "/ajustes/logo", "DELETE"),
     uploadPhoto: (slug: string, itemId: number, file: File) => {
       const form = new FormData();
       form.append("foto", file);
