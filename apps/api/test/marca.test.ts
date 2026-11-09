@@ -47,6 +47,18 @@ describe.skipIf(!TEST_DATABASE_URL)("marca: logo y redes sociales (pieza Z)", ()
     expect(settings.body.restaurante.redes_sociales).toEqual([]);
   });
 
+  it("la carta pública trae el eslogan configurado (o null)", async () => {
+    const before = (await (await ctx.app.request("/public/prueba-a/menu")).json()) as Json;
+    expect(before.restaurante.eslogan).toBeNull();
+    const saved = await call("ownerA", "PATCH", "/panel/prueba-a/ajustes/restaurante", {
+      eslogan: "  Sabor de la isla  ",
+    });
+    expect(saved.status).toBe(200);
+    const after = (await (await ctx.app.request("/public/prueba-a/menu")).json()) as Json;
+    expect(after.restaurante.eslogan).toBe("Sabor de la isla");
+    await call("ownerA", "PATCH", "/panel/prueba-a/ajustes/restaurante", { eslogan: null });
+  });
+
   it("guarda las redes normalizadas, las muestra en la carta y las vacía", async () => {
     const saved = await call("ownerA", "PATCH", "/panel/prueba-a/ajustes/restaurante", {
       redes_sociales: [

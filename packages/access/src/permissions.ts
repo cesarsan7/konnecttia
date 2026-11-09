@@ -38,6 +38,10 @@ export const PERMISSION = {
   DeliveryAssign: "delivery.assign",
   /** Ver y entregar solo los repartos asignados a uno mismo (rol Repartidor). */
   OrdersDeliverAssigned: "orders.deliver_assigned",
+  /** Atajo «Ver carta online» del panel (la carta pública sigue siendo abierta). */
+  StorefrontView: "storefront.view",
+  /** Atajo «Ayuda» del panel (el centro de ayuda sigue siendo abierto). */
+  HelpView: "help.view",
 } as const;
 
 export type PermissionCode = (typeof PERMISSION)[keyof typeof PERMISSION];
@@ -72,6 +76,8 @@ export const PERMISSION_MODULE: Readonly<Record<PermissionCode, ModuleCode>> = {
   [PERMISSION.AgentConfigure]: MODULE.WhatsappAgent,
   [PERMISSION.DeliveryAssign]: MODULE.Delivery,
   [PERMISSION.OrdersDeliverAssigned]: MODULE.Delivery,
+  [PERMISSION.StorefrontView]: MODULE.Menu,
+  [PERMISSION.HelpView]: MODULE.Settings,
 };
 
 /** Nombre de cada permiso para el editor de roles del panel. */
@@ -105,6 +111,8 @@ export const PERMISSION_LABEL: Readonly<Record<PermissionCode, string>> = {
   [PERMISSION.ConversationsView]: "Ver conversaciones de WhatsApp",
   [PERMISSION.ConversationsReply]: "Responder conversaciones de WhatsApp",
   [PERMISSION.AgentConfigure]: "Configurar el agente de WhatsApp",
+  [PERMISSION.StorefrontView]: "Ver carta online (enlace del panel)",
+  [PERMISSION.HelpView]: "Ver la ayuda (enlace del panel)",
 };
 
 export const ALL_PERMISSIONS = Object.values(PERMISSION) as readonly PermissionCode[];
@@ -123,6 +131,9 @@ export const ROLE_TEMPLATE = {
 
 export type RoleTemplateCode = (typeof ROLE_TEMPLATE)[keyof typeof ROLE_TEMPLATE];
 
+/** Enlaces del pie del panel: todas las plantillas los traen, así nadie los pierde al migrar. */
+const PANEL_LINKS: readonly PermissionCode[] = [PERMISSION.StorefrontView, PERMISSION.HelpView];
+
 const STAFF_PERMISSIONS: readonly PermissionCode[] = [
   PERMISSION.OrdersView,
   PERMISSION.OrdersCreate,
@@ -135,6 +146,7 @@ const STAFF_PERMISSIONS: readonly PermissionCode[] = [
   PERMISSION.TablesManage,
   PERMISSION.ConversationsView,
   PERMISSION.ConversationsReply,
+  ...PANEL_LINKS,
 ];
 
 export const ROLE_TEMPLATE_PERMISSIONS: Readonly<
@@ -151,6 +163,7 @@ export const ROLE_TEMPLATE_PERMISSIONS: Readonly<
     PERMISSION.MenuView,
     PERMISSION.DeliveryView,
     PERMISSION.TablesView,
+    ...PANEL_LINKS,
   ],
   [ROLE_TEMPLATE.Waiter]: [
     PERMISSION.OrdersView,
@@ -159,6 +172,11 @@ export const ROLE_TEMPLATE_PERMISSIONS: Readonly<
     PERMISSION.MenuView,
     PERMISSION.TablesView,
     PERMISSION.TablesManage,
+    ...PANEL_LINKS,
   ],
-  [ROLE_TEMPLATE.Driver]: [PERMISSION.DeliveryView, PERMISSION.OrdersDeliverAssigned],
+  [ROLE_TEMPLATE.Driver]: [
+    PERMISSION.DeliveryView,
+    PERMISSION.OrdersDeliverAssigned,
+    ...PANEL_LINKS,
+  ],
 };

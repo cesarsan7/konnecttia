@@ -167,6 +167,16 @@ export function Storefront({
           <img className="store-logo" src={logo} alt={`Logo de ${restaurant.nombre}`} />
         )}
         <h1 className="title">{restaurant.nombre}</h1>
+        {restaurant.eslogan?.trim() && <p className="store-slogan">{restaurant.eslogan.trim()}</p>}
+        {socialLinks.length > 0 && (
+          <nav className="store-social" aria-label={`Redes de ${restaurant.nombre}`}>
+            {socialLinks.map((link) => (
+              <a key={link.red} href={link.url} target="_blank" rel="noopener noreferrer nofollow">
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        )}
         <p className="status-line">
           <span className={`badge ${menu.abierto ? "open" : "closed"}`}>
             {menu.abierto ? "Abierto" : "Cerrado ahora"}
@@ -259,16 +269,6 @@ export function Storefront({
           </ul>
         </section>
       ))}
-
-      {socialLinks.length > 0 && (
-        <nav className="store-social" aria-label={`Redes de ${restaurant.nombre}`}>
-          {socialLinks.map((link) => (
-            <a key={link.red} href={link.url} target="_blank" rel="noopener noreferrer nofollow">
-              {link.label}
-            </a>
-          ))}
-        </nav>
-      )}
 
       <footer className="powered">Pedidos con EasyOrder · Konnecttia</footer>
 
