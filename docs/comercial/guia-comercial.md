@@ -12,7 +12,7 @@ EasyOrder es la carta online y el sistema de pedidos propio del restaurante: el 
 
 ## Inventario de funcionalidades
 
-Estado a 6 de noviembre: **Disponible** = construido y probado en el entorno de pruebas; **En pruebas** = funciona, pero aún se está validando; **Próximamente** = planificado, todavía no se puede enseñar.
+Estado a 9 de noviembre: **Disponible** = construido y probado en el entorno de pruebas; **En pruebas** = funciona, pero aún se está validando; **Próximamente** = planificado, todavía no se puede enseñar.
 
 | Área           | Funcionalidad                   | Qué hace                                                                                                                                   | Plan        | Estado       |
 | -------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | ------------ |
@@ -58,6 +58,8 @@ Estado a 6 de noviembre: **Disponible** = construido y probado en el entorno de 
 | Carta online   | Carta en varios idiomas         | Carta en inglés, alemán… para turistas                                                                                                     | Premium     | Próximamente |
 | Pedidos        | Pago online                     | El cliente paga con tarjeta al pedir                                                                                                       | Complemento | Próximamente |
 | Alta           | Alta autoservicio con prueba    | El restaurante se da de alta solo en /alta y prueba gratis por días o por pedidos; Konnecttia la activa, la aprueba y la convierte en plan | —           | En pruebas   |
+| Equipo         | Actividad del equipo            | Ficha de cada repartidor y mesero: repartos o mesas, horas, fotos de entrega e importes; cada uno ve solo la suya                          | Premium     | En pruebas   |
+| Equipo         | Personalizar roles              | El dueño parte de un rol de Konnecttia y ajusta sus permisos para su restaurante                                                           | Básico      | En pruebas   |
 
 Para la demo, enseña solo lo que está **Disponible**. Lo de **Próximamente** se puede mencionar como hoja de ruta, sin prometer fechas. Lo que está **En pruebas** se puede enseñar avisando de que aún se está validando.
 
