@@ -63,7 +63,7 @@ pnpm db:test     # aplica todas las migraciones en un Postgres temporal
 - **Precios siempre en el servidor.** El navegador envía ids y cantidades; el total lo calcula
   `packages/domain`. Dinero en céntimos enteros (`number` entero), moneda `EUR`.
 - **Zona horaria:** fuente única `restaurante.zona_horaria`. Guardar en UTC (`timestamptz`).
-- **Migraciones:** solo se añaden archivos nuevos en `packages/db/migrations`, numerados y compatibles con
+- **Migraciones:** la API las aplica sola al arrancar (`AUTO_MIGRATE`, ver `packages/db/README.md`). Solo se añaden archivos nuevos en `packages/db/migrations`, numerados y compatibles con
   el código y los flujos de n8n en producción. Nunca editar una migración ya aplicada.
 - **Funciones SQL multitenant:** `p_restaurante_id` obligatorio, sin valor por defecto.
 - **Secretos:** solo en variables de entorno de EasyPanel. Nunca en el repositorio, prompts ni logs.

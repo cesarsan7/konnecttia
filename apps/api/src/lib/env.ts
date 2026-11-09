@@ -30,6 +30,16 @@ const envSchema = z.object({
    * captcha y lo verifica; sin ella, el pedido funciona como siempre. Nunca se envía al navegador.
    */
   TURNSTILE_SECRET_KEY: z.string().min(10).optional(),
+  /**
+   * `true` aplica las migraciones pendientes al arrancar (la imagen de producción lo activa).
+   * Si una migración falla, la API no arranca. En desarrollo queda apagado.
+   */
+  AUTO_MIGRATE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  /** Carpeta con las migraciones `NNNN_*.sql` (en la imagen: `/app/migrations`). */
+  MIGRATIONS_DIR: z.string().min(1).default("../../packages/db/migrations"),
 });
 
 export type Env = z.infer<typeof envSchema>;
