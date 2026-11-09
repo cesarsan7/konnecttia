@@ -103,6 +103,7 @@ Para el restaurante de pruebas, el panel es `/panel/<slug>` y la carta `/<slug>`
 2. Anota qué secciones ve y si puede cambiar el estado de un pedido.
 
 **Resultado esperado:**
+
 - **Propietario y Encargado:** ven pedidos, carta, clientes, estadísticas y ajustes; solo el Propietario ve el equipo.
 - **Personal:** pedidos, reparto, clientes y mesas; no ve estadísticas ni ajustes.
 - **Mesero:** pedidos y mesas; no ve clientes, reparto ni estadísticas.
