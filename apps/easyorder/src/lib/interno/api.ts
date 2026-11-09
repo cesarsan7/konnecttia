@@ -11,6 +11,8 @@ import type {
   PlatformSettings,
   RestaurantDetail,
   RestaurantRow,
+  RoleBody,
+  RolesInfo,
   SignupSettings,
   TrialAction,
   TrialConverted,
@@ -58,6 +60,16 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
     restaurant: (id: number) => request<RestaurantDetail>(`/restaurantes/${id}`),
     createRestaurant: (body: NewRestaurantBody) =>
       request<CreatedRestaurant>("/restaurantes", { method: "POST", body: JSON.stringify(body) }),
+    roles: (id: number) => request<RolesInfo>(`/restaurantes/${id}/roles`),
+    createRole: (id: number, body: RoleBody) =>
+      request<{ id: number }>(`/restaurantes/${id}/roles`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    updateRole: (id: number, roleId: number, body: RoleBody) =>
+      put<{ id: number; miembros_afectados: number }>(`/restaurantes/${id}/roles/${roleId}`, body),
+    deleteRole: (id: number, roleId: number) =>
+      request<{ id: number }>(`/restaurantes/${id}/roles/${roleId}`, { method: "DELETE" }),
     changePlan: (id: number, plan: string) => put<PlanSaved>(`/restaurantes/${id}/plan`, { plan }),
     changeModule: (id: number, code: string, change: ModuleChangeBody) =>
       put<ModuleSaved>(`/restaurantes/${id}/modulos/${encodeURIComponent(code)}`, change),

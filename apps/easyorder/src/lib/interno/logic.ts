@@ -102,6 +102,10 @@ const REASONS: Record<string, string> = {
   slug_too_long: SLUG_MESSAGES[SLUG_ERROR.TooLong],
   invalid_time_zone: "La zona horaria no es válida.",
   unknown_plan: "Ese plan no existe.",
+  duplicate_name: "Ya hay un rol con ese nombre.",
+  template_role: "Las plantillas no se editan desde aquí.",
+  role_in_use: "Hay personas con ese rol. Cámbiales el rol antes de borrarlo.",
+  pending_invites: "Hay invitaciones pendientes con ese rol. Revócalas antes de borrarlo.",
   origin_required: "Elige si se activa como complemento o como cortesía.",
   module_in_plan: "Ese módulo viene con el plan: cámbialo desde el plan.",
   module_not_manageable: "Ese módulo no se activa desde aquí.",
@@ -129,6 +133,29 @@ export function platformErrorMessage(
   if (status === 404) return "No encontramos ese restaurante.";
   if (status === 400) return "Revisa los datos: alguno no es válido.";
   return "No se pudo completar la acción. Inténtalo de nuevo.";
+}
+
+export type RoleFormErrors = { nombre?: string; permisos?: string };
+
+/** Valida el formulario de un rol propio (la API repite las comprobaciones). */
+export function validateRoleForm(nombre: string, permisos: readonly string[]): RoleFormErrors {
+  const errors: RoleFormErrors = {};
+  const name = nombre.trim();
+  if (name.length < 2) errors.nombre = "El nombre necesita al menos 2 caracteres.";
+  else if (name.length > 60) errors.nombre = "El nombre admite hasta 60 caracteres.";
+  if (permisos.length === 0) errors.permisos = "Elige al menos un permiso.";
+  return errors;
+}
+
+/** Permisos marcados que pertenecen a módulos que el restaurante no tiene contratados. */
+export function inactivePermissions(
+  selected: ReadonlySet<string>,
+  catalog: readonly { activo: boolean; permisos: readonly { code: string }[] }[],
+): string[] {
+  return catalog
+    .filter((group) => !group.activo)
+    .flatMap((group) => group.permisos.map((permission) => permission.code))
+    .filter((code) => selected.has(code));
 }
 
 export const PLAN_NAME_FALLBACK = "Sin plan";

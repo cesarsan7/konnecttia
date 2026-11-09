@@ -8,13 +8,21 @@ import {
   type PermissionCode,
 } from "@konnecttia/access";
 import type { Context, Hono } from "hono";
-import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { UNIQUE_VIOLATION } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
+import {
+  insertRole,
+  replaceRole,
+  roleNameTaken,
+  roleSchema,
+  roleUsage,
+} from "../repositories/roles";
 import { rolesOf } from "./panel-team";
+
+export { roleCode } from "../repositories/roles";
 
 /**
  * Roles del restaurante desde el panel (Equipo → Roles).
@@ -26,29 +34,6 @@ import { rolesOf } from "./panel-team";
  */
 
 type Ctx = Context<AppEnv>;
-
-const KNOWN = new Set<string>(ALL_PERMISSIONS);
-
-const roleSchema = z.object({
-  nombre: z.string().trim().min(2).max(60),
-  permisos: z
-    .array(z.string().refine((code) => KNOWN.has(code)))
-    .min(1)
-    .max(ALL_PERMISSIONS.length)
-    .transform((list) => [...new Set(list)] as PermissionCode[]),
-});
-
-/** Código estable a partir del nombre: «Cajero de noche» → «r_cajero_de_noche». */
-export function roleCode(nombre: string): string {
-  const slug = nombre
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "")
-    .slice(0, 40);
-  return `r_${slug || "rol"}`;
-}
 
 export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
   const { sql } = deps;
@@ -88,15 +73,8 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     return (await rolesOf(sql, c.get("restaurant").id)).find((role) => role.id === id) ?? null;
   };
 
-  const nameTaken = async (c: Ctx, nombre: string, exceptId: number | null) => {
-    const rows = await sql`
-      SELECT 1 FROM public.rol
-      WHERE  (restaurante_id = ${c.get("restaurant").id} OR restaurante_id IS NULL)
-        AND  lower(nombre) = lower(${nombre})
-        AND  (${exceptId}::bigint IS NULL OR id <> ${exceptId})
-    `;
-    return rows.length > 0;
-  };
+  const nameTaken = (c: Ctx, nombre: string, exceptId: number | null) =>
+    roleNameTaken(sql, c.get("restaurant").id, nombre, exceptId);
 
   app.get("/:slug/equipo/roles", requirePermission(deps, PERMISSION.TeamView), async (c) => {
     const restauranteId = c.get("restaurant").id;
@@ -158,28 +136,7 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     }
     const restauranteId = c.get("restaurant").id;
     try {
-      const id = await sql.begin(async (tx) => {
-        // Código único: si ya existe (otro nombre con el mismo resultado), se añade un número.
-        const base = roleCode(body.nombre);
-        const taken = await tx<{ code: string }[]>`
-          SELECT code FROM public.rol
-          WHERE  restaurante_id = ${restauranteId} AND code LIKE ${`${base}%`}
-        `;
-        const codes = new Set(taken.map((row) => row.code));
-        let code = base;
-        for (let n = 2; codes.has(code); n += 1) code = `${base}_${n}`;
-        const [row] = await tx<{ id: number }[]>`
-          INSERT INTO public.rol (restaurante_id, code, nombre, es_plantilla)
-          VALUES (${restauranteId}, ${code}, ${body.nombre}, false)
-          RETURNING id
-        `;
-        if (!row) throw new Error("El INSERT del rol no devolvió filas");
-        await tx`
-          INSERT INTO public.rol_permiso (rol_id, permiso_code)
-          SELECT ${row.id}, unnest(${body.permisos}::text[])
-        `;
-        return row.id;
-      });
+      const id = await sql.begin((tx) => insertRole(tx, restauranteId, body.nombre, body.permisos));
       await record(c, "team.role.create", id, body);
       return c.json({ id }, 201);
     } catch (error) {
@@ -207,14 +164,7 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     if (await nameTaken(c, body.nombre, role.id)) {
       return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
     }
-    await sql.begin(async (tx) => {
-      await tx`UPDATE public.rol SET nombre = ${body.nombre} WHERE id = ${role.id}`;
-      await tx`DELETE FROM public.rol_permiso WHERE rol_id = ${role.id}`;
-      await tx`
-        INSERT INTO public.rol_permiso (rol_id, permiso_code)
-        SELECT ${role.id}, unnest(${body.permisos}::text[])
-      `;
-    });
+    await sql.begin((tx) => replaceRole(tx, role.id, body.nombre, body.permisos));
     await record(c, "team.role.update", role.id, {
       nombre: body.nombre,
       antes: role.permisos,
@@ -233,16 +183,11 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       if (!canGrantRole(c.get("access"), role.permisos as PermissionCode[])) {
         return deny(c, "team.role.delete", "role_above_yours", role.id);
       }
-      const [usage] = await sql<{ miembros: number; invitaciones: number }[]>`
-        SELECT (SELECT count(*)::int FROM public.membresia_rol WHERE rol_id = ${role.id}) AS miembros,
-               (SELECT count(*)::int FROM public.restaurant_invites
-                WHERE  rol_id = ${role.id} AND used_at IS NULL AND revocada_at IS NULL
-                  AND  expires_at > (now() AT TIME ZONE 'UTC')) AS invitaciones
-      `;
-      if ((usage?.miembros ?? 0) > 0) {
+      const usage = await roleUsage(sql, role.id);
+      if (usage.miembros > 0) {
         return fail(c, 409, API_ERROR.Conflict, { reason: "role_in_use" });
       }
-      if ((usage?.invitaciones ?? 0) > 0) {
+      if (usage.invitaciones > 0) {
         return fail(c, 409, API_ERROR.Conflict, { reason: "pending_invites" });
       }
       await sql`DELETE FROM public.rol WHERE id = ${role.id} AND restaurante_id = ${c.get("restaurant").id}`;

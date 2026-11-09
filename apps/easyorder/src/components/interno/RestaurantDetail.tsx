@@ -7,6 +7,7 @@ import type { RestaurantDetail as Detail } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import { PaymentMethodsSection } from "./PaymentMethodsSection";
 import { PlanModulesSection } from "./PlanModulesSection";
+import { RolesSection } from "./RolesSection";
 import "./restaurant-detail.css";
 
 type Load =
@@ -99,6 +100,7 @@ export function RestaurantDetail({ id }: { readonly id: number }) {
 
       <PlanModulesSection detail={detail} onChanged={load} />
       <PaymentMethodsSection detail={detail} onChanged={load} />
+      <RolesSection detail={detail} />
 
       <section className="k-card k-rd-section" aria-labelledby="rd-locales">
         <h2 id="rd-locales" className="k-title">
