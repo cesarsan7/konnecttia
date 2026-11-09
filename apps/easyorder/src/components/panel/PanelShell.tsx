@@ -39,6 +39,8 @@ export const PERMISSION = {
   TablesManage: "tables.manage",
   DeliveryAssign: "delivery.assign",
   OrdersDeliverAssigned: "orders.deliver_assigned",
+  StorefrontView: "storefront.view",
+  HelpView: "help.view",
 } as const;
 
 type AccessValue = {
@@ -283,14 +285,18 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
             })}
           </nav>
           <div className="k-sidebar-foot">
-            <a className="k-nav-item" href={`/${slug}`} target="_blank" rel="noreferrer">
-              <Icon name="external" />
-              <span>Ver carta online</span>
-            </a>
-            <a className="k-nav-item" href={helpPath()} target="_blank" rel="noreferrer">
-              <Icon name="help" />
-              <span>Ayuda</span>
-            </a>
+            {can(PERMISSION.StorefrontView) ? (
+              <a className="k-nav-item" href={`/${slug}`} target="_blank" rel="noreferrer">
+                <Icon name="external" />
+                <span>Ver carta online</span>
+              </a>
+            ) : null}
+            {can(PERMISSION.HelpView) ? (
+              <a className="k-nav-item" href={helpPath()} target="_blank" rel="noreferrer">
+                <Icon name="help" />
+                <span>Ayuda</span>
+              </a>
+            ) : null}
             <div className="k-user">
               <UserLine access={access} onEditName={() => setNaming(true)} />
               <button
@@ -351,14 +357,18 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
                   <span>{item.label}</span>
                 </Link>
               ))}
-              <a className="k-nav-item" href={`/${slug}`} target="_blank" rel="noreferrer">
-                <Icon name="external" />
-                <span>Ver carta online</span>
-              </a>
-              <a className="k-nav-item" href={helpPath()} target="_blank" rel="noreferrer">
-                <Icon name="help" />
-                <span>Ayuda</span>
-              </a>
+              {can(PERMISSION.StorefrontView) ? (
+                <a className="k-nav-item" href={`/${slug}`} target="_blank" rel="noreferrer">
+                  <Icon name="external" />
+                  <span>Ver carta online</span>
+                </a>
+              ) : null}
+              {can(PERMISSION.HelpView) ? (
+                <a className="k-nav-item" href={helpPath()} target="_blank" rel="noreferrer">
+                  <Icon name="help" />
+                  <span>Ayuda</span>
+                </a>
+              ) : null}
               {manyRestaurants ? (
                 <Link href="/panel" className="k-nav-item">
                   <Icon name="refresh" />
