@@ -12,10 +12,10 @@ cuando el pedido web tiene riesgo, para frenar pedidos falsos sin molestar al cl
 
 ## Opciones y coste
 
-| Opción                                      | Coste por 1.000 códigos | Notas                                                         |
-| ------------------------------------------- | ----------------------- | ------------------------------------------------------------- |
+| Opción                                      | Coste por 1.000 códigos | Notas                                                            |
+| ------------------------------------------- | ----------------------- | ---------------------------------------------------------------- |
 | WhatsApp, plantilla de autenticación (Meta) | ≈ 16,6 €                | Tarifa España 0,0166 € por mensaje. Requiere plantilla aprobada. |
-| SMS (Twilio)                                | ≈ 87,5 $                | 0,0875 $ por segmento. Sin plantilla; llega a cualquier móvil. |
+| SMS (Twilio)                                | ≈ 87,5 $                | 0,0875 $ por segmento. Sin plantilla; llega a cualquier móvil.   |
 | Sin capa 3 (solo capas 1 y 2)               | 0                       | Riesgo: pedidos falsos de teléfonos nuevos con pago en efectivo. |
 
 Las tarifas son de consulta pública (noviembre de 2026) y pueden cambiar; confirmar antes de contratar.
