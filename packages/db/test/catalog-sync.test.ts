@@ -6,6 +6,7 @@ import {
   PLAN_MODULES,
   ROLE_TEMPLATE_PERMISSIONS,
 } from "@konnecttia/access";
+import { COUNTRIES } from "@konnecttia/domain";
 import { describe, expect, it } from "vitest";
 
 // El catálogo de acceso vive en TypeScript (packages/access) y se siembra en SQL
@@ -81,5 +82,13 @@ describe("catálogo SQL ↔ TypeScript", () => {
     const sorted = (record: Readonly<Record<string, readonly string[]>>) =>
       Object.fromEntries(Object.entries(record).map(([role, list]) => [role, [...list].sort()]));
     expect(sorted(fromSql)).toEqual(sorted(ROLE_TEMPLATE_PERMISSIONS));
+  });
+
+  it("países", () => {
+    const rows = tuples(block("INSERT INTO public.pais"));
+    const fromSql = rows.map(([code, nombre, prefijo]) => ({ code, nombre, prefijo }));
+    expect(fromSql).toEqual(
+      COUNTRIES.map((c) => ({ code: c.code, nombre: c.nombre, prefijo: c.prefijo })),
+    );
   });
 });

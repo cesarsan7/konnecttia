@@ -18,6 +18,7 @@ export type SignupBody = {
   readonly nombre: string;
   readonly slug: string;
   readonly zona_horaria: string;
+  readonly pais: string;
   readonly local: {
     readonly nombre: string;
     readonly direccion?: string;

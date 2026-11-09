@@ -529,10 +529,12 @@ export function publicRoutes(deps: AppDeps) {
       restaurante: {
         nombre: restaurant.nombre,
         slug: restaurant.slug,
-        // Marca (pieza Z): logo y redes que la carta muestra en la cabecera y el pie.
+        // Marca (pieza Z): logo, redes y eslogan que la carta muestra en la cabecera.
         logo_url: brand.logoUrl,
         redes_sociales: brand.socialLinks,
         color_marca: brand.color,
+        eslogan: brand.slogan,
+        pais: brand.countryCode,
         // Lo que la web necesita para montar el checkout sin adivinar.
         recogida: restaurant.pickupEnabled && active.some((b) => b.acceptsPickup),
         reparto: restaurant.deliveryEnabled && active.some((b) => b.acceptsDelivery),

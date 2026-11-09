@@ -101,6 +101,7 @@ export type NewRestaurantBody = {
   readonly slug: string;
   readonly zona_horaria: string;
   readonly clonar_de?: CloneFrom;
+  readonly pais: string;
   readonly plan: string;
   readonly local: {
     readonly nombre: string;
