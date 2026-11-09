@@ -8,6 +8,7 @@ import { usePlatform } from "./InternalShell";
 import { MenuImportSection } from "./MenuImportSection";
 import { PaymentMethodsSection } from "./PaymentMethodsSection";
 import { PlanModulesSection } from "./PlanModulesSection";
+import { RolesSection } from "./RolesSection";
 import "./restaurant-detail.css";
 
 type Load =
@@ -100,6 +101,7 @@ export function RestaurantDetail({ id }: { readonly id: number }) {
 
       <PlanModulesSection detail={detail} onChanged={load} />
       <PaymentMethodsSection detail={detail} onChanged={load} />
+      <RolesSection detail={detail} />
       <MenuImportSection detail={detail} onChanged={load} />
 
       <section className="k-card k-rd-section" aria-labelledby="rd-locales">

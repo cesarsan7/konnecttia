@@ -1,4 +1,13 @@
-import { MODULE_KIND, ROLE_TEMPLATE } from "@konnecttia/access";
+import {
+  ALL_PERMISSIONS,
+  MODULE_KIND,
+  MODULES,
+  type ModuleCode,
+  PERMISSION_LABEL,
+  PERMISSION_MODULE,
+  ROLE_TEMPLATE,
+  resolveActiveModules,
+} from "@konnecttia/access";
 import {
   checkRestaurantSlug,
   isValidTimeZone,
@@ -30,8 +39,15 @@ import {
   planExists,
   SlugTaken,
 } from "../repositories/platform";
+import {
+  insertRole,
+  replaceRole,
+  roleNameTaken,
+  roleSchema,
+  roleUsage,
+} from "../repositories/roles";
 import { TRIAL_PLAN } from "../repositories/trial";
-import { legacyRole } from "./panel-team";
+import { legacyRole, rolesOf } from "./panel-team";
 import { registerPlatformTrialRoutes } from "./plataforma-pruebas";
 
 /**
@@ -529,6 +545,129 @@ export function plataformaRoutes(deps: AppDeps) {
       summary,
     );
     return c.json({ simulacion: false, ...summary }, 201);
+  });
+
+  // ----------------------------------------------------------------------------------- roles
+
+  /** Rol propio de ese restaurante (las plantillas no se editan desde aquí: pieza V). */
+  const ownRoleFromUrl = async (c: Ctx, restauranteId: number) => {
+    const roleId = Number(c.req.param("rolId"));
+    if (!Number.isSafeInteger(roleId) || roleId < 1) return null;
+    return (await rolesOf(sql, restauranteId)).find((role) => role.id === roleId) ?? null;
+  };
+
+  app.get("/restaurantes/:id/roles", reader, async (c) => {
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const [roles, usage, contracted] = await Promise.all([
+      rolesOf(sql, restaurant.id),
+      sql<{ rol_id: number; miembros: number; invitaciones: number }[]>`
+        SELECT r.id AS rol_id,
+               (SELECT count(*)::int FROM public.membresia_rol mr
+                JOIN   public.local_memberships m ON m.id = mr.membership_id
+                WHERE  mr.rol_id = r.id AND m.restaurante_id = ${restaurant.id}) AS miembros,
+               (SELECT count(*)::int FROM public.restaurant_invites i
+                WHERE  i.rol_id = r.id AND i.restaurante_id = ${restaurant.id}
+                  AND  i.used_at IS NULL AND i.revocada_at IS NULL
+                  AND  i.expires_at > (${deps.now()}::timestamptz AT TIME ZONE 'UTC')) AS invitaciones
+        FROM   public.rol r
+        WHERE  r.restaurante_id IS NULL OR r.restaurante_id = ${restaurant.id}
+      `,
+      sql<{ modulo_code: string }[]>`
+        SELECT modulo_code FROM public.restaurante_modulo
+        WHERE  restaurante_id = ${restaurant.id} AND estado = ${MODULE_STATE.Active}
+      `,
+    ]);
+    const active = resolveActiveModules(contracted.map((row) => row.modulo_code as ModuleCode));
+    const byRole = new Map(usage.map((row) => [row.rol_id, row]));
+    return c.json({
+      roles: roles.map((role) => ({
+        id: role.id,
+        code: role.code,
+        nombre: role.nombre,
+        plantilla: role.plantilla,
+        permisos: role.permisos,
+        miembros: byRole.get(role.id)?.miembros ?? 0,
+        invitaciones: byRole.get(role.id)?.invitaciones ?? 0,
+        editable: !role.plantilla,
+      })),
+      // Todos los permisos por módulo. `activo`: el restaurante tiene ese módulo contratado; un
+      // permiso de un módulo inactivo se guarda pero no da acceso hasta que se active.
+      catalogo: MODULES.map((module) => ({
+        modulo: module.code,
+        nombre: module.name,
+        activo: active.has(module.code),
+        permisos: ALL_PERMISSIONS.filter((code) => PERMISSION_MODULE[code] === module.code).map(
+          (code) => ({ code, nombre: PERMISSION_LABEL[code] }),
+        ),
+      })).filter((group) => group.permisos.length > 0),
+    });
+  });
+
+  app.post("/restaurantes/:id/roles", writer, async (c) => {
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const parsed = await body(c, roleSchema);
+    if (!parsed.success) return invalid(c, parsed.error.issues[0]?.path.join("."));
+    const input = parsed.data;
+    if (await roleNameTaken(sql, restaurant.id, input.nombre, null)) {
+      return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
+    }
+    let id: number;
+    try {
+      id = await sql.begin((tx) => insertRole(tx, restaurant.id, input.nombre, input.permisos));
+    } catch (error) {
+      if ((error as { code?: string }).code === UNIQUE_VIOLATION) {
+        return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
+      }
+      throw error;
+    }
+    await record(c, restaurant.id, "plataforma.rol.crear", "rol", id, {
+      nombre: input.nombre,
+      permisos: input.permisos,
+    });
+    return c.json({ id }, 201);
+  });
+
+  app.put("/restaurantes/:id/roles/:rolId", writer, async (c) => {
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const role = await ownRoleFromUrl(c, restaurant.id);
+    if (!role) return fail(c, 404, API_ERROR.NotFound);
+    if (role.plantilla) return unprocessable(c, "template_role");
+    const parsed = await body(c, roleSchema);
+    if (!parsed.success) return invalid(c, parsed.error.issues[0]?.path.join("."));
+    const input = parsed.data;
+    if (await roleNameTaken(sql, restaurant.id, input.nombre, role.id)) {
+      return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
+    }
+    await sql.begin((tx) => replaceRole(tx, role.id, input.nombre, input.permisos));
+    const usage = await roleUsage(sql, role.id);
+    await record(c, restaurant.id, "plataforma.rol.editar", "rol", role.id, {
+      nombre: input.nombre,
+      antes: role.permisos,
+      despues: input.permisos,
+      miembros_afectados: usage.miembros,
+    });
+    return c.json({ id: role.id, miembros_afectados: usage.miembros });
+  });
+
+  app.delete("/restaurantes/:id/roles/:rolId", writer, async (c) => {
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const role = await ownRoleFromUrl(c, restaurant.id);
+    if (!role) return fail(c, 404, API_ERROR.NotFound);
+    if (role.plantilla) return unprocessable(c, "template_role");
+    const usage = await roleUsage(sql, role.id);
+    if (usage.miembros > 0) return fail(c, 409, API_ERROR.Conflict, { reason: "role_in_use" });
+    if (usage.invitaciones > 0) {
+      return fail(c, 409, API_ERROR.Conflict, { reason: "pending_invites" });
+    }
+    await sql`DELETE FROM public.rol WHERE id = ${role.id} AND restaurante_id = ${restaurant.id}`;
+    await record(c, restaurant.id, "plataforma.rol.borrar", "rol", role.id, {
+      nombre: role.nombre,
+    });
+    return c.json({ id: role.id });
   });
 
   // ------------------------------------------------------------------------------------ plan

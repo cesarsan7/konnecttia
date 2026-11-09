@@ -201,6 +201,32 @@ export type PlatformSettings = {
   readonly descripciones: Readonly<Record<string, string>>;
 };
 
+export type RoleRowInfo = {
+  readonly id: number;
+  readonly code: string;
+  readonly nombre: string;
+  readonly plantilla: boolean;
+  readonly permisos: readonly string[];
+  readonly miembros: number;
+  readonly invitaciones: number;
+  readonly editable: boolean;
+};
+
+export type RoleCatalogGroup = {
+  readonly modulo: string;
+  readonly nombre: string;
+  /** El restaurante tiene el módulo contratado. */
+  readonly activo: boolean;
+  readonly permisos: readonly { readonly code: string; readonly nombre: string }[];
+};
+
+export type RolesInfo = {
+  readonly roles: readonly RoleRowInfo[];
+  readonly catalogo: readonly RoleCatalogGroup[];
+};
+
+export type RoleBody = { readonly nombre: string; readonly permisos: readonly string[] };
+
 export type MenuImportSummary = {
   readonly simulacion: boolean;
   readonly categorias: number;

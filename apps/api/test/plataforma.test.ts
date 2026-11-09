@@ -596,6 +596,195 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
     });
   });
 
+  describe("roles por restaurante", () => {
+    let restauranteId: number;
+    const url = () => `/plataforma/restaurantes/${restauranteId}/roles`;
+
+    beforeAll(async () => {
+      const created = await call(
+        "platformAdmin",
+        "POST",
+        "/plataforma/restaurantes",
+        newRestaurant({ slug: "con-roles", nombre: "Con Roles", plan: "basico" }),
+      );
+      restauranteId = created.body.id;
+    });
+
+    it("lista plantillas y roles propios con su uso, y el catálogo marca los módulos inactivos", async () => {
+      const result = await call("platformSupport", "GET", url());
+      expect(result.status).toBe(200);
+      const codes = result.body.roles.map((role: { code: string }) => role.code);
+      expect(codes).toEqual(expect.arrayContaining(["owner", "manager"]));
+      expect(
+        result.body.roles.every(
+          (role: { plantilla: boolean; editable: boolean }) => role.editable === !role.plantilla,
+        ),
+      ).toBe(true);
+      const groups = result.body.catalogo as {
+        modulo: string;
+        activo: boolean;
+        permisos: { code: string }[];
+      }[];
+      expect(groups.find((group) => group.modulo === "core.orders")?.activo).toBe(true);
+      // El plan básico no trae las mesas.
+      expect(groups.find((group) => group.modulo === "tables")?.activo).toBe(false);
+      expect(
+        (await call("platformAdmin", "GET", "/plataforma/restaurantes/999999/roles")).status,
+      ).toBe(404);
+    });
+
+    it("crea, edita y borra un rol propio, con auditoría", async () => {
+      const created = await call("platformAdmin", "POST", url(), {
+        nombre: "Cajero de noche",
+        permisos: ["orders.view", "orders.change_status"],
+      });
+      expect(created.status).toBe(201);
+      const roleId = created.body.id as number;
+      const [row] = await ctx.sql<
+        { code: string; es_plantilla: boolean; restaurante_id: number }[]
+      >`
+        SELECT code, es_plantilla, restaurante_id FROM public.rol WHERE id = ${roleId}
+      `;
+      expect(row).toMatchObject({
+        code: "r_cajero_de_noche",
+        es_plantilla: false,
+        restaurante_id: restauranteId,
+      });
+
+      const edited = await call("platformAdmin", "PUT", `${url()}/${roleId}`, {
+        nombre: "Cajero nocturno",
+        permisos: ["orders.view"],
+      });
+      expect(edited.status).toBe(200);
+      const perms = await ctx.sql<
+        { permiso_code: string }[]
+      >`SELECT permiso_code FROM public.rol_permiso WHERE rol_id = ${roleId}`;
+      expect(perms.map((p) => p.permiso_code)).toEqual(["orders.view"]);
+
+      expect((await call("platformAdmin", "DELETE", `${url()}/${roleId}`)).status).toBe(200);
+      const actions = await ctx.sql<{ accion: string }[]>`
+        SELECT accion FROM public.auditoria
+        WHERE restaurante_id = ${restauranteId} AND accion LIKE 'plataforma.rol.%' ORDER BY id
+      `;
+      expect(actions.map((a) => a.accion)).toEqual([
+        "plataforma.rol.crear",
+        "plataforma.rol.editar",
+        "plataforma.rol.borrar",
+      ]);
+    });
+
+    it("rechaza nombres repetidos, permisos desconocidos, plantillas y a soporte", async () => {
+      const ok = await call("platformAdmin", "POST", url(), {
+        nombre: "Ayudante",
+        permisos: ["orders.view"],
+      });
+      expect(ok.status).toBe(201);
+      const duplicate = await call("platformAdmin", "POST", url(), {
+        nombre: "ayudante",
+        permisos: ["orders.view"],
+      });
+      expect(duplicate.status).toBe(409);
+      expect(duplicate.body.reason).toBe("duplicate_name");
+      const template = await call("platformAdmin", "POST", url(), {
+        nombre: "Propietario",
+        permisos: ["orders.view"],
+      });
+      expect(template.status).toBe(409);
+      expect(
+        (await call("platformAdmin", "POST", url(), { nombre: "X1", permisos: ["no.existe"] }))
+          .status,
+      ).toBe(400);
+      expect(
+        (await call("platformAdmin", "POST", url(), { nombre: "X2", permisos: [] })).status,
+      ).toBe(400);
+      expect(
+        (
+          await call("platformSupport", "POST", url(), {
+            nombre: "Otro",
+            permisos: ["orders.view"],
+          })
+        ).status,
+      ).toBe(403);
+
+      const [owner] = await ctx.sql<
+        { id: number }[]
+      >`SELECT id FROM public.rol WHERE code = 'owner' AND restaurante_id IS NULL`;
+      const onTemplate = await call("platformAdmin", "PUT", `${url()}/${owner?.id}`, {
+        nombre: "Dueño",
+        permisos: ["orders.view"],
+      });
+      expect(onTemplate.status).toBe(422);
+      expect(onTemplate.body.reason).toBe("template_role");
+      expect((await call("platformAdmin", "DELETE", `${url()}/${owner?.id}`)).status).toBe(422);
+      expect(
+        (
+          await call("platformAdmin", "PUT", `${url()}/999999`, {
+            nombre: "Zz",
+            permisos: ["orders.view"],
+          })
+        ).status,
+      ).toBe(404);
+    });
+
+    it("no se puede tocar el rol de otro restaurante ni borrar uno en uso o con invitaciones", async () => {
+      const other = await call(
+        "platformAdmin",
+        "POST",
+        "/plataforma/restaurantes",
+        newRestaurant({ slug: "otro-roles", nombre: "Otro" }),
+      );
+      const foreign = await call(
+        "platformAdmin",
+        "POST",
+        `/plataforma/restaurantes/${other.body.id}/roles`,
+        { nombre: "Ajeno", permisos: ["orders.view"] },
+      );
+      expect(
+        (
+          await call("platformAdmin", "PUT", `${url()}/${foreign.body.id}`, {
+            nombre: "Robado",
+            permisos: ["orders.view"],
+          })
+        ).status,
+      ).toBe(404);
+      expect((await call("platformAdmin", "DELETE", `${url()}/${foreign.body.id}`)).status).toBe(
+        404,
+      );
+
+      const used = await call("platformAdmin", "POST", url(), {
+        nombre: "En uso",
+        permisos: ["orders.view"],
+      });
+      await ctx.sql`
+        WITH m AS (
+          INSERT INTO public.local_memberships (user_id, restaurante_id, rol, email)
+          VALUES ('00000000-0000-0000-0000-0000000000aa'::uuid, ${restauranteId}, 'viewer', 'uso@test.local')
+          RETURNING id)
+        INSERT INTO public.membresia_rol (membership_id, rol_id) SELECT id, ${used.body.id}::bigint FROM m
+      `;
+      const blocked = await call("platformAdmin", "DELETE", `${url()}/${used.body.id}`);
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.reason).toBe("role_in_use");
+      const edit = await call("platformAdmin", "PUT", `${url()}/${used.body.id}`, {
+        nombre: "En uso",
+        permisos: ["orders.view", "orders.change_status"],
+      });
+      expect(edit.body.miembros_afectados).toBe(1);
+
+      const invited = await call("platformAdmin", "POST", url(), {
+        nombre: "Invitado",
+        permisos: ["orders.view"],
+      });
+      await ctx.sql`
+        INSERT INTO public.restaurant_invites (restaurante_id, rol, rol_id, sucursal_ids, email, created_by, expires_at)
+        VALUES (${restauranteId}, 'viewer', ${invited.body.id}, '{}'::bigint[], 'inv@test.local', '00000000-0000-0000-0000-0000000000aa'::uuid, (now() AT TIME ZONE 'UTC') + interval '3 days')
+      `;
+      const pending = await call("platformAdmin", "DELETE", `${url()}/${invited.body.id}`);
+      expect(pending.status).toBe(409);
+      expect(pending.body.reason).toBe("pending_invites");
+    });
+  });
+
   describe("plan y módulos", () => {
     it("cambiar de plan conserva los complementos y las cortesías", async () => {
       const created = await call(

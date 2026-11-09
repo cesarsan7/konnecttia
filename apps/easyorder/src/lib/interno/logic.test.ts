@@ -3,6 +3,7 @@ import {
   activeDependents,
   canCancelModule,
   EMPTY_OPENING_DATA,
+  inactivePermissions,
   invitationLink,
   menuImportMessage,
   methodsThatWouldBeRemoved,
@@ -15,6 +16,7 @@ import {
   suggestSlug,
   toNewRestaurantBody,
   validateNewRestaurant,
+  validateRoleForm,
 } from "./logic";
 import type { ModuleRow } from "./types";
 
@@ -179,6 +181,35 @@ describe("alta de restaurante: validación", () => {
 
   it("propone el slug desde el nombre", () => {
     expect(suggestSlug("Pizzería «La Isla»")).toBe("pizzeria-la-isla");
+  });
+});
+
+describe("roles propios", () => {
+  it("valida nombre y permisos", () => {
+    expect(validateRoleForm("Cajero", ["orders.view"])).toEqual({});
+    expect(validateRoleForm(" a ", [])).toEqual({
+      nombre: "El nombre necesita al menos 2 caracteres.",
+      permisos: "Elige al menos un permiso.",
+    });
+    expect(validateRoleForm("x".repeat(61), ["orders.view"])).toHaveProperty("nombre");
+  });
+
+  it("detecta permisos marcados de módulos inactivos", () => {
+    const catalog = [
+      { activo: true, permisos: [{ code: "orders.view" }] },
+      { activo: false, permisos: [{ code: "tables.view" }, { code: "tables.manage" }] },
+    ];
+    expect(inactivePermissions(new Set(["orders.view", "tables.manage"]), catalog)).toEqual([
+      "tables.manage",
+    ]);
+    expect(inactivePermissions(new Set(["orders.view"]), catalog)).toEqual([]);
+  });
+
+  it("traduce los motivos de la API", () => {
+    expect(platformErrorMessage(409, { reason: "role_in_use" } as never)).toContain("Hay personas");
+    expect(platformErrorMessage(409, { reason: "duplicate_name" } as never)).toContain(
+      "Ya hay un rol",
+    );
   });
 });
 
