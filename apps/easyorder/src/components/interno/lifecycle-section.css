@@ -1,0 +1,21 @@
+.k-lc {
+  display: grid;
+  gap: 20px;
+}
+
+.k-lc-block {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.k-lc-danger {
+  padding-top: 16px;
+  border-top: 1px solid var(--line, #ddd);
+}
+
+.k-lc-danger-title {
+  margin: 0;
+  color: var(--danger);
+  font-size: 1rem;
+}

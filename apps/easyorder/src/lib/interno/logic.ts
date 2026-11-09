@@ -7,6 +7,7 @@ import {
 } from "@konnecttia/domain";
 import type { ApiErrorBody } from "../types";
 import type {
+  CloneFrom,
   CodeChannel,
   CodeSettingsBody,
   CodeSettingsInfo,
@@ -25,6 +26,12 @@ export type NewRestaurantForm = {
   readonly nombre: string;
   readonly slug: string;
   readonly zonaHoraria: string;
+  /** Id del restaurante del que se parte; vacío = restaurante en blanco. */
+  readonly clonarDe: string;
+  readonly copiarCarta: boolean;
+  readonly copiarHorario: boolean;
+  readonly copiarReparto: boolean;
+  readonly copiarAjustes: boolean;
   readonly plan: string;
   readonly localNombre: string;
   readonly direccion: string;
@@ -211,6 +218,7 @@ export function toNewRestaurantBody(form: NewRestaurantForm): NewRestaurantBody 
     nombre: form.nombre.trim(),
     slug: form.slug.trim(),
     zona_horaria: form.zonaHoraria.trim(),
+    ...(cloneFrom(form) ? { clonar_de: cloneFrom(form) } : {}),
     plan: form.plan,
     local: {
       nombre: form.localNombre.trim(),
@@ -219,6 +227,24 @@ export function toNewRestaurantBody(form: NewRestaurantForm): NewRestaurantBody 
     },
     propietario_email: form.propietarioEmail.trim().toLowerCase(),
   };
+}
+
+/** Qué copiar del restaurante elegido como origen; undefined si se crea en blanco. */
+export function cloneFrom(form: NewRestaurantForm): CloneFrom | undefined {
+  const id = Number(form.clonarDe);
+  if (!Number.isSafeInteger(id) || id <= 0) return undefined;
+  return {
+    restaurante_id: id,
+    carta: form.copiarCarta,
+    horario: form.copiarHorario,
+    reparto: form.copiarReparto,
+    ajustes: form.copiarAjustes,
+  };
+}
+
+/** ¿Coincide lo escrito con el enlace del restaurante? Es la confirmación para borrarlo. */
+export function deleteConfirmed(typed: string, slug: string | null, id: number): boolean {
+  return typed.trim() === (slug ?? String(id));
 }
 
 /** Propone el slug mientras la persona no lo haya tocado a mano. */
@@ -239,6 +265,8 @@ const REASONS: Record<string, string> = {
   slug_too_long: SLUG_MESSAGES[SLUG_ERROR.TooLong],
   invalid_time_zone: "La zona horaria no es válida.",
   unknown_plan: "Ese plan no existe.",
+  unknown_source: "El restaurante del que quieres partir ya no existe.",
+  confirmation_mismatch: "El enlace escrito no coincide: no se ha borrado nada.",
   base_template: "Las plantillas base (Propietario, Encargado…) no se borran.",
   owner_locked:
     "Propietario debe conservar los permisos de equipo y ajustes: sin ellos nadie podría gestionar el restaurante.",
