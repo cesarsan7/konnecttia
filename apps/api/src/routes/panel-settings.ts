@@ -2,8 +2,10 @@ import { ALL_BRANCHES, canAccessBranch, PERMISSION } from "@konnecttia/access";
 import {
   allowedPaymentMethods,
   type BankDetails,
+  COUNTRIES,
   checkDaySchedule,
   checkPaymentSetup,
+  countryOrDefault,
   type DaySchedule,
   effectiveBrandColor,
   enabledPaymentMethods,
@@ -99,6 +101,8 @@ const restaurantSchema = z
     direccion: text(200),
     descripcion: text(500),
     eslogan: text(120),
+    /** País (ISO alfa-2): prefijo telefónico por defecto del checkout. */
+    pais: z.enum(COUNTRIES.map((country) => country.code) as [string, ...string[]]),
     recogida: z.boolean(),
     reparto: z.boolean(),
     metodos_pago: z.array(z.enum(PAYMENT_METHODS)).max(PAYMENT_METHODS.length),
@@ -330,6 +334,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           descripcion: string | null;
           eslogan: string | null;
           zona_horaria: string | null;
+          pais_code: string | null;
           pickup_enabled: boolean;
           delivery_enabled: boolean;
           payment_methods: unknown;
@@ -340,7 +345,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           brand_color: string | null;
         }[]
       >`
-        SELECT nombre, telefono, direccion, descripcion, eslogan, zona_horaria, pickup_enabled,
+        SELECT nombre, telefono, direccion, descripcion, eslogan, zona_horaria, pais_code, pickup_enabled,
                delivery_enabled, payment_methods, metodos_pago_permitidos, datos_bancarios,
                logo_url, redes_sociales, brand_color
         FROM   public.restaurante WHERE id = ${restauranteId}
@@ -411,6 +416,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         redes_sociales: readSocialLinks(restaurant.redes_sociales),
         color_marca: effectiveBrandColor(restaurant.brand_color),
         zona_horaria: restaurant.zona_horaria,
+        pais: countryOrDefault(restaurant.pais_code).code,
         recogida: restaurant.pickup_enabled,
         reparto: restaurant.delivery_enabled,
         // Solo los que el panel sabe gestionar (sin «online» hasta la pasarela) y que Konnecttia
@@ -563,6 +569,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                  telefono         = CASE WHEN ${has("telefono")} THEN ${body.telefono ?? null} ELSE telefono END,
                  direccion        = CASE WHEN ${has("direccion")} THEN ${body.direccion ?? null} ELSE direccion END,
                  descripcion      = CASE WHEN ${has("descripcion")} THEN ${body.descripcion ?? null} ELSE descripcion END,
+                 pais_code        = COALESCE(${body.pais ?? null}, pais_code),
                  eslogan          = CASE WHEN ${has("eslogan")} THEN ${body.eslogan ?? null} ELSE eslogan END,
                  brand_color      = CASE WHEN ${has("color_marca")}
                                          THEN ${body.color_marca == null ? null : normalizeHex(body.color_marca)}

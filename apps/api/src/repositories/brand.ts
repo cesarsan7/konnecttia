@@ -1,4 +1,9 @@
-import { effectiveBrandColor, readSocialLinks, type SocialLink } from "@konnecttia/domain";
+import {
+  countryOrDefault,
+  effectiveBrandColor,
+  readSocialLinks,
+  type SocialLink,
+} from "@konnecttia/domain";
 import type { Sql } from "../lib/db";
 
 export type Brand = {
@@ -8,6 +13,8 @@ export type Brand = {
   readonly color: string | null;
   /** Eslogan del local (ajustes → General); null si no hay. */
   readonly slogan: string | null;
+  /** País del restaurante (ISO alfa-2): prefijo y bandera del teléfono en el checkout. */
+  readonly countryCode: string;
 };
 
 /**
@@ -22,9 +29,11 @@ export async function loadBrand(sql: Sql, restauranteId: number): Promise<Brand>
       redes_sociales: unknown;
       brand_color: string | null;
       eslogan: string | null;
+      pais_code: string | null;
     }[]
   >`
-    SELECT logo_url, redes_sociales, brand_color, eslogan FROM public.restaurante WHERE id = ${restauranteId}
+    SELECT logo_url, redes_sociales, brand_color, eslogan, pais_code
+    FROM public.restaurante WHERE id = ${restauranteId}
   `;
   const logo = row?.logo_url?.trim() ?? "";
   return {
@@ -32,5 +41,6 @@ export async function loadBrand(sql: Sql, restauranteId: number): Promise<Brand>
     socialLinks: readSocialLinks(row?.redes_sociales),
     color: effectiveBrandColor(row?.brand_color),
     slogan: row?.eslogan?.trim() || null,
+    countryCode: countryOrDefault(row?.pais_code).code,
   };
 }

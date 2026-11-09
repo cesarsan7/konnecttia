@@ -1,6 +1,7 @@
 import {
   checkRestaurantSlug,
   isValidTimeZone,
+  resolveCountry,
   SLUG_ERROR,
   type SlugError,
   slugFromName,
@@ -25,6 +26,8 @@ export type NewRestaurantForm = {
   readonly nombre: string;
   readonly slug: string;
   readonly zonaHoraria: string;
+  /** Código ISO del país; vacío = el que sugiere la zona horaria. */
+  readonly pais: string;
   readonly plan: string;
   readonly localNombre: string;
   readonly direccion: string;
@@ -211,6 +214,7 @@ export function toNewRestaurantBody(form: NewRestaurantForm): NewRestaurantBody 
     nombre: form.nombre.trim(),
     slug: form.slug.trim(),
     zona_horaria: form.zonaHoraria.trim(),
+    pais: resolveCountry(form.pais, form.zonaHoraria),
     plan: form.plan,
     local: {
       nombre: form.localNombre.trim(),

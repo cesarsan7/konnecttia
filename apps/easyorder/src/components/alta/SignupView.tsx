@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveCountry } from "@konnecttia/domain";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -26,6 +27,7 @@ import {
 import type { AltaConfig } from "@/lib/alta/types";
 import { slugMessage } from "@/lib/interno/logic";
 import { captchaProblem } from "@/lib/turnstile";
+import { CountrySelect } from "../CountrySelect";
 import { EasyOrderLockup } from "../panel/Brand";
 import { rememberRestaurant } from "../panel/LoginScreen";
 import { usePanel } from "../panel/PanelProvider";
@@ -521,6 +523,10 @@ function Wizard({
             />
             {errors.telefono ? <small className="k-alta-error">{errors.telefono}</small> : null}
           </label>
+          <CountrySelect
+            value={resolveCountry(form.pais, form.zonaHoraria)}
+            onChange={(code) => set("pais", code)}
+          />
           <label className="k-field">
             <span>Zona horaria</span>
             <input

@@ -1,15 +1,13 @@
+import { composePhone } from "@konnecttia/domain";
 import type { ApiErrorBody } from "./types";
 
 /**
- * Normaliza un teléfono al formato que acepta la API (+ y dígitos). Un número español de 9
- * cifras (6, 7, 8 o 9 inicial) recibe +34; con prefijo internacional se respeta.
+ * Normaliza un teléfono al formato que acepta la API (+ y dígitos). Un número sin prefijo
+ * recibe el elegido en el selector (por defecto el del país del restaurante; +34 si no se
+ * indica); con «+» o «00» se respeta lo escrito.
  */
-export function normalizePhone(raw: string): string | null {
-  const compact = raw.replace(/[\s().-]/g, "");
-  const international = compact.startsWith("00") ? `+${compact.slice(2)}` : compact;
-  if (/^[6-9]\d{8}$/.test(international)) return `+34${international}`;
-  if (/^\+\d{7,19}$/.test(international)) return international;
-  return null;
+export function normalizePhone(raw: string, prefix = "+34"): string | null {
+  return composePhone(raw, prefix);
 }
 
 /**

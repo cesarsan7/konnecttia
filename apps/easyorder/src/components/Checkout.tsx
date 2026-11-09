@@ -1,6 +1,6 @@
 "use client";
 
-import { addCents, type Cents, centsFromDecimal } from "@konnecttia/domain";
+import { addCents, type Cents, centsFromDecimal, countryOrDefault } from "@konnecttia/domain";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Api } from "@/lib/api";
 import { type CartLine, lineCents, setQuantity, toOrderItems } from "@/lib/cart";
@@ -22,6 +22,7 @@ import { captchaFields, captchaProblem } from "@/lib/turnstile";
 import type { Branch, CreatedOrder, DeliveryZone, Fulfillment, Menu } from "@/lib/types";
 import { totalForCode } from "@/lib/verification";
 import { CodeVerification } from "./CodeVerification";
+import { PhoneField } from "./PhoneField";
 import { TurnstileWidget } from "./TurnstileWidget";
 import "./checkout-consent.css";
 
@@ -63,6 +64,9 @@ export function Checkout(props: Props) {
   const [fulfillment, setFulfillment] = useState<Fulfillment>(options[0] ?? "retiro");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  // El prefijo parte del país del restaurante; el cliente puede elegir otro.
+  const [phoneCountry, setPhoneCountry] = useState(countryOrDefault(restaurant.pais).code);
+  const phonePrefix = countryOrDefault(phoneCountry).prefijo;
   const [email, setEmail] = useState("");
   // Rellena el email recordado en este navegador (si hay); el cliente puede cambiarlo.
   useEffect(() => {
@@ -111,7 +115,7 @@ export function Checkout(props: Props) {
   const problem = useMemo((): string | null => {
     if (lines.length === 0) return "Tu carrito está vacío.";
     if (!name.trim()) return "Escribe tu nombre.";
-    if (!normalizePhone(phone)) return "Escribe un teléfono válido.";
+    if (!normalizePhone(phone, phonePrefix)) return "Escribe un teléfono válido.";
     const emailIssue = emailProblem(email);
     if (emailIssue) return emailIssue;
     if (fulfillment === "retiro" && pickupBranches.length > 1 && props.branchId === null) {
@@ -138,6 +142,7 @@ export function Checkout(props: Props) {
     lines.length,
     name,
     phone,
+    phonePrefix,
     email,
     fulfillment,
     pickupBranches.length,
@@ -167,7 +172,7 @@ export function Checkout(props: Props) {
     setError(null);
     const body = {
       nombre: name.trim(),
-      telefono: normalizePhone(phone),
+      telefono: normalizePhone(phone, phonePrefix),
       email: normalizeEmail(email),
       tipo_despacho: fulfillment,
       metodo_pago: payment,
@@ -409,17 +414,13 @@ export function Checkout(props: Props) {
               onChange={(event) => setName(event.target.value)}
             />
           </label>
-          <label className="field">
-            <span>Teléfono</span>
-            <input
-              type="tel"
-              autoComplete="tel"
-              inputMode="tel"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              placeholder="612 345 678"
-            />
-          </label>
+          <PhoneField
+            label="Teléfono"
+            country={phoneCountry}
+            onCountryChange={setPhoneCountry}
+            value={phone}
+            onChange={setPhone}
+          />
           <label className="field">
             <span>Email (para avisarte de tu pedido)</span>
             <input
@@ -539,7 +540,7 @@ export function Checkout(props: Props) {
             api={props.api}
             slug={props.slug}
             restaurantName={restaurant.nombre}
-            phone={normalizePhone(phone) ?? phone}
+            phone={normalizePhone(phone, phonePrefix) ?? phone}
             fulfillment={fulfillment}
             payment={payment ?? ""}
             totalEuros={codeTotal}

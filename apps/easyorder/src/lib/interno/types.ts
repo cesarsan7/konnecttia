@@ -89,6 +89,7 @@ export type NewRestaurantBody = {
   readonly nombre: string;
   readonly slug: string;
   readonly zona_horaria: string;
+  readonly pais: string;
   readonly plan: string;
   readonly local: {
     readonly nombre: string;
