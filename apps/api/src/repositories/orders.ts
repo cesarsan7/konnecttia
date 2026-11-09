@@ -1,5 +1,6 @@
 import type { Fulfillment, Quote } from "@konnecttia/domain";
 import {
+  canClientCancel,
   DEFERRED_PAYMENT_METHODS,
   ORDER_STATUS,
   PAYMENT_METHOD,
@@ -242,6 +243,10 @@ export type TrackedOrder = {
   readonly emailAvisos: string | null;
   /** Se puede corregir el email mientras el pedido siga abierto. */
   readonly emailEditable: boolean;
+  /** El cliente puede cancelar: el local aún no ha aceptado el pedido (`canClientCancel`). */
+  readonly puedeCancelar: boolean;
+  /** Teléfono del restaurante, para «Contactar con el local» cuando ya no puede cancelar. */
+  readonly contactoTelefono: string | null;
   readonly pedidoCodigo: string | null;
   readonly restaurante: string;
   /** Local que prepara o despacha (dirección del local, nunca la del cliente). */
@@ -315,6 +320,7 @@ export async function findOrderByTrackingToken(
       datos_bancarios: unknown;
       justificantes: number;
       justificantes_max: string | null;
+      contacto_telefono: string | null;
       email_cliente: string | null;
       created_at: string;
       updated_at: string | null;
@@ -328,6 +334,7 @@ export async function findOrderByTrackingToken(
            (SELECT c.config_value FROM public.restaurante_config c
             WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ProofsMaxPerOrder})
              AS justificantes_max,
+           r.telefono AS contacto_telefono,
            s.nombre AS local_nombre, s.direccion AS local_direccion
     FROM   public.pedidos p
     JOIN   public.restaurante r ON r.id = p.restaurante_id
@@ -350,6 +357,8 @@ export async function findOrderByTrackingToken(
   return {
     emailAvisos: row.email_cliente ? maskEmail(row.email_cliente) : null,
     emailEditable: !FINAL_STATES.has(row.estado),
+    puedeCancelar: canClientCancel({ estado: row.estado, justificantes: row.justificantes }),
+    contactoTelefono: row.contacto_telefono?.trim() || null,
     pedidoCodigo: row.pedido_codigo,
     restaurante: row.restaurante,
     local: row.local_nombre ? { nombre: row.local_nombre, direccion: row.local_direccion } : null,

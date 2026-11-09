@@ -55,3 +55,14 @@
   border: 1px solid var(--line);
   border-radius: 10px;
 }
+
+.cancel-box {
+  display: grid;
+  gap: 10px;
+}
+
+.cancel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

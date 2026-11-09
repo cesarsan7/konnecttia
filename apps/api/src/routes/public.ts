@@ -27,6 +27,7 @@ import { loadBranches, openChecker, unavailableItems } from "../repositories/bra
 import { loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
+import { cancelTrackedOrder } from "../repositories/order-status";
 import {
   findOrderByTrackingToken,
   ORDER_CHANNEL,
@@ -268,6 +269,25 @@ export function publicRoutes(deps: AppDeps) {
     if (result === "closed")
       return fail(c, 409, API_ERROR.InvalidTransition, { reason: "order_closed" });
     return c.json({ ok: true, email_avisos: maskEmail(parsed.data.email) });
+  });
+
+  /**
+   * El cliente cancela su pedido desde el seguimiento (pieza O): solo mientras el local no lo ha
+   * aceptado. Después, el seguimiento le ofrece contactar con el local. Mismo cambio de estado que
+   * el tablero, con origen «cliente».
+   */
+  app.post("/orders/:token/cancelar", async (c) => {
+    if (trackingLimited(clientIp(c.req.header(deps.clientIpHeader)))) {
+      return fail(c, 429, API_ERROR.RateLimited);
+    }
+    const token = c.req.param("token");
+    if (!UUID_PATTERN.test(token)) return fail(c, 404, API_ERROR.OrderNotFound);
+    const result = await cancelTrackedOrder(deps.sql, token);
+    if (result === "not_found") return fail(c, 404, API_ERROR.OrderNotFound);
+    if (result === "not_cancellable") {
+      return fail(c, 409, API_ERROR.InvalidTransition, { reason: "already_accepted" });
+    }
+    return c.json({ ok: true, estado: "cancelado" });
   });
 
   /**
