@@ -248,6 +248,17 @@ Se retoman cuando el promotor tenga estos datos:
 | Plantillas de rol propias de Konnecttia (`/interno/plantillas`) | #74 | —         | Abierto, pendiente de revisión            |
 | Q · Antifraude capa 3: propuesta (ADR 0011)                     | #75 | —         | Abierto; falta elegir canal y presupuesto |
 
+### Decisiones del promotor (9/11)
+
+- **Antifraude, capa 3:** los dos canales (WhatsApp y SMS) a elegir por restaurante al darlo de alta;
+  tope de 10 € al mes por restaurante. Tabla de códigos en la migración 0026 (PR #78); la API, la
+  web y n8n vienen después. Detalle en el ADR 0011.
+- **Migraciones:** se aplican solas al desplegar la API (PR #77).
+- **Email del cliente:** obligatorio en el checkout y editable después (pendiente de implementar).
+- **Reparto externo (M):** pasa a después del MVP.
+- **Costes (T):** estimación hecha en `docs/comercial/coste-restaurante-nuevo.md`; faltan datos
+  reales de uso y la confirmación de la tarifa de Meta desde el 1/10/2026.
+
 ## Requerimientos del promotor (6/11), aterrizados
 
 A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) → O + P → Q + R → L → K
@@ -396,7 +407,7 @@ U y V están hechas; el resto solo está planificado y se implementa cuando el p
   globales siguen sin cambiar. Sin escalada (`canGrantRole`); Propietario no se puede recortar.
 - Tablas: `rol`, `rol_permiso`, `membresia_rol`.
 
-### W · Escenarios de prueba para el equipo comercial (documento)
+### W · Escenarios de prueba para el equipo comercial (hecho: `docs/comercial/escenarios-de-prueba.md`)
 
 - `docs/comercial/escenarios-de-prueba.md` (y su Claude Doc): guiones paso a paso en staging con
   varios roles a la vez (cliente en el móvil, cajero, encargado, mesero, repartidor, propietario,
