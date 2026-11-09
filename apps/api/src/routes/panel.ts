@@ -13,6 +13,7 @@ import { OUTBOX_EVENT } from "../repositories/orders";
 import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 import { loadPlatformConfig, loadTrial } from "../repositories/trial";
+import { registerActivityRoutes } from "./panel-activity";
 import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerDriverRoutes } from "./panel-drivers";
@@ -85,6 +86,7 @@ export function panelRoutes(deps: AppDeps) {
   registerCustomerRoutes(app, deps);
   registerStreamRoutes(app, deps);
   registerWaiterRoutes(app, deps);
+  registerActivityRoutes(app, deps);
   registerTableRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
