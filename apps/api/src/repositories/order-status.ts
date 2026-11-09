@@ -5,6 +5,7 @@ import {
   PAYMENT_STATUS,
 } from "@konnecttia/domain";
 import type { TransactionSql } from "postgres";
+import { emailPayload } from "../lib/customer-email";
 import type { Sql } from "../lib/db";
 import { OUTBOX_EVENT } from "./orders";
 
@@ -46,9 +47,10 @@ export async function changeOrderStatus(
         estado_pago: string;
         tipo_despacho: Fulfillment;
         sucursal_id: number | null;
+        email_cliente: string | null;
       }[]
     >`
-      SELECT id, estado, estado_pago, tipo_despacho, sucursal_id
+      SELECT id, estado, estado_pago, tipo_despacho, sucursal_id, email_cliente
       FROM   public.pedidos
       WHERE  id = ${input.orderId} AND restaurante_id = ${input.restaurantId}
       FOR UPDATE
@@ -80,7 +82,7 @@ export async function changeOrderStatus(
         (restaurante_id, tipo, agregado_tipo, agregado_id, payload, clave_idempotencia)
       VALUES (
         ${input.restaurantId}, ${OUTBOX_EVENT.OrderStatusChanged}, 'pedido', ${String(input.orderId)},
-        ${tx.json({ pedido_id: input.orderId, desde: order.estado, hacia: input.target })},
+        ${tx.json({ pedido_id: input.orderId, desde: order.estado, hacia: input.target, ...emailPayload(order.email_cliente) })},
         ${`${OUTBOX_EVENT.OrderStatusChanged}:${input.orderId}:${order.estado}:${input.target}`}
       )
       ON CONFLICT (clave_idempotencia) DO NOTHING

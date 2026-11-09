@@ -1,17 +1,21 @@
 "use client";
 
 import { addCents, type Cents, centsFromDecimal } from "@konnecttia/domain";
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Api } from "@/lib/api";
 import { type CartLine, lineCents, setQuantity, toOrderItems } from "@/lib/cart";
 import {
   consentFields,
   describeApiError,
   describeZoneFee,
+  emailProblem,
+  normalizeEmail,
   normalizePhone,
   paymentLabel,
   privacyHref,
   privacyProblem,
+  readRememberedEmail,
+  rememberEmail,
 } from "@/lib/checkout";
 import { eurosFromCents } from "@/lib/format";
 import { captchaFields, captchaProblem } from "@/lib/turnstile";
@@ -57,6 +61,12 @@ export function Checkout(props: Props) {
   const [fulfillment, setFulfillment] = useState<Fulfillment>(options[0] ?? "retiro");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  // Rellena el email recordado en este navegador (si hay); el cliente puede cambiarlo.
+  useEffect(() => {
+    const remembered = readRememberedEmail(() => window.localStorage);
+    if (remembered) setEmail((current) => current || remembered);
+  }, []);
   const [address, setAddress] = useState("");
   const [zoneId, setZoneId] = useState<number | null>(null);
   const [payment, setPayment] = useState<string | null>(null);
@@ -97,6 +107,8 @@ export function Checkout(props: Props) {
     if (lines.length === 0) return "Tu carrito está vacío.";
     if (!name.trim()) return "Escribe tu nombre.";
     if (!normalizePhone(phone)) return "Escribe un teléfono válido.";
+    const emailIssue = emailProblem(email);
+    if (emailIssue) return emailIssue;
     if (fulfillment === "retiro" && pickupBranches.length > 1 && props.branchId === null) {
       return "Elige el local donde recogerás el pedido.";
     }
@@ -121,6 +133,7 @@ export function Checkout(props: Props) {
     lines.length,
     name,
     phone,
+    email,
     fulfillment,
     pickupBranches.length,
     props.branchId,
@@ -143,6 +156,7 @@ export function Checkout(props: Props) {
     const body = {
       nombre: name.trim(),
       telefono: normalizePhone(phone),
+      email: normalizeEmail(email),
       tipo_despacho: fulfillment,
       metodo_pago: payment,
       ...(notes.trim() ? { notas: notes.trim() } : {}),
@@ -164,6 +178,7 @@ export function Checkout(props: Props) {
     const result = await props.api.createOrder(props.slug, body, idempotencyKey.current);
     setSending(false);
     if (result.ok) {
+      rememberEmail(() => window.localStorage, normalizeEmail(email) ?? "");
       props.onCreated(result.data);
       return;
     }
@@ -378,6 +393,19 @@ export function Checkout(props: Props) {
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="612 345 678"
+            />
+          </label>
+          <label className="field">
+            <span>Email (para avisarte de tu pedido)</span>
+            <input
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              maxLength={254}
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="tu@email.com"
             />
           </label>
           <label className="field">

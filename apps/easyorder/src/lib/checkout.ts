@@ -12,6 +12,41 @@ export function normalizePhone(raw: string): string | null {
   return null;
 }
 
+/**
+ * Email del cliente (obligatorio en la web: recibe los avisos del pedido). Se limpia igual que
+ * en la API: sin espacios y en minúsculas. Devuelve null si no parece un email.
+ */
+export function normalizeEmail(raw: string): string | null {
+  const email = raw.trim().toLowerCase();
+  if (email.length === 0 || email.length > 254) return null;
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? email : null;
+}
+
+export const EMAIL_REQUIRED_MESSAGE = "Escribe un email válido para recibir los avisos del pedido.";
+
+export function emailProblem(raw: string): string | null {
+  return normalizeEmail(raw) ? null : EMAIL_REQUIRED_MESSAGE;
+}
+
+const EMAIL_STORAGE_KEY = "easyorder:email";
+
+/** Email recordado en este navegador (comodidad: si el almacenamiento falla, no pasa nada). */
+export function readRememberedEmail(getStorage: () => Pick<Storage, "getItem">): string {
+  try {
+    return getStorage().getItem(EMAIL_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function rememberEmail(getStorage: () => Pick<Storage, "setItem">, email: string): void {
+  try {
+    if (email) getStorage().setItem(EMAIL_STORAGE_KEY, email);
+  } catch {
+    // Sin almacenamiento (modo privado, bloqueado): se pedirá de nuevo.
+  }
+}
+
 /** Aviso mientras falta aceptar la política de privacidad (casilla obligatoria del checkout). */
 export const PRIVACY_REQUIRED_MESSAGE = "Acepta la política de privacidad para enviar el pedido.";
 

@@ -38,6 +38,7 @@ async function placeOrder(
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
       privacidad_aceptada: true,
+      email: "cliente@test.local",
       items,
       ...extra,
     }),
