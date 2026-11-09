@@ -45,3 +45,18 @@ export function resetDestination(input: {
   if (input.platformMember && input.restaurants === 0) return RETURN_PATHS.interno;
   return "/panel";
 }
+
+const SAME_PASSWORD = "same_password";
+const WEAK_PASSWORD = "weak_password";
+
+/** Mensaje para el usuario cuando Supabase rechaza la contraseña nueva (`error.code`). */
+export function passwordUpdateMessage(code: string | undefined): string {
+  switch (code) {
+    case SAME_PASSWORD:
+      return "La nueva contraseña debe ser distinta de la anterior.";
+    case WEAK_PASSWORD:
+      return "Esa contraseña es demasiado fácil de adivinar. Prueba con otra más larga o con más variedad de caracteres.";
+    default:
+      return "No se pudo guardar la contraseña. Pide un enlace nuevo.";
+  }
+}

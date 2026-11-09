@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { resetDestination, takeReturn } from "@/lib/panel/recovery";
+import { passwordUpdateMessage, resetDestination, takeReturn } from "@/lib/panel/recovery";
 import { EasyOrderLockup } from "./Brand";
 import { usePanel } from "./PanelProvider";
 
@@ -32,7 +32,7 @@ export function ResetPassword() {
     const { error: updateError } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (updateError) {
-      setError("No se pudo guardar la contraseña. Pide un enlace nuevo.");
+      setError(passwordUpdateMessage(updateError.code));
       return;
     }
     const remembered = takeReturn();
