@@ -232,6 +232,8 @@ const REASONS: Record<string, string> = {
   slug_too_long: SLUG_MESSAGES[SLUG_ERROR.TooLong],
   invalid_time_zone: "La zona horaria no es válida.",
   unknown_plan: "Ese plan no existe.",
+  base_template:
+    "Las plantillas base (Propietario, Encargado…) las define el código y no se cambian aquí.",
   duplicate_name: "Ya hay un rol con ese nombre.",
   template_role: "Las plantillas no se editan desde aquí.",
   role_in_use: "Hay personas con ese rol. Cámbiales el rol antes de borrarlo.",
@@ -317,6 +319,24 @@ export function menuImportMessage(
     return ["Este restaurante ya tiene carta: la importación no la sobrescribe."];
   }
   return [platformErrorMessage(status, body)];
+}
+
+/** Frase del aviso al editar una plantilla: a cuánta gente afecta ya. */
+export function templateImpact(template: {
+  readonly miembros: number;
+  readonly invitaciones: number;
+  readonly restaurantes: number;
+}): string {
+  if (template.miembros === 0 && template.invitaciones === 0) {
+    return "Nadie la usa todavía: puedes cambiarla sin afectar a ningún restaurante.";
+  }
+  const people = `${template.miembros} ${template.miembros === 1 ? "persona" : "personas"}`;
+  const places = `${template.restaurantes} ${template.restaurantes === 1 ? "restaurante" : "restaurantes"}`;
+  const invites =
+    template.invitaciones > 0
+      ? ` y ${template.invitaciones} ${template.invitaciones === 1 ? "invitación pendiente" : "invitaciones pendientes"}`
+      : "";
+  return `Afecta al instante a ${people} en ${places}${invites}.`;
 }
 
 export const PLAN_NAME_FALLBACK = "Sin plan";
