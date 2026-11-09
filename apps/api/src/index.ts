@@ -5,10 +5,29 @@ import type { ImageStorage, ProofStorage } from "./context";
 import { createSql } from "./lib/db";
 import { loadEnv } from "./lib/env";
 import { createResendMailer } from "./lib/mailer";
+import { runMigrations } from "./lib/migrate";
 import { createTurnstileVerifier } from "./lib/turnstile";
 
 const env = loadEnv();
 const sql = createSql(env.DATABASE_URL);
+
+if (env.AUTO_MIGRATE) {
+  try {
+    await runMigrations(sql, env.MIGRATIONS_DIR, (message, fields) =>
+      console.log(JSON.stringify({ level: "info", message, ...fields })),
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        message: "Las migraciones fallaron; la API no arranca",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    process.exit(1);
+  }
+}
+
 const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
   auth: { persistSession: false },
 });

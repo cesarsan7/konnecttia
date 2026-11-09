@@ -44,6 +44,20 @@ bash /root/migrate-easypanel.sh n8nlearning_postgres-dev easyorder_dev --baselin
 El script pide la contraseña por teclado y se niega a tocar un host que no termine en `-dev`
 salvo que se indique `--produccion`.
 
+### Al desplegar la API (automático)
+
+La imagen de la API (`infra/docker/api.Dockerfile`) aplica las migraciones pendientes **al
+arrancar**, con el mismo registro (`konnecttia_migrations`) que `migrate.sh`. Cada migración va en
+su transacción y un bloqueo evita que dos instancias migren a la vez. Si una migración falla, la
+API no arranca y EasyPanel deja de dar por buena esa versión: se corrige con una migración nueva.
+
+- **Primera vez en una base que ya es EasyOrder** y no tiene el registro: ejecutar una vez
+  `migrate-easypanel.sh ... --baseline` (la API se niega a arrancar sola con un aviso claro).
+- **Apagarlo:** variable `AUTO_MIGRATE=false` en el servicio. En desarrollo viene apagado.
+- Como la API se actualiza antes de que n8n y la web lo noten, cada migración debe ser compatible
+  con el código anterior (solo añadir). Antes de producción: copia de seguridad (`backup.sh`).
+- Para ver qué se aplicaría sin cambiar nada, sigue valiendo `migrate-easypanel.sh ... --check`.
+
 ### En local o en CI
 
 ```bash
