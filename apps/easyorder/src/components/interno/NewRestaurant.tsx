@@ -23,6 +23,11 @@ const EMPTY: NewRestaurantForm = {
   nombre: "",
   slug: "",
   zonaHoraria: "",
+  clonarDe: "",
+  copiarCarta: true,
+  copiarHorario: true,
+  copiarReparto: true,
+  copiarAjustes: true,
   pais: "",
   plan: "",
   localNombre: "",
@@ -41,6 +46,9 @@ export function NewRestaurant() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [localTouched, setLocalTouched] = useState(false);
   const [plans, setPlans] = useState<Plans | null>(null);
+  const [sources, setSources] = useState<
+    readonly { id: number; nombre: string; slug: string | null }[]
+  >([]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,8 +57,16 @@ export function NewRestaurant() {
   useEffect(() => {
     let active = true;
     void api.restaurants("").then((result) => {
-      if (active && result.ok) setPlans(result.data.planes);
+      if (active && result.ok) {
+        setPlans(result.data.planes);
+        setSources(result.data.restaurantes.map(({ id, nombre, slug }) => ({ id, nombre, slug })));
+      }
     });
+    // «Clonar» desde la ficha de un restaurante llega con ?clonar=<id>.
+    const wanted = new URLSearchParams(window.location.search).get("clonar");
+    if (wanted && /^\d+$/.test(wanted)) {
+      setForm((current) => (current.clonarDe ? current : { ...current, clonarDe: wanted }));
+    }
     // La zona horaria del navegador es solo una sugerencia: se puede cambiar.
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setForm((current) => (current.zonaHoraria ? current : { ...current, zonaHoraria: zone ?? "" }));
@@ -162,6 +178,47 @@ export function NewRestaurant() {
       </header>
 
       <form className="k-card k-nr-form" onSubmit={onSubmit} noValidate>
+        <fieldset className="k-nr-group">
+          <legend className="k-title">Partir de otro restaurante (opcional)</legend>
+          <label className="k-field">
+            <span>Restaurante de origen</span>
+            <select value={form.clonarDe} onChange={(event) => set("clonarDe", event.target.value)}>
+              <option value="">Empezar en blanco</option>
+              {sources.map((source) => (
+                <option key={source.id} value={source.id}>
+                  {source.nombre}
+                  {source.slug ? ` (/${source.slug})` : ""}
+                </option>
+              ))}
+            </select>
+            <span className="k-hint-text k-small k-muted">
+              Sirve de plantilla. Nunca se copian el nombre, enlace, teléfono, dirección, datos
+              bancarios, logo, equipo, pedidos ni clientes.
+            </span>
+          </label>
+          {form.clonarDe ? (
+            <div className="k-nr-grid">
+              {(
+                [
+                  ["copiarCarta", "Carta (categorías, productos, variantes y extras)"],
+                  ["copiarHorario", "Horario"],
+                  ["copiarReparto", "Zonas de reparto"],
+                  ["copiarAjustes", "Ajustes (eslogan, color, mensajes, tiempos)"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="k-check">
+                  <input
+                    type="checkbox"
+                    checked={form[key]}
+                    onChange={(event) => set(key, event.target.checked)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </fieldset>
+
         <fieldset className="k-nr-group">
           <legend className="k-title">Restaurante</legend>
           <label className="k-field">

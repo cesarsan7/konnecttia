@@ -44,6 +44,11 @@ import {
   saveCodeSettings,
 } from "../repositories/platform";
 import {
+  cloneRestaurantData,
+  deleteRestaurant,
+  restaurantExists,
+} from "../repositories/restaurant-lifecycle";
+import {
   insertRole,
   replaceRole,
   roleNameTaken,
@@ -126,6 +131,16 @@ const createSchema = z
       .optional(),
     /** Código de verificación del checkout web (capa 3, ADR 0011). Sin indicar: apagado. */
     codigo_verificacion: z.enum([CODE_CHANNEL.WhatsApp, CODE_CHANNEL.Off]).optional(),
+    /** Crear «a partir de» otro restaurante: qué se copia (ver `cloneRestaurantData`). */
+    clonar_de: z
+      .object({
+        restaurante_id: z.number().int().positive(),
+        carta: z.boolean(),
+        horario: z.boolean(),
+        reparto: z.boolean(),
+        ajustes: z.boolean(),
+      })
+      .optional(),
   })
   .superRefine((input, ctx) => {
     if (
@@ -370,6 +385,9 @@ export function plataformaRoutes(deps: AppDeps) {
     const allowed = Array.isArray(restaurant.metodos_pago_permitidos)
       ? restaurant.metodos_pago_permitidos.filter((m): m is string => typeof m === "string")
       : null;
+    const [orderCount] = await sql<{ total: number }[]>`
+      SELECT count(*)::int AS total FROM public.pedidos WHERE restaurante_id = ${id}
+    `;
     return c.json({
       restaurante: {
         id: restaurant.id,
@@ -408,6 +426,7 @@ export function plataformaRoutes(deps: AppDeps) {
         apodo,
         mostrar: displayName(apodo, member.nombre),
       })),
+      pedidos_total: orderCount?.total ?? 0,
       invitaciones_pendientes: invites,
     });
   });
@@ -427,6 +446,10 @@ export function plataformaRoutes(deps: AppDeps) {
     if (input.plan === TRIAL_PLAN || !(await planExists(sql, input.plan))) {
       return unprocessable(c, "unknown_plan", { field: "plan" });
     }
+    const cloneFrom = input.clonar_de;
+    if (cloneFrom && !(await restaurantExists(sql, cloneFrom.restaurante_id))) {
+      return unprocessable(c, "unknown_source", { field: "clonar_de.restaurante_id" });
+    }
     const [ownerRole] = await sql<{ id: number; nombre: string }[]>`
       SELECT id, nombre FROM public.rol WHERE code = ${ROLE_TEMPLATE.Owner} AND restaurante_id IS NULL
     `;
@@ -437,6 +460,7 @@ export function plataformaRoutes(deps: AppDeps) {
       branchId: number;
       invite: { id: number; token: string; expires_at: string };
       modules: string[];
+      copied: Awaited<ReturnType<typeof cloneRestaurantData>> | null;
     };
     try {
       created = await sql.begin(async (tx) => {
@@ -472,6 +496,15 @@ export function plataformaRoutes(deps: AppDeps) {
           },
           deps.now(),
         );
+        const copied = cloneFrom
+          ? await cloneRestaurantData(
+              tx,
+              cloneFrom.restaurante_id,
+              restaurant.id,
+              restaurant.branchId,
+              cloneFrom,
+            )
+          : null;
         const [invite] = await tx<{ id: number; token: string; expires_at: string }[]>`
           INSERT INTO public.restaurant_invites
             (restaurante_id, rol, rol_id, sucursal_ids, email, created_by, expires_at)
@@ -481,7 +514,7 @@ export function plataformaRoutes(deps: AppDeps) {
           RETURNING id, token::text AS token, expires_at AT TIME ZONE 'UTC' AS expires_at
         `;
         if (!invite) throw new Error("No se pudo crear la invitación");
-        return { ...restaurant, invite };
+        return { ...restaurant, invite, copied };
       });
     } catch (error) {
       if (error instanceof SlugTaken || (error as { code?: string }).code === UNIQUE_VIOLATION) {
@@ -505,6 +538,18 @@ export function plataformaRoutes(deps: AppDeps) {
       propietario_email: input.propietario_email,
       modulos: created.modules,
       email_enviado: emailSent,
+      clonado: cloneFrom
+        ? {
+            origen_id: cloneFrom.restaurante_id,
+            partes: {
+              carta: cloneFrom.carta,
+              horario: cloneFrom.horario,
+              reparto: cloneFrom.reparto,
+              ajustes: cloneFrom.ajustes,
+            },
+            copiado: created.copied,
+          }
+        : null,
       completo: {
         ubicacion: Boolean(input.ubicacion),
         horario: input.horario?.length ?? 0,
@@ -534,6 +579,36 @@ export function plataformaRoutes(deps: AppDeps) {
       },
       201,
     );
+  });
+
+  // -------------------------------------------------------------------------------- borrado
+
+  /**
+   * Borra un restaurante y todo lo suyo. Irreversible: hay que repetir su enlace (`slug`) en
+   * `confirmar`. Solo `admin`. Queda un registro en la auditoría (sin restaurante, que ya no existe).
+   */
+  app.delete("/restaurantes/:id", writer, async (c) => {
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const parsed = await body(c, z.object({ confirmar: z.string().trim().min(1).max(120) }));
+    if (!parsed.success) return invalid(c, "confirmar");
+    const expected = restaurant.slug ?? String(restaurant.id);
+    if (parsed.data.confirmar !== expected) {
+      return unprocessable(c, "confirmation_mismatch", { field: "confirmar" });
+    }
+    const removed = await sql.begin((tx) => deleteRestaurant(tx, restaurant.id));
+    await audit(sql, {
+      restauranteId: null,
+      actorTipo: "plataforma",
+      actorId: c.get("platform").userId,
+      accion: "plataforma.restaurante.borrar",
+      recursoTipo: "restaurante",
+      recursoId: String(restaurant.id),
+      resultado: "ok",
+      detalle: { slug: restaurant.slug, nombre: restaurant.nombre, ...removed },
+      requestId: c.get("requestId"),
+    });
+    return c.json({ id: restaurant.id, eliminado: true, ...removed });
   });
 
   // ----------------------------------------------------------------------------------- carta

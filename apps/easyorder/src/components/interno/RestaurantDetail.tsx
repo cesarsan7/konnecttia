@@ -6,6 +6,7 @@ import { platformErrorMessage } from "@/lib/interno/logic";
 import type { RestaurantDetail as Detail } from "@/lib/interno/types";
 import { AntifraudCodeSection } from "./AntifraudCodeSection";
 import { usePlatform } from "./InternalShell";
+import { LifecycleSection } from "./LifecycleSection";
 import { MenuImportSection } from "./MenuImportSection";
 import { PaymentMethodsSection } from "./PaymentMethodsSection";
 import { PlanModulesSection } from "./PlanModulesSection";
@@ -166,6 +167,7 @@ export function RestaurantDetail({ id }: { readonly id: number }) {
           </>
         ) : null}
       </section>
+      <LifecycleSection detail={detail} />
     </div>
   );
 }

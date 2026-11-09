@@ -64,6 +64,11 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
     restaurant: (id: number) => request<RestaurantDetail>(`/restaurantes/${id}`),
     createRestaurant: (body: NewRestaurantBody) =>
       request<CreatedRestaurant>("/restaurantes", { method: "POST", body: JSON.stringify(body) }),
+    deleteRestaurant: (id: number, confirmar: string) =>
+      request<{ id: number; eliminado: boolean; pedidos: number; miembros: number }>(
+        `/restaurantes/${id}`,
+        { method: "DELETE", body: JSON.stringify({ confirmar }) },
+      ),
     roles: (id: number) => request<RolesInfo>(`/restaurantes/${id}/roles`),
     createRole: (id: number, body: RoleBody) =>
       request<{ id: number }>(`/restaurantes/${id}/roles`, {

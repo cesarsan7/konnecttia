@@ -3,6 +3,7 @@ import {
   activeDependents,
   canCancelModule,
   codeSettingsForm,
+  deleteConfirmed,
   EMPTY_OPENING_DATA,
   inactivePermissions,
   invitationLink,
@@ -29,6 +30,11 @@ const valid: NewRestaurantForm = {
   nombre: "Bar Nuevo",
   slug: "bar-nuevo",
   zonaHoraria: "Atlantic/Canary",
+  clonarDe: "",
+  copiarCarta: true,
+  copiarHorario: true,
+  copiarReparto: true,
+  copiarAjustes: true,
   pais: "",
   plan: "basico",
   localNombre: "Bar Nuevo Centro",
@@ -420,5 +426,28 @@ describe("código de verificación (capa 3)", () => {
     expect(sameCodeSettings(saved, { ...saved, umbral: "30" })).toBe(false);
     expect(sameCodeSettings(saved, { ...saved, umbral: "  " })).toBe(true);
     expect(sameCodeSettings(saved, { ...saved, canal: "apagado" })).toBe(false);
+  });
+});
+
+describe("clonar y borrar (interno)", () => {
+  it("sin origen no manda clonar_de y con origen indica qué copiar", () => {
+    expect("clonar_de" in toNewRestaurantBody(valid)).toBe(false);
+    const body = toNewRestaurantBody({ ...valid, clonarDe: "7", copiarReparto: false });
+    expect(body.clonar_de).toEqual({
+      restaurante_id: 7,
+      carta: true,
+      horario: true,
+      reparto: false,
+      ajustes: true,
+    });
+    expect("clonar_de" in toNewRestaurantBody({ ...valid, clonarDe: "abc" })).toBe(false);
+  });
+
+  it("el borrado solo se confirma escribiendo el enlace exacto", () => {
+    expect(deleteConfirmed("bar-nuevo", "bar-nuevo", 3)).toBe(true);
+    expect(deleteConfirmed("  bar-nuevo ", "bar-nuevo", 3)).toBe(true);
+    expect(deleteConfirmed("bar", "bar-nuevo", 3)).toBe(false);
+    expect(deleteConfirmed("", "bar-nuevo", 3)).toBe(false);
+    expect(deleteConfirmed("3", null, 3)).toBe(true);
   });
 });

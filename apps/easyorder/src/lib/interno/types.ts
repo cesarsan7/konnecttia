@@ -39,7 +39,18 @@ export type PaymentMethodsInfo = {
   readonly activos: readonly string[];
 };
 
+/** Qué se copia al crear un restaurante «a partir de» otro. */
+export type CloneFrom = {
+  readonly restaurante_id: number;
+  readonly carta: boolean;
+  readonly horario: boolean;
+  readonly reparto: boolean;
+  readonly ajustes: boolean;
+};
+
 export type RestaurantDetail = {
+  /** Pedidos del restaurante (todos): se avisa antes de borrarlo. */
+  readonly pedidos_total?: number;
   readonly restaurante: {
     readonly id: number;
     readonly nombre: string;
@@ -89,6 +100,7 @@ export type NewRestaurantBody = {
   readonly nombre: string;
   readonly slug: string;
   readonly zona_horaria: string;
+  readonly clonar_de?: CloneFrom;
   readonly pais: string;
   readonly plan: string;
   readonly local: {
