@@ -15,6 +15,7 @@ import { maskEmail } from "../lib/customer-email";
 import { API_ERROR, fail } from "../lib/http";
 import { createRateLimiter } from "../lib/rate-limit";
 import { TURNSTILE_MAX_TOKEN_LENGTH } from "../lib/turnstile";
+import { cleanCode } from "../lib/verification-code";
 import { resolveRestaurant } from "../middleware/tenant";
 import {
   checkPhoneLimits,
@@ -40,7 +41,7 @@ import {
   proofPath,
   saveProof,
 } from "../repositories/payment-proofs";
-import { placeOrder } from "../repositories/place-order";
+import { type OrderGate, placeOrder } from "../repositories/place-order";
 import { loadRestaurantContact, privacyPolicy } from "../repositories/privacy";
 import {
   deliveryEta,
@@ -50,6 +51,7 @@ import {
   pickupEta,
 } from "../repositories/restaurants";
 import { restaurantAcceptsOrders } from "../repositories/trial";
+import { checkOrderGate, confirmCode, requestCode } from "../repositories/verification";
 
 const MAX_LINES = 50;
 const ORDERS_PER_IP_PER_10_MIN = 20;
@@ -64,6 +66,9 @@ const PRIVACY_REQUIRED_REASON = "privacy_required";
 const CAPTCHA_FAILED_REASON = "captcha_failed";
 const PHONE_LIMIT_REASON = "phone_limit";
 const ORDER_NOT_ACCEPTED_REASON = "order_not_accepted";
+/** Códigos de verificación por IP y restaurante (el límite por teléfono va en la base). */
+const CODE_REQUESTS_PER_IP_PER_10_MIN = 10;
+const CODE_CONFIRMS_PER_IP_PER_10_MIN = 30;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Estado HTTP de cada motivo por el que no se admite un justificante. */
@@ -77,6 +82,27 @@ const positiveInt = z.number().int().positive();
 /** Email del cliente: sin espacios, en minúsculas y con formato válido (máx. 254, como el SMTP). */
 const emailField = z.string().trim().toLowerCase().max(254).pipe(z.email());
 const emailBodySchema = z.object({ email: emailField });
+const phoneField = z
+  .string()
+  .trim()
+  .regex(/^\+?[0-9]{7,20}$/, "Teléfono no válido");
+/** Qué pedido va a hacer el cliente: con eso el servidor decide si hace falta código. */
+const codeRequestSchema = z.object({
+  telefono: phoneField,
+  tipo_despacho: z.enum([FULFILLMENT.Pickup, FULFILLMENT.Delivery]),
+  metodo_pago: z.string().trim().min(1).max(40),
+  /** Total estimado del pedido en euros (solo para decidir si se envía; el control real es del servidor). */
+  importe: z.number().min(0).max(100_000),
+  captcha_token: z.string().max(TURNSTILE_MAX_TOKEN_LENGTH).optional(),
+});
+const codeConfirmSchema = z.object({
+  telefono: phoneField,
+  codigo: z
+    .string()
+    .max(20)
+    .transform(cleanCode)
+    .pipe(z.string().regex(/^[0-9]{6}$/)),
+});
 const latitude = z.number().min(-90).max(90);
 const longitude = z.number().min(-180).max(180);
 
@@ -202,6 +228,8 @@ export function publicRoutes(deps: AppDeps) {
   const proofsLimited = createRateLimiter(PROOFS_PER_IP_PER_10_MIN, 10 * 60_000);
   const clientIp = (header: string | undefined) => header ?? "desconocida";
   const quotesLimited = createRateLimiter(QUOTES_PER_IP_PER_MIN, 60_000);
+  const codeRequestsLimited = createRateLimiter(CODE_REQUESTS_PER_IP_PER_10_MIN, 10 * 60_000);
+  const codeConfirmsLimited = createRateLimiter(CODE_CONFIRMS_PER_IP_PER_10_MIN, 10 * 60_000);
 
   // Seguimiento por token aleatorio: no depende del restaurante ni del código visible.
   app.get("/orders/:token", async (c) => {
@@ -582,6 +610,90 @@ export function publicRoutes(deps: AppDeps) {
     });
   });
 
+  /**
+   * Antifraude capa 3: envía un código de verificación al teléfono si el pedido que describe el
+   * cliente tiene riesgo (teléfono sin pedido entregado, reparto en efectivo o importe alto). Sin
+   * proveedor configurado o con la capa apagada responde `requerida: false` y no envía nada.
+   */
+  app.post("/:slug/verificacion", async (c) => {
+    const restaurant = c.get("restaurant");
+    if (codeRequestsLimited(`${restaurant.id}:${clientIp(c.req.header(deps.clientIpHeader))}`)) {
+      return fail(c, 429, API_ERROR.RateLimited);
+    }
+    const parsed = codeRequestSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return fail(c, 400, API_ERROR.InvalidBody, {
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    }
+    const body = parsed.data;
+    // Cada envío cuesta dinero: mismo captcha que el pedido (si está configurado).
+    if (deps.verifyCaptcha) {
+      const human = await deps.verifyCaptcha(
+        body.captcha_token,
+        c.req.header(deps.clientIpHeader) ?? null,
+      );
+      if (!human) return fail(c, 422, API_ERROR.CaptchaFailed, { reason: CAPTCHA_FAILED_REASON });
+    }
+    const result = await requestCode(deps, restaurant, await loadConfig(deps.sql, restaurant.id), {
+      phone: body.telefono,
+      fulfillment: body.tipo_despacho,
+      paymentMethod: body.metodo_pago,
+      totalEur: body.importe,
+    });
+    switch (result.kind) {
+      case "not_required":
+        return c.json({ requerida: false });
+      case "not_accepted":
+        return fail(c, 422, API_ERROR.OrderNotAccepted, { reason: ORDER_NOT_ACCEPTED_REASON });
+      case "unavailable":
+        return fail(c, 422, API_ERROR.VerificationUnavailable, { reason: "monthly_cap" });
+      case "wait":
+        return fail(c, 429, API_ERROR.RateLimited, {
+          reason: "resend_wait",
+          reintentar_en: result.retryAfterSeconds,
+        });
+      case "limit":
+        return fail(c, 429, API_ERROR.RateLimited, { reason: "too_many_codes" });
+      case "failed":
+        return fail(c, 502, API_ERROR.CodeSendFailed);
+      case "sent":
+        return c.json({
+          requerida: true,
+          canal: result.channel,
+          motivo: result.reason,
+          expira_en: result.expiresInSeconds,
+          reenviar_en: result.resendInSeconds,
+        });
+    }
+  });
+
+  /** Comprueba el código que escribió el cliente; verificado, el pedido lo consume una vez. */
+  app.post("/:slug/verificacion/confirmar", async (c) => {
+    const restaurant = c.get("restaurant");
+    if (codeConfirmsLimited(`${restaurant.id}:${clientIp(c.req.header(deps.clientIpHeader))}`)) {
+      return fail(c, 429, API_ERROR.RateLimited);
+    }
+    const parsed = codeConfirmSchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return fail(c, 400, API_ERROR.InvalidBody);
+    if (!deps.codeSecret) return fail(c, 422, API_ERROR.CodeInvalid, { reason: "expired" });
+    const result = await confirmCode(
+      deps.sql,
+      deps.codeSecret,
+      restaurant.id,
+      parsed.data.telefono,
+      parsed.data.codigo,
+    );
+    if (result.kind === "verified") return c.json({ verificado: true });
+    return fail(c, 422, API_ERROR.CodeInvalid, {
+      reason: result.kind,
+      ...(result.kind === "wrong" ? { intentos_restantes: result.attemptsLeft } : {}),
+    });
+  });
+
   app.post("/:slug/orders", async (c) => {
     const restaurant = c.get("restaurant");
     if (ordersLimited(`${restaurant.id}:${clientIp(c.req.header(deps.clientIpHeader))}`)) {
@@ -635,6 +747,30 @@ export function publicRoutes(deps: AppDeps) {
       if (hit) return fail(c, 429, API_ERROR.RateLimited, { reason: PHONE_LIMIT_REASON });
     }
 
+    // Capa 3: con el total ya calculado, un pedido de riesgo necesita su código verificado.
+    // Un reintento de un pedido ya creado no lo vuelve a pedir (el código ya se consumió).
+    const gate: OrderGate | undefined = replay
+      ? undefined
+      : async ({ totalCents, config }) => {
+          const result = await checkOrderGate(deps, restaurant.id, config, {
+            phone: body.telefono,
+            fulfillment: body.tipo_despacho,
+            paymentMethod: body.metodo_pago,
+            totalCents,
+          });
+          if (result.pass) return null;
+          return {
+            ok: false,
+            error:
+              result.kind === "required"
+                ? API_ERROR.VerificationRequired
+                : API_ERROR.VerificationUnavailable,
+            extra:
+              result.kind === "required"
+                ? { reason: result.reason, canal: "whatsapp" }
+                : { reason: "monthly_cap" },
+          };
+        };
     const placed = await placeOrder(
       deps,
       restaurant,
@@ -643,6 +779,7 @@ export function publicRoutes(deps: AppDeps) {
       ORDER_CHANNEL.Web,
       undefined,
       { promotions: body.acepta_promociones === true },
+      gate,
     );
     if (!placed.ok) return fail(c, 422, placed.error, placed.extra);
     const { order, branch, eta, priced } = placed;

@@ -75,6 +75,12 @@ export const CONFIG_KEY = {
   AntifraudOpenPerPhone: "antifraude_pedidos_abiertos_por_telefono",
   /** Máximo de pedidos web por teléfono en la última hora. Sin clave: sin límite. */
   AntifraudPerPhoneHour: "antifraude_pedidos_por_telefono_hora",
+  /** Canal del código de verificación (capa 3): `whatsapp`. Sin clave: apagada. */
+  AntifraudCodeChannel: "antifraude_codigo_canal",
+  /** Gasto máximo mensual en códigos, en euros. Sin clave: 10. */
+  AntifraudCodeMonthlyCap: "antifraude_codigo_tope_mensual_eur",
+  /** Importe del pedido (EUR) desde el que se pide código. Sin clave: 30. */
+  AntifraudCodeAmountThreshold: "antifraude_codigo_importe_umbral_eur",
 } as const;
 
 /**

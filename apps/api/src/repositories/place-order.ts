@@ -45,6 +45,15 @@ export type PlaceOrderResult =
   | { readonly ok: false; readonly error: ApiError; readonly extra?: Record<string, unknown> };
 
 /**
+ * Control previo a crear el pedido (antifraude capa 3). Recibe el total que calculó el servidor y
+ * devuelve el rechazo, o null para dejar pasar el pedido.
+ */
+export type OrderGate = (info: {
+  readonly totalCents: number;
+  readonly config: ReadonlyMap<string, string>;
+}) => Promise<Extract<PlaceOrderResult, { ok: false }> | null>;
+
+/**
  * Crea un pedido con las reglas del servidor (local abierto, zona, mínimo, tarifa, tiempo,
  * disponibilidad por local y precios de la carta). Lo usan la web y el pedido manual del panel,
  * para que ambos calculen exactamente igual. `branchAllowed` permite al panel exigir que el local
@@ -59,6 +68,8 @@ export async function placeOrder(
   branchAllowed: (branchId: number) => boolean = () => true,
   /** Consentimiento del checkout web; el pedido manual y n8n no lo piden. */
   consent?: { readonly promotions: boolean },
+  /** Solo el checkout web: pide el código de verificación si el pedido tiene riesgo. */
+  gate?: OrderGate,
 ): Promise<PlaceOrderResult> {
   // Prueba pendiente, rechazada o vencida: no se toman pedidos (ni por la web ni desde el panel).
   if (!(await restaurantAcceptsOrders(deps.sql, restaurant.id, deps.now()))) {
@@ -160,6 +171,11 @@ export async function placeOrder(
   const priced = priceOrder(catalog, lines, pricingContext);
   if (!priced.ok)
     return { ok: false, error: API_ERROR.InvalidItems, extra: { errors: priced.errors } };
+
+  if (gate) {
+    const blocked = await gate({ totalCents: priced.quote.totalCents, config });
+    if (blocked) return blocked;
+  }
 
   const order = await createOrder(deps.sql, {
     restauranteId: restaurant.id,

@@ -7,6 +7,7 @@ import { loadEnv } from "./lib/env";
 import { createResendMailer } from "./lib/mailer";
 import { runMigrations } from "./lib/migrate";
 import { createTurnstileVerifier } from "./lib/turnstile";
+import { createSimulatedCodeSender, createWhatsAppCodeSender } from "./lib/whatsapp-code";
 
 const env = loadEnv();
 const sql = createSql(env.DATABASE_URL);
@@ -92,7 +93,22 @@ function recoveryLinks() {
   };
 }
 
+/** Envío del código de verificación (capa 3): WhatsApp, simulado en staging o apagado. */
+function codeSender() {
+  if (env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID) {
+    return createWhatsAppCodeSender({
+      accessToken: env.WHATSAPP_ACCESS_TOKEN,
+      phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
+      template: env.WHATSAPP_CODE_TEMPLATE,
+      language: env.WHATSAPP_CODE_LANGUAGE,
+    });
+  }
+  return env.ANTIFRAUD_CODE_SIMULATE ? createSimulatedCodeSender() : null;
+}
+
 const app = createApp({
+  sendCode: codeSender(),
+  codeSecret: env.CODE_HMAC_SECRET ?? null,
   imageStorage: imageStorage(),
   proofStorage: proofStorage(),
   mailer: env.RESEND_API_KEY ? createResendMailer(env.RESEND_API_KEY, env.RESEND_FROM) : null,
