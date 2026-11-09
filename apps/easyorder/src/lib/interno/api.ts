@@ -2,6 +2,7 @@ import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type {
   CreatedRestaurant,
+  MenuImportSummary,
   ModuleChangeBody,
   ModuleSaved,
   NewRestaurantBody,
@@ -70,6 +71,11 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
       put<{ id: number; miembros_afectados: number }>(`/restaurantes/${id}/roles/${roleId}`, body),
     deleteRole: (id: number, roleId: number) =>
       request<{ id: number }>(`/restaurantes/${id}/roles/${roleId}`, { method: "DELETE" }),
+    importMenu: (id: number, texto: string, simulate: boolean) =>
+      request<MenuImportSummary>(
+        `/restaurantes/${id}/carta/importar${simulate ? "?simular=1" : ""}`,
+        { method: "POST", body: JSON.stringify({ texto }) },
+      ),
     changePlan: (id: number, plan: string) => put<PlanSaved>(`/restaurantes/${id}/plan`, { plan }),
     changeModule: (id: number, code: string, change: ModuleChangeBody) =>
       put<ModuleSaved>(`/restaurantes/${id}/modulos/${encodeURIComponent(code)}`, change),

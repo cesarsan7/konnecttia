@@ -64,3 +64,42 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.k-nr-note {
+  margin: 0 0 8px;
+}
+
+.k-nr-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 8px 0 4px;
+}
+
+.k-nr-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.k-nr-check input {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 560px) {
+  .k-nr-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+fieldset.k-nr-checks {
+  border: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
+fieldset.k-nr-checks legend {
+  padding: 0;
+}

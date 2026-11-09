@@ -351,6 +351,251 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
     });
   });
 
+  describe("alta completa y carta", () => {
+    const week = [
+      ["Lunes", "08:00", "23:00"],
+      ["Martes", "08:00", "23:00"],
+      ["Miércoles", "08:00", "23:00"],
+      ["Jueves", "08:00", "23:00"],
+      ["Viernes", "08:00", "23:00"],
+      ["Sábado", "09:00", "23:00"],
+      ["Domingo", "09:00", "23:00"],
+    ].map(([dia, apertura, cierre]) => ({ dia, disponible: true, apertura, cierre }));
+
+    const full = (overrides: Record<string, unknown> = {}) =>
+      newRestaurant({
+        slug: "alta-completa",
+        nombre: "Alta Completa",
+        plan: "premium",
+        ubicacion: { lat: 28.9780689, lng: -13.5697294 },
+        horario: week,
+        recogida_minutos: 30,
+        zona_reparto: { radio_km: 5, tarifa: 2, minimo: 30, minutos: 30 },
+        metodos_pago: ["efectivo", "tarjeta"],
+        ...overrides,
+      });
+
+    it("crea ubicación, horario, recogida, zona de reparto y métodos de cobro", async () => {
+      const result = await call("platformAdmin", "POST", "/plataforma/restaurantes", full());
+      expect(result.status).toBe(201);
+      const id = result.body.id as number;
+      const [restaurant] = await ctx.sql<
+        { lat: string; long: string; payment_methods: string[]; pickup_enabled: boolean }[]
+      >`SELECT lat, long, payment_methods, pickup_enabled FROM public.restaurante WHERE id = ${id}`;
+      expect(Number(restaurant?.lat)).toBeCloseTo(28.9780689, 6);
+      expect(Number(restaurant?.long)).toBeCloseTo(-13.5697294, 6);
+      expect(restaurant?.payment_methods).toEqual(["efectivo", "tarjeta"]);
+      const [branch] = await ctx.sql<{ lat: string; acepta_reparto: boolean }[]>`
+        SELECT lat, acepta_reparto FROM public.sucursal WHERE restaurante_id = ${id} AND es_principal
+      `;
+      expect(Number(branch?.lat)).toBeCloseTo(28.9780689, 6);
+      expect(branch?.acepta_reparto).toBe(true);
+      const days = await ctx.sql<{ dia: string; apertura_1: string; cierre_1: string }[]>`
+        SELECT dia, apertura_1::text, cierre_1::text FROM public.horarios
+        WHERE restaurante_id = ${id} ORDER BY id
+      `;
+      expect(days).toHaveLength(7);
+      expect(days[5]).toMatchObject({
+        dia: "Sábado",
+        apertura_1: "09:00:00",
+        cierre_1: "23:00:00",
+      });
+      const [zone] = await ctx.sql<
+        {
+          fee: string;
+          min_order_amount: string;
+          radius_km: string;
+          estimated_minutes_max: number;
+        }[]
+      >`SELECT fee, min_order_amount, radius_km, estimated_minutes_max
+        FROM public.delivery_zone WHERE restaurante_id = ${id}`;
+      expect(zone).toMatchObject({ estimated_minutes_max: 30 });
+      expect(Number(zone?.fee)).toBe(2);
+      expect(Number(zone?.min_order_amount)).toBe(30);
+      expect(Number(zone?.radius_km)).toBe(5);
+      const [config] = await ctx.sql<{ config_value: string }[]>`
+        SELECT config_value FROM public.restaurante_config
+        WHERE restaurante_id = ${id} AND config_key = 'pickup_eta_minutes'
+      `;
+      expect(config?.config_value).toBe("30");
+      const [log] = await ctx.sql<{ detalle: { completo: Record<string, unknown> } }[]>`
+        SELECT detalle FROM public.auditoria
+        WHERE restaurante_id = ${id} AND accion = 'plataforma.restaurante.crear'
+      `;
+      expect(log?.detalle.completo).toMatchObject({ ubicacion: true, horario: 7, reparto: true });
+    });
+
+    it("un día cerrado no guarda horas; sin los campos opcionales no crea nada extra", async () => {
+      const closed = await call(
+        "platformAdmin",
+        "POST",
+        "/plataforma/restaurantes",
+        full({
+          slug: "dia-cerrado",
+          horario: [{ dia: "Lunes", disponible: false }],
+          zona_reparto: undefined,
+        }),
+      );
+      expect(closed.status).toBe(201);
+      const [monday] = await ctx.sql<{ disponible: boolean; apertura_1: string | null }[]>`
+        SELECT disponible, apertura_1::text FROM public.horarios WHERE restaurante_id = ${closed.body.id}
+      `;
+      expect(monday).toEqual({ disponible: false, apertura_1: null });
+      const basic = await call(
+        "platformAdmin",
+        "POST",
+        "/plataforma/restaurantes",
+        newRestaurant({ slug: "basico-2" }),
+      );
+      const [counts] = await ctx.sql<{ dias: number; zonas: number }[]>`
+        SELECT (SELECT count(*)::int FROM public.horarios WHERE restaurante_id = ${basic.body.id}) AS dias,
+               (SELECT count(*)::int FROM public.delivery_zone WHERE restaurante_id = ${basic.body.id}) AS zonas
+      `;
+      expect(counts).toEqual({ dias: 0, zonas: 0 });
+    });
+
+    it("rechaza horario repetido o incompleto, zona sin ubicación y métodos que piden datos", async () => {
+      const post = (overrides: Record<string, unknown>) =>
+        call(
+          "platformAdmin",
+          "POST",
+          "/plataforma/restaurantes",
+          full({ slug: "x-invalido", ...overrides }),
+        );
+      expect((await post({ horario: [week[0], week[0]] })).status).toBe(400);
+      expect((await post({ horario: [{ dia: "Lunes", disponible: true }] })).status).toBe(400);
+      expect(
+        (
+          await post({
+            horario: [{ dia: "Lunes", disponible: true, apertura: "8:00", cierre: "23:00" }],
+          })
+        ).status,
+      ).toBe(400);
+      expect((await post({ ubicacion: undefined })).status).toBe(400);
+      expect((await post({ reparto: false })).status).toBe(400);
+      expect((await post({ metodos_pago: ["transferencia"] })).status).toBe(400);
+      expect(
+        (await post({ zona_reparto: { radio_km: 0, tarifa: 2, minimo: 30, minutos: 30 } })).status,
+      ).toBe(400);
+      const [none] = await ctx.sql<
+        { n: number }[]
+      >`SELECT count(*)::int AS n FROM public.restaurante WHERE slug = 'x-invalido'`;
+      expect(none?.n).toBe(0);
+    });
+
+    const csv = [
+      "categoria;producto;descripcion;variante;precio;por_defecto",
+      "Arepas;Arepa frita;Maíz frito;;3,00;",
+      "Salchipapas;Salchipapas;Con salchicha;Mini;4,50;",
+      "Salchipapas;Salchipapas;;XL;10,00;",
+    ].join("\n");
+
+    it("importa la carta: categorías, productos, variantes y precio base", async () => {
+      const created = await call(
+        "platformAdmin",
+        "POST",
+        "/plataforma/restaurantes",
+        newRestaurant({ slug: "con-carta" }),
+      );
+      const id = created.body.id as number;
+      const before = await call("platformSupport", "GET", `/plataforma/restaurantes/${id}`);
+      expect(before.body.carta).toEqual({ categorias: 0, productos: 0 });
+      const simulated = await call(
+        "platformAdmin",
+        "POST",
+        `/plataforma/restaurantes/${id}/carta/importar?simular=1`,
+        { texto: csv },
+      );
+      expect(simulated.status).toBe(200);
+      expect(simulated.body).toMatchObject({
+        simulacion: true,
+        categorias: 2,
+        productos: 2,
+        precios: 3,
+      });
+      expect(
+        (await call("platformSupport", "GET", `/plataforma/restaurantes/${id}`)).body.carta
+          .productos,
+      ).toBe(0);
+
+      const result = await call(
+        "platformAdmin",
+        "POST",
+        `/plataforma/restaurantes/${id}/carta/importar`,
+        { texto: csv },
+      );
+      expect(result.status).toBe(201);
+      expect(result.body).toMatchObject({
+        simulacion: false,
+        categorias: 2,
+        productos: 2,
+        precios: 3,
+      });
+      const rows = await ctx.sql<
+        {
+          categoria: string;
+          producto: string;
+          base: string;
+          variante: string;
+          precio: string;
+          def: boolean;
+        }[]
+      >`
+        SELECT mc.name AS categoria, mi.name AS producto, mi.base_price AS base,
+               mv.variant_name AS variante, mv.price AS precio, mv.is_default AS def
+        FROM   public.menu_category mc
+        JOIN   public.menu_item mi ON mi.menu_category_id = mc.menu_category_id
+        JOIN   public.menu_variant mv ON mv.menu_item_id = mi.menu_item_id
+        WHERE  mc.restaurante_id = ${id} ORDER BY mc.sort_order, mv.sort_order
+      `;
+      expect(
+        rows.map((r) => [r.categoria, r.variante, Number(r.precio), Number(r.base), r.def]),
+      ).toEqual([
+        ["Arepas", "Única", 3, 3, true],
+        ["Salchipapas", "Mini", 4.5, 4.5, true],
+        ["Salchipapas", "XL", 10, 4.5, false],
+      ]);
+      const after = await call("platformSupport", "GET", `/plataforma/restaurantes/${id}`);
+      expect(after.body.carta).toEqual({ categorias: 2, productos: 2 });
+      const [log] = await ctx.sql<
+        { n: number }[]
+      >`SELECT count(*)::int AS n FROM public.auditoria WHERE restaurante_id = ${id} AND accion = 'plataforma.carta.importar'`;
+      expect(log?.n).toBe(1);
+    });
+
+    it("no pisa una carta existente, valida el texto y solo la importa un admin", async () => {
+      const created = await call(
+        "platformAdmin",
+        "POST",
+        "/plataforma/restaurantes",
+        newRestaurant({ slug: "carta-dos" }),
+      );
+      const url = `/plataforma/restaurantes/${created.body.id}/carta/importar`;
+      const bad = await call("platformAdmin", "POST", url, { texto: "A;P;;;gratis\n;Q;;;2" });
+      expect(bad.status).toBe(422);
+      expect(bad.body.reason).toBe("invalid_menu");
+      expect(bad.body.errores.map((e: { line: number; code: string }) => [e.line, e.code])).toEqual(
+        [
+          [1, "invalid_price"],
+          [2, "missing_category"],
+        ],
+      );
+      expect((await call("platformAdmin", "POST", url, {})).status).toBe(400);
+      expect((await call("platformSupport", "POST", url, { texto: csv })).status).toBe(403);
+      expect((await call("platformAdmin", "POST", url, { texto: csv })).status).toBe(201);
+      const again = await call("platformAdmin", "POST", url, { texto: csv });
+      expect(again.status).toBe(409);
+      expect(again.body.reason).toBe("menu_already_loaded");
+      expect(
+        (
+          await call("platformAdmin", "POST", "/plataforma/restaurantes/999999/carta/importar", {
+            texto: csv,
+          })
+        ).status,
+      ).toBe(404);
+    });
+  });
+
   describe("roles por restaurante", () => {
     let restauranteId: number;
     const url = () => `/plataforma/restaurantes/${restauranteId}/roles`;

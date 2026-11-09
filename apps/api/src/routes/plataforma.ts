@@ -12,8 +12,11 @@ import {
   checkRestaurantSlug,
   isValidTimeZone,
   ORDER_STATUS,
+  PAYMENT_METHOD,
   PAYMENT_METHODS,
   PLATFORM_ROLE,
+  parseMenuImport,
+  WEEKDAYS_ES,
 } from "@konnecttia/domain";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
@@ -28,8 +31,10 @@ import {
   applyPlan,
   changeModule,
   createRestaurant,
+  importMenu,
   knownTimeZone,
   MANUAL_ORIGINS,
+  MenuAlreadyLoaded,
   MODULE_STATE,
   planExists,
   SlugTaken,
@@ -61,18 +66,72 @@ const LIST_LIMIT = 500;
 /** Pedidos que no cuentan como actividad: carritos, carritos caducados y cancelados. */
 const NOT_ACTIVITY = [ORDER_STATUS.InCart, ORDER_STATUS.Expired, ORDER_STATUS.Cancelled];
 
-const createSchema = z.object({
-  nombre: z.string().trim().min(1).max(120),
-  slug: z.string().trim().max(100),
-  zona_horaria: z.string().trim().min(1).max(64),
-  plan: z.string().trim().min(1).max(40),
-  local: z.object({
-    nombre: z.string().trim().min(1).max(120),
-    direccion: z.string().trim().max(200).optional(),
-    telefono: z.string().trim().max(30).optional(),
-  }),
-  propietario_email: z.string().trim().toLowerCase().email().max(255),
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Un turno por día. Con `disponible` hacen falta apertura y cierre; un cierre menor cruza medianoche. */
+const scheduleDaySchema = z
+  .object({
+    dia: z.enum(WEEKDAYS_ES),
+    disponible: z.boolean(),
+    apertura: z.string().regex(TIME).nullable().optional(),
+    cierre: z.string().regex(TIME).nullable().optional(),
+  })
+  .refine((day) => !day.disponible || (Boolean(day.apertura) && Boolean(day.cierre)), {
+    path: ["apertura"],
+  });
+
+const deliveryZoneSchema = z.object({
+  radio_km: z.number().min(0.1).max(100),
+  tarifa: z.number().min(0).max(100),
+  minimo: z.number().min(0).max(1000),
+  minutos: z.number().int().min(1).max(240),
 });
+
+const createSchema = z
+  .object({
+    nombre: z.string().trim().min(1).max(120),
+    slug: z.string().trim().max(100),
+    zona_horaria: z.string().trim().min(1).max(64),
+    plan: z.string().trim().min(1).max(40),
+    local: z.object({
+      nombre: z.string().trim().min(1).max(120),
+      direccion: z.string().trim().max(200).optional(),
+      telefono: z.string().trim().max(30).optional(),
+    }),
+    propietario_email: z.string().trim().toLowerCase().email().max(255),
+    // Alta completa (todo opcional): ubicación, servicios, horario, reparto y cobro iniciales.
+    ubicacion: z
+      .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
+      .optional(),
+    recogida: z.boolean().optional(),
+    reparto: z.boolean().optional(),
+    horario: z.array(scheduleDaySchema).min(1).max(WEEKDAYS_ES.length).optional(),
+    recogida_minutos: z.number().int().min(1).max(240).optional(),
+    zona_reparto: deliveryZoneSchema.optional(),
+    // Transferencia y Bizum piden IBAN o teléfono: los configura el propietario en Ajustes.
+    metodos_pago: z
+      .array(z.enum([PAYMENT_METHOD.Cash, PAYMENT_METHOD.Card]))
+      .min(1)
+      .max(2)
+      .refine((list) => new Set(list).size === list.length)
+      .optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (
+      input.horario &&
+      new Set(input.horario.map((day) => day.dia)).size !== input.horario.length
+    ) {
+      ctx.addIssue({ code: "custom", path: ["horario"], message: "día repetido" });
+    }
+    if (input.zona_reparto && !input.ubicacion) {
+      ctx.addIssue({ code: "custom", path: ["ubicacion"], message: "la zona necesita ubicación" });
+    }
+    if (input.zona_reparto && input.reparto === false) {
+      ctx.addIssue({ code: "custom", path: ["zona_reparto"], message: "sin reparto" });
+    }
+  });
+
+const importMenuSchema = z.object({ texto: z.string().max(300_000) });
 
 const planSchema = z.object({ plan: z.string().trim().min(1).max(40) });
 
@@ -281,6 +340,10 @@ export function plataformaRoutes(deps: AppDeps) {
     ]);
     const restaurant = restaurants[0];
     if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const [menu] = await sql<{ categorias: number; productos: number }[]>`
+      SELECT (SELECT count(*)::int FROM public.menu_category WHERE restaurante_id = ${id}) AS categorias,
+             (SELECT count(*)::int FROM public.menu_item WHERE restaurante_id = ${id}) AS productos
+    `;
     const active = Array.isArray(restaurant.payment_methods)
       ? restaurant.payment_methods.filter((m): m is string => typeof m === "string")
       : [];
@@ -312,6 +375,7 @@ export function plataformaRoutes(deps: AppDeps) {
         permitidos: allowed,
         activos: active,
       },
+      carta: { categorias: menu?.categorias ?? 0, productos: menu?.productos ?? 0 },
       locales: branches,
       equipo: members.map(({ apodo, ...member }) => ({
         ...member,
@@ -358,6 +422,24 @@ export function plataformaRoutes(deps: AppDeps) {
             zonaHoraria: input.zona_horaria,
             plan: input.plan,
             local: input.local,
+            recogida: input.recogida,
+            reparto: input.reparto,
+            ubicacion: input.ubicacion,
+            horario: input.horario?.map((day) => ({
+              dia: day.dia,
+              disponible: day.disponible,
+              apertura: day.apertura ?? null,
+              cierre: day.cierre ?? null,
+            })),
+            recogidaMinutos: input.recogida_minutos,
+            zonaReparto: input.zona_reparto && {
+              nombre: `${input.local.nombre} (${input.zona_reparto.radio_km} km)`,
+              radioKm: input.zona_reparto.radio_km,
+              tarifa: input.zona_reparto.tarifa,
+              minimo: input.zona_reparto.minimo,
+              minutos: input.zona_reparto.minutos,
+            },
+            metodosPago: input.metodos_pago,
           },
           deps.now(),
         );
@@ -394,6 +476,13 @@ export function plataformaRoutes(deps: AppDeps) {
       propietario_email: input.propietario_email,
       modulos: created.modules,
       email_enviado: emailSent,
+      completo: {
+        ubicacion: Boolean(input.ubicacion),
+        horario: input.horario?.length ?? 0,
+        reparto: Boolean(input.zona_reparto),
+        recogida_minutos: input.recogida_minutos ?? null,
+        metodos_pago: input.metodos_pago ?? null,
+      },
     });
     const base = panelBase(deps, c.req.header("Origin"));
     return c.json(
@@ -415,6 +504,47 @@ export function plataformaRoutes(deps: AppDeps) {
       },
       201,
     );
+  });
+
+  // ----------------------------------------------------------------------------------- carta
+
+  /**
+   * Importa la carta de un restaurante que aún no tiene ninguna, desde texto tabulado (ver
+   * `parseMenuImport`). Con `?simular=1` solo valida y devuelve el resumen, sin escribir.
+   */
+  app.post("/restaurantes/:id/carta/importar", writer, async (c) => {
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const parsed = await body(c, importMenuSchema);
+    if (!parsed.success) return invalid(c, "texto");
+    const menu = parseMenuImport(parsed.data.texto);
+    if (!menu.ok) return unprocessable(c, "invalid_menu", { errores: menu.errors });
+    const summary = {
+      categorias: menu.categorias.length,
+      productos: menu.categorias.reduce((total, cat) => total + cat.productos.length, 0),
+      precios: menu.categorias.reduce(
+        (total, cat) => total + cat.productos.reduce((n, item) => n + item.variantes.length, 0),
+        0,
+      ),
+    };
+    if (c.req.query("simular") === "1") return c.json({ simulacion: true, ...summary });
+    try {
+      await sql.begin((tx) => importMenu(tx, restaurant.id, menu.categorias));
+    } catch (error) {
+      if (error instanceof MenuAlreadyLoaded) {
+        return fail(c, 409, API_ERROR.Conflict, { reason: "menu_already_loaded" });
+      }
+      throw error;
+    }
+    await record(
+      c,
+      restaurant.id,
+      "plataforma.carta.importar",
+      "restaurante",
+      restaurant.id,
+      summary,
+    );
+    return c.json({ simulacion: false, ...summary }, 201);
   });
 
   // ----------------------------------------------------------------------------------- roles

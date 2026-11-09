@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   activeDependents,
   canCancelModule,
+  EMPTY_OPENING_DATA,
   inactivePermissions,
   invitationLink,
+  menuImportMessage,
   methodsThatWouldBeRemoved,
   moduleToggle,
   type NewRestaurantForm,
+  parseDecimal,
   platformErrorMessage,
   samePaymentSelection,
   slugMessage,
@@ -26,6 +29,7 @@ const valid: NewRestaurantForm = {
   direccion: "",
   telefono: "",
   propietarioEmail: "dueno@nuevo.test",
+  ...EMPTY_OPENING_DATA,
 };
 
 const module = (overrides: Partial<ModuleRow>): ModuleRow => ({
@@ -105,6 +109,73 @@ describe("alta de restaurante: validación", () => {
       plan: "basico",
       local: { nombre: "Bar Nuevo Centro", telefono: "900000000" },
       propietario_email: "dueno@nuevo.test",
+      metodos_pago: ["efectivo", "tarjeta"],
+    });
+  });
+
+  describe("datos para abrir al público", () => {
+    const opening: NewRestaurantForm = {
+      ...valid,
+      lat: "28,9780689",
+      lng: "-13.5697294",
+      semanaApertura: "08:00",
+      semanaCierre: "23:00",
+      findeApertura: "09:00",
+      findeCierre: "23:00",
+      recogidaMinutos: "30",
+      radioKm: "5",
+      tarifa: "2",
+      minimo: "30",
+      repartoMinutos: "30",
+      efectivo: true,
+      tarjeta: false,
+    };
+
+    it("un formulario completo no tiene errores y genera el cuerpo de la API", () => {
+      expect(validateNewRestaurant(opening)).toEqual({});
+      const body = toNewRestaurantBody(opening);
+      expect(body.ubicacion).toEqual({ lat: 28.9780689, lng: -13.5697294 });
+      expect(body.horario).toHaveLength(7);
+      expect(body.horario?.[0]).toEqual({
+        dia: "Lunes",
+        disponible: true,
+        apertura: "08:00",
+        cierre: "23:00",
+      });
+      expect(body.horario?.[5]).toMatchObject({ dia: "Sábado", apertura: "09:00" });
+      expect(body.recogida_minutos).toBe(30);
+      expect(body.zona_reparto).toEqual({ radio_km: 5, tarifa: 2, minimo: 30, minutos: 30 });
+      expect(body.metodos_pago).toEqual(["efectivo"]);
+    });
+
+    it("cada grupo va completo o vacío", () => {
+      expect(validateNewRestaurant({ ...opening, lng: "" })).toHaveProperty("lng");
+      expect(validateNewRestaurant({ ...opening, semanaCierre: "" })).toHaveProperty(
+        "semanaCierre",
+      );
+      expect(validateNewRestaurant({ ...opening, tarifa: "" })).toHaveProperty("tarifa");
+      expect(validateNewRestaurant({ ...opening, lat: "", lng: "" })).toHaveProperty("lat");
+    });
+
+    it("valida rangos, horas y métodos", () => {
+      expect(validateNewRestaurant({ ...opening, lat: "91" })).toHaveProperty("lat");
+      expect(validateNewRestaurant({ ...opening, findeApertura: "9:00" })).toHaveProperty(
+        "findeApertura",
+      );
+      expect(validateNewRestaurant({ ...opening, recogidaMinutos: "0" })).toHaveProperty(
+        "recogidaMinutos",
+      );
+      expect(validateNewRestaurant({ ...opening, radioKm: "0" })).toHaveProperty("radioKm");
+      expect(validateNewRestaurant({ ...opening, efectivo: false, tarjeta: false })).toHaveProperty(
+        "efectivo",
+      );
+    });
+
+    it("lee decimales con coma o punto", () => {
+      expect(parseDecimal("2,5")).toBe(2.5);
+      expect(parseDecimal(" 2.5 ")).toBe(2.5);
+      expect(parseDecimal("dos")).toBeNull();
+      expect(parseDecimal("")).toBeNull();
     });
   });
 
@@ -139,6 +210,30 @@ describe("roles propios", () => {
     expect(platformErrorMessage(409, { reason: "duplicate_name" } as never)).toContain(
       "Ya hay un rol",
     );
+  });
+});
+
+describe("importación de carta: mensajes", () => {
+  it("una frase por error, con su línea", () => {
+    expect(
+      menuImportMessage(422, {
+        reason: "invalid_menu",
+        errores: [
+          { line: 2, code: "invalid_price" },
+          { line: 0, code: "empty" },
+        ],
+      } as never),
+    ).toEqual([
+      "Línea 2: el precio no es válido (usa por ejemplo 4,90 y mayor que 0).",
+      "No hay ninguna fila con datos.",
+    ]);
+  });
+
+  it("avisa si ya hay carta y cae en el mensaje general", () => {
+    expect(menuImportMessage(409, { reason: "menu_already_loaded" } as never)[0]).toContain(
+      "ya tiene carta",
+    );
+    expect(menuImportMessage(403, null)[0]).toContain("permiso");
   });
 });
 
