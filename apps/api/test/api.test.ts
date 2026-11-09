@@ -30,7 +30,11 @@ async function postOrder(
       ...(key ? { "Idempotency-Key": key } : {}),
     },
     // El checkout web exige aceptar la política de privacidad; un caso concreto puede anularlo.
-    body: JSON.stringify({ privacidad_aceptada: true, ...(body as Record<string, unknown>) }),
+    body: JSON.stringify({
+      privacidad_aceptada: true,
+      email: "cliente@test.local",
+      ...(body as Record<string, unknown>),
+    }),
   });
   return { status: response.status, json: (await response.json()) as Record<string, unknown> };
 }

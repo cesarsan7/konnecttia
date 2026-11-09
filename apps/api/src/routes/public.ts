@@ -11,6 +11,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
+import { maskEmail } from "../lib/customer-email";
 import { API_ERROR, fail } from "../lib/http";
 import { createRateLimiter } from "../lib/rate-limit";
 import { TURNSTILE_MAX_TOKEN_LENGTH } from "../lib/turnstile";
@@ -25,7 +26,11 @@ import { loadBranches, openChecker, unavailableItems } from "../repositories/bra
 import { loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
-import { findOrderByTrackingToken, ORDER_CHANNEL } from "../repositories/orders";
+import {
+  findOrderByTrackingToken,
+  ORDER_CHANNEL,
+  updateTrackedOrderEmail,
+} from "../repositories/orders";
 import {
   checkProofTarget,
   detectProofType,
@@ -69,6 +74,9 @@ const PROOF_STATUS: Record<ProofRejection, 404 | 409> = {
 };
 
 const positiveInt = z.number().int().positive();
+/** Email del cliente: sin espacios, en minúsculas y con formato válido (máx. 254, como el SMTP). */
+const emailField = z.string().trim().toLowerCase().max(254).pipe(z.email());
+const emailBodySchema = z.object({ email: emailField });
 const latitude = z.number().min(-90).max(90);
 const longitude = z.number().min(-180).max(180);
 
@@ -99,6 +107,8 @@ export const orderBodySchema = z
       .trim()
       .regex(/^\+?[0-9]{7,20}$/, "Teléfono no válido"),
     nombre_pedido: z.string().trim().max(120).optional(),
+    /** Email para los avisos del pedido. Obligatorio en el checkout web; el panel y n8n no lo piden. */
+    email: emailField.optional(),
     tipo_despacho: z.enum([FULFILLMENT.Pickup, FULFILLMENT.Delivery]),
     metodo_pago: z.string().trim().min(1).max(40),
     direccion: z.string().trim().max(300).optional(),
@@ -204,6 +214,32 @@ export function publicRoutes(deps: AppDeps) {
     }
     const order = await findOrderByTrackingToken(deps.sql, token);
     return order ? c.json(order) : fail(c, 404, API_ERROR.OrderNotFound);
+  });
+
+  /**
+   * El cliente corrige el email de sus avisos desde el seguimiento (por si se equivocó al
+   * escribirlo). Solo con el pedido abierto; el enlace de seguimiento es la credencial.
+   */
+  app.patch("/orders/:token/email", async (c) => {
+    if (trackingLimited(clientIp(c.req.header(deps.clientIpHeader)))) {
+      return fail(c, 429, API_ERROR.RateLimited);
+    }
+    const token = c.req.param("token");
+    if (!UUID_PATTERN.test(token)) return fail(c, 404, API_ERROR.OrderNotFound);
+    const parsed = emailBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      return fail(c, 400, API_ERROR.InvalidBody, {
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join("."),
+          message: issue.message,
+        })),
+      });
+    }
+    const result = await updateTrackedOrderEmail(deps.sql, token, parsed.data.email);
+    if (result === "not_found") return fail(c, 404, API_ERROR.OrderNotFound);
+    if (result === "closed")
+      return fail(c, 409, API_ERROR.InvalidTransition, { reason: "order_closed" });
+    return c.json({ ok: true, email_avisos: maskEmail(parsed.data.email) });
   });
 
   /**
@@ -570,6 +606,13 @@ export function publicRoutes(deps: AppDeps) {
     // Sin aceptar la política de privacidad no se pide por la web (el panel y n8n no la exigen).
     if (body.privacidad_aceptada !== true) {
       return fail(c, 422, API_ERROR.PrivacyRequired, { reason: PRIVACY_REQUIRED_REASON });
+    }
+
+    // El checkout web exige el email para avisar del pedido (el panel y n8n no lo piden).
+    if (!body.email) {
+      return fail(c, 400, API_ERROR.InvalidBody, {
+        issues: [{ path: "email", message: "required" }],
+      });
     }
 
     // Antifraude (pieza Q). Un reintento de un pedido ya creado (misma clave de idempotencia) no

@@ -7,6 +7,7 @@ import { euros } from "@/lib/format";
 import { needsPaymentInfo } from "@/lib/payment-proof";
 import { copyText, isClosed } from "@/lib/tracking";
 import type { TrackedOrder } from "@/lib/types";
+import { EmailAvisos } from "./EmailAvisos";
 import { PaymentProof } from "./PaymentProof";
 import "./tracking.css";
 
@@ -154,6 +155,8 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
       {needsPaymentInfo(order) && (
         <PaymentProof api={api} token={token} order={order} onUploaded={refresh} />
       )}
+
+      <EmailAvisos api={api} token={token} order={order} onSaved={refresh} />
 
       <section className="group card">
         <h2>{order.tipoDespacho === "delivery" ? "Entrega a domicilio" : "Recogida"}</h2>

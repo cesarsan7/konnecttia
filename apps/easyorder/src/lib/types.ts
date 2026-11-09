@@ -113,6 +113,10 @@ export type TrackedOrder = {
   /** Justificantes ya subidos y si el cliente aún puede subir otro. */
   readonly justificantes: number;
   readonly aceptaJustificante: boolean;
+  /** Email de avisos con la parte local oculta (j***@dominio); null si el pedido no lo tiene. */
+  readonly emailAvisos?: string | null;
+  /** El cliente puede corregirlo mientras el pedido no esté entregado, cancelado o expirado. */
+  readonly emailEditable?: boolean;
   readonly createdAt: string;
   readonly updatedAt: string | null;
 };

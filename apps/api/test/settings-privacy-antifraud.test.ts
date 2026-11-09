@@ -45,6 +45,7 @@ async function webOrder(phone: string) {
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
       privacidad_aceptada: true,
+      email: "cliente@test.local",
       items: salchimaduro,
     }),
   });

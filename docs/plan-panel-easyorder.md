@@ -99,18 +99,18 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 6 de noviembre de 2026 
 
 ## Pendiente, en orden
 
-| #   | Pieza                                     | Qué incluye                                                                                                                      | Tablas                                          | Permisos                   | Fase     |
-| --- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------- | -------- |
-| 1   | ~~Carta~~                                 | Hecha en el PR #23 (fusionado, 0011 aplicada en staging)                                                                         | —                                               | `menu.*`                   | MVP      |
-| 2   | ~~Pedido manual~~                         | Hecho en el PR #28                                                                                                               | —                                               | `orders.create`            | MVP      |
-| 3   | ~~Configuración~~                         | Hecha: parte 1 (PR #25) y parte 2 (zonas, horas punta, suplementos)                                                              | —                                               | `settings.*`, `delivery.*` | MVP      |
-| 4   | ~~Equipo y roles~~                        | Hecho: invitación por enlace (opcionalmente para un email), rol y locales, cambiar y quitar acceso. Roles propios: panel interno | —                                               | `team.*`                   | MVP      |
-| 5   | ~~Clientes~~                              | Hecho en el PR #29                                                                                                               | —                                               | `customers.*`              | MVP      |
-| 6   | ~~Tiempo real~~                           | Hecho en el PR #30 (huella del tablero, también detecta cambios de n8n)                                                          | —                                               | `orders.view`              | MVP      |
-| 7   | ~~Avisos por email~~                      | Hecho en el PR #61 (`apps/worker`, 0025): aviso al local; al cliente, preparado sin email del cliente                            | `outbox_evento`                                 | —                          | Fase 3   |
-| 8   | ~~Panel interno Konnecttia~~ (`/interno`) | Hecho en el PR #54 (ADR 0009, 0022): alta, plan, módulos, métodos de pago. Roles por restaurante hechos en #70                   | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
-| 9   | **Derivar a humano en el panel**          | Ver conversaciones derivadas por el agente y responder                                                                           | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |
-| 10  | **Cobro online**                          | ADR y pasarela                                                                                                                   | —                                               | —                          | Post-MVP |
+| #   | Pieza                                     | Qué incluye                                                                                                                                   | Tablas                                          | Permisos                   | Fase     |
+| --- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------- | -------- |
+| 1   | ~~Carta~~                                 | Hecha en el PR #23 (fusionado, 0011 aplicada en staging)                                                                                      | —                                               | `menu.*`                   | MVP      |
+| 2   | ~~Pedido manual~~                         | Hecho en el PR #28                                                                                                                            | —                                               | `orders.create`            | MVP      |
+| 3   | ~~Configuración~~                         | Hecha: parte 1 (PR #25) y parte 2 (zonas, horas punta, suplementos)                                                                           | —                                               | `settings.*`, `delivery.*` | MVP      |
+| 4   | ~~Equipo y roles~~                        | Hecho: invitación por enlace (opcionalmente para un email), rol y locales, cambiar y quitar acceso. Roles propios: panel interno              | —                                               | `team.*`                   | MVP      |
+| 5   | ~~Clientes~~                              | Hecho en el PR #29                                                                                                                            | —                                               | `customers.*`              | MVP      |
+| 6   | ~~Tiempo real~~                           | Hecho en el PR #30 (huella del tablero, también detecta cambios de n8n)                                                                       | —                                               | `orders.view`              | MVP      |
+| 7   | ~~Avisos por email~~                      | Hecho en el PR #61 (`apps/worker`, 0025): aviso al local; al cliente, cuando el pedido trae email (obligatorio en el checkout web desde 0027) | `outbox_evento`                                 | —                          | Fase 3   |
+| 8   | ~~Panel interno Konnecttia~~ (`/interno`) | Hecho en el PR #54 (ADR 0009, 0022): alta, plan, módulos, métodos de pago. Roles por restaurante hechos en #70                                | `restaurante_plan`, `restaurante_modulo`, `rol` | solo equipo Konnecttia     | Fase 3   |
+| 9   | **Derivar a humano en el panel**          | Ver conversaciones derivadas por el agente y responder                                                                                        | Chatwoot / Kapso                                | `conversations.*`          | Post-MVP |
+| 10  | **Cobro online**                          | ADR y pasarela                                                                                                                                | —                                               | —                          | Post-MVP |
 
 ## Requerimientos del promotor (4/11), aterrizados
 
@@ -211,7 +211,7 @@ Se retoman cuando el promotor tenga estos datos:
   - si hay un proveedor de reparto externo en mente (M);
   - si hay presupuesto para enviar códigos por SMS o WhatsApp (capa 3 de Q).
 - Despliegue: si las migraciones se aplican solas al desplegar o se deja un aviso en `AGENTS.md`.
-- Avisos por email al cliente: pedir (opcional) el email en el checkout para activarlos.
+- ~~Avisos por email al cliente~~: hecho. El email es obligatorio en el checkout web (`pedidos.email_cliente`, 0027) y el cliente puede corregirlo desde el seguimiento mientras el pedido está abierto; el aviso lo envía el worker si el local lo activa.
 - ¿Las estadísticas por mesero y repartidor deben verlas todos los que ven estadísticas?
 
 ### Estado del 6/11 (noche)

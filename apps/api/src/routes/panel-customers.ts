@@ -487,13 +487,20 @@ async function anonymizeCustomer(
     await tx`
       UPDATE public.pedidos
       SET    telefono = '', nombre_pedido = NULL, direccion = NULL, lat = NULL, lng = NULL,
-             notas = NULL, chatwoot_conversation_id = NULL,
+             notas = NULL, email_cliente = NULL, chatwoot_conversation_id = NULL,
              session_id = ${ANONYMIZED_PHONE_PREFIX} || id::text,
              items = CASE WHEN jsonb_typeof(items) = 'array' THEN COALESCE((
                  SELECT jsonb_agg(CASE WHEN jsonb_typeof(line) = 'object' THEN line - 'nota' ELSE line END)
                  FROM   jsonb_array_elements(items) AS line
                ), '[]'::jsonb) ELSE items END
       WHERE  restaurante_id = ${restauranteId} AND id IN ${tx([...pedidoIds])}
+    `;
+    // El email también viaja en el payload de los eventos pendientes del outbox: se quita.
+    await tx`
+      UPDATE public.outbox_evento
+      SET    payload = payload - 'email_cliente'
+      WHERE  restaurante_id = ${restauranteId} AND agregado_tipo = 'pedido'
+        AND  agregado_id IN ${tx(pedidoIds.map(String))} AND payload ? 'email_cliente'
     `;
   }
   await tx`

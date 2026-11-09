@@ -19,6 +19,7 @@ async function pickupEta(): Promise<unknown> {
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
       privacidad_aceptada: true,
+      email: "cliente@test.local",
       items: [{ menu_item_id: 1101, menu_variant_id: 1202, quantity: 2 }],
     }),
   });

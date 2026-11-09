@@ -64,6 +64,13 @@ export function createApi(baseUrl: string) {
         body: JSON.stringify(body),
       }),
     tracking: (token: string) => request<TrackedOrder>(`${base}/orders/${segment(token)}`),
+    /** Corrige el email de avisos del pedido (con el token; solo mientras el pedido está abierto). */
+    updateEmail: (token: string, email: string) =>
+      request<{ ok: true; email_avisos: string }>(`${base}/orders/${segment(token)}/email`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      }),
     /** Sube el justificante de un pago por Bizum o transferencia (con el token del pedido). */
     uploadProof: (token: string, file: File) => {
       const form = new FormData();

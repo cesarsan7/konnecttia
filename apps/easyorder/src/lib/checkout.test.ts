@@ -4,11 +4,16 @@ import {
   consentFields,
   describeApiError,
   describeZoneFee,
+  EMAIL_REQUIRED_MESSAGE,
+  emailProblem,
+  normalizeEmail,
   normalizePhone,
   PHONE_LIMIT_MESSAGE,
   PRIVACY_REQUIRED_MESSAGE,
   privacyHref,
   privacyProblem,
+  readRememberedEmail,
+  rememberEmail,
   trackingSteps,
 } from "./checkout";
 
@@ -131,5 +136,40 @@ describe("privacidad en el checkout", () => {
 
   it("traduce el rechazo de la API a un mensaje claro", () => {
     expect(describeApiError(422, { error: "privacy_required" })).toMatch(/política de privacidad/);
+  });
+});
+
+describe("email del cliente", () => {
+  it("normaliza y valida el email", () => {
+    expect(normalizeEmail("  Marta@Ejemplo.COM ")).toBe("marta@ejemplo.com");
+    for (const bad of [
+      "",
+      "marta",
+      "marta@",
+      "marta@dominio",
+      "a b@c.com",
+      `${"a".repeat(250)}@b.co`,
+    ]) {
+      expect(normalizeEmail(bad)).toBeNull();
+    }
+    expect(emailProblem("")).toBe(EMAIL_REQUIRED_MESSAGE);
+    expect(emailProblem("a@b.co")).toBeNull();
+  });
+
+  it("recuerda el email sin romper si el almacenamiento falla", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => void values.set(key, value),
+    };
+    rememberEmail(() => storage, "a@b.co");
+    expect(readRememberedEmail(() => storage)).toBe("a@b.co");
+    rememberEmail(() => storage, "");
+    expect(readRememberedEmail(() => storage)).toBe("a@b.co");
+    const broken = () => {
+      throw new Error("SecurityError");
+    };
+    expect(readRememberedEmail(broken)).toBe("");
+    expect(() => rememberEmail(broken, "a@b.co")).not.toThrow();
   });
 });

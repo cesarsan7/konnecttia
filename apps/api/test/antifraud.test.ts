@@ -39,6 +39,7 @@ async function webOrder(
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
       privacidad_aceptada: true,
+      email: "cliente@test.local",
       ...(slug === "prueba-c" ? { sucursal_id: 3002 } : {}),
       items,
       ...options.extra,

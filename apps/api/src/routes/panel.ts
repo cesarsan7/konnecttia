@@ -3,6 +3,7 @@ import { isOrderStatus, ORDER_STATUS, PAYMENT_STATUS, TRIAL_STATE } from "@konne
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
+import { emailPayload } from "../lib/customer-email";
 import { API_ERROR, fail } from "../lib/http";
 import { canSeeMemberEmails, displayName } from "../lib/member-name";
 import { requireMember, requirePermission } from "../middleware/auth";
@@ -427,9 +428,15 @@ export function panelRoutes(deps: AppDeps) {
 
       const result = await deps.sql.begin(async (tx) => {
         const rows = await tx<
-          { id: number; estado: string; estado_pago: string; sucursal_id: number | null }[]
+          {
+            id: number;
+            estado: string;
+            estado_pago: string;
+            sucursal_id: number | null;
+            email_cliente: string | null;
+          }[]
         >`
-          SELECT id, estado, estado_pago, sucursal_id
+          SELECT id, estado, estado_pago, sucursal_id, email_cliente
           FROM   public.pedidos
           WHERE  id = ${id} AND restaurante_id = ${restaurant.id}
           FOR UPDATE
@@ -457,7 +464,7 @@ export function panelRoutes(deps: AppDeps) {
               (restaurante_id, tipo, agregado_tipo, agregado_id, payload, clave_idempotencia)
             VALUES (
               ${restaurant.id}, ${OUTBOX_EVENT.OrderStatusChanged}, 'pedido', ${String(id)},
-              ${tx.json({ pedido_id: id, desde: order.estado, hacia: nextStatus })},
+              ${tx.json({ pedido_id: id, desde: order.estado, hacia: nextStatus, ...emailPayload(order.email_cliente) })},
               ${`${OUTBOX_EVENT.OrderStatusChanged}:${id}:${order.estado}:${nextStatus}`}
             )
             ON CONFLICT (clave_idempotencia) DO NOTHING

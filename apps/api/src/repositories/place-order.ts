@@ -177,6 +177,7 @@ export async function placeOrder(
     metodoPago: body.metodo_pago,
     tiempoEstimado: eta,
     notas: body.notas ?? null,
+    emailCliente: body.email ?? null,
     quote: priced.quote,
     mesaId: body.mesa_id ?? null,
     ...(consent

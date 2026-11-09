@@ -63,6 +63,7 @@ const webOrderWith = async (slug: string, now: Date) => {
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
       privacidad_aceptada: true,
+      email: "cliente@test.local",
       items: [{ menu_item_id: 1, menu_variant_id: 1, quantity: 1 }],
     }),
   });

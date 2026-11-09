@@ -5,6 +5,7 @@ import {
   PAYMENT_METHOD,
   PAYMENT_STATUS,
 } from "@konnecttia/domain";
+import { emailPayload, maskEmail } from "../lib/customer-email";
 import { centsToEuros, eurosToCents, type Sql, UNIQUE_VIOLATION } from "../lib/db";
 import { acceptsProof, maxProofsPerOrder } from "./payment-proofs";
 import { CONFIG_KEY } from "./restaurants";
@@ -16,6 +17,13 @@ export const ORDER_CHANNEL = {
   Phone: "telefono",
   Counter: "mostrador",
 } as const;
+
+/** Estados en los que el pedido ya no genera avisos: el email ya no se puede cambiar. */
+const FINAL_STATES: ReadonlySet<string> = new Set([
+  ORDER_STATUS.Delivered,
+  ORDER_STATUS.Cancelled,
+  ORDER_STATUS.Expired,
+]);
 
 export type OrderChannel = (typeof ORDER_CHANNEL)[keyof typeof ORDER_CHANNEL];
 export const OUTBOX_EVENT = {
@@ -41,6 +49,8 @@ export type NewOrder = {
   readonly metodoPago: string;
   readonly tiempoEstimado: string | null;
   readonly notas: string | null;
+  /** Email para avisar del pedido (obligatorio en el checkout web). */
+  readonly emailCliente?: string | null;
   readonly quote: Quote;
   /** Pedido en mesa (servicio de mesa). */
   readonly mesaId?: number | null;
@@ -169,7 +179,7 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           tipo_despacho, direccion, postal_code, tiempo_estimado, metodo_pago,
           estado, estado_pago, notas, canal, nombre_pedido, idempotency_key,
           sucursal_id, lat, lng, distancia_km, mesa_id,
-          privacidad_aceptada_at, privacidad_version
+          privacidad_aceptada_at, privacidad_version, email_cliente
         ) VALUES (
           ${order.restauranteId}, ${order.telefono}, ${usuario[0]?.id ?? null},
           ${tx.json(legacyItemsSnapshot(quote))}, ${subtotal},
@@ -181,7 +191,8 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           ${order.customerPoint?.lng ?? null},
           ${order.distanciaKm === null ? null : Math.round(order.distanciaKm * 100) / 100},
           ${order.mesaId ?? null},
-          ${order.consent ? tx`now()` : null}, ${order.consent?.privacyVersion ?? null}
+          ${order.consent ? tx`now()` : null}, ${order.consent?.privacyVersion ?? null},
+          ${order.emailCliente ?? null}
         )
         RETURNING id, pedido_codigo, tracking_token, estado
       `;
@@ -203,7 +214,7 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
           (restaurante_id, tipo, agregado_tipo, agregado_id, payload, clave_idempotencia)
         VALUES (
           ${order.restauranteId}, ${OUTBOX_EVENT.OrderReceived}, 'pedido', ${String(pedido.id)},
-          ${tx.json({ pedido_id: pedido.id, canal: order.canal })},
+          ${tx.json({ pedido_id: pedido.id, canal: order.canal, ...emailPayload(order.emailCliente) })},
           ${`${OUTBOX_EVENT.OrderReceived}:${pedido.id}`}
         )
       `;
@@ -227,6 +238,10 @@ export async function createOrder(sql: Sql, order: NewOrder): Promise<CreatedOrd
 }
 
 export type TrackedOrder = {
+  /** Email al que se avisa, enmascarado («j***@gmail.com»); `null` si el pedido no tiene. */
+  readonly emailAvisos: string | null;
+  /** Se puede corregir el email mientras el pedido siga abierto. */
+  readonly emailEditable: boolean;
   readonly pedidoCodigo: string | null;
   readonly restaurante: string;
   /** Local que prepara o despacha (dirección del local, nunca la del cliente). */
@@ -300,13 +315,14 @@ export async function findOrderByTrackingToken(
       datos_bancarios: unknown;
       justificantes: number;
       justificantes_max: string | null;
+      email_cliente: string | null;
       created_at: string;
       updated_at: string | null;
     }[]
   >`
     SELECT p.pedido_codigo, r.nombre AS restaurante, p.estado, p.estado_pago, p.tipo_despacho,
            p.tiempo_estimado, p.items, p.subtotal, p.costo_envio, p.total, p.metodo_pago,
-           r.datos_bancarios, p.created_at, p.updated_at,
+           r.datos_bancarios, p.created_at, p.updated_at, p.email_cliente,
            (SELECT count(*)::int FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
              AS justificantes,
            (SELECT c.config_value FROM public.restaurante_config c
@@ -332,6 +348,8 @@ export async function findOrderByTrackingToken(
     ),
   );
   return {
+    emailAvisos: row.email_cliente ? maskEmail(row.email_cliente) : null,
+    emailEditable: !FINAL_STATES.has(row.estado),
     pedidoCodigo: row.pedido_codigo,
     restaurante: row.restaurante,
     local: row.local_nombre ? { nombre: row.local_nombre, direccion: row.local_direccion } : null,
@@ -350,4 +368,28 @@ export async function findOrderByTrackingToken(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/**
+ * El cliente corrige el email de sus avisos desde el enlace de seguimiento. Solo mientras el pedido
+ * esté abierto y no esté anonimizado (teléfono vacío tras borrar los datos del cliente).
+ */
+export async function updateTrackedOrderEmail(
+  sql: Sql,
+  token: string,
+  email: string,
+): Promise<"updated" | "not_found" | "closed"> {
+  const rows = await sql<{ estado: string; telefono: string }[]>`
+    UPDATE public.pedidos
+    SET    email_cliente = ${email}, updated_at = now()
+    WHERE  tracking_token = ${token}::uuid
+      AND  estado NOT IN ${sql([...FINAL_STATES])}
+      AND  telefono <> ''
+    RETURNING estado, telefono
+  `;
+  if (rows.length > 0) return "updated";
+  const [exists] = await sql<{ id: number }[]>`
+    SELECT id FROM public.pedidos WHERE tracking_token = ${token}::uuid
+  `;
+  return exists ? "closed" : "not_found";
 }

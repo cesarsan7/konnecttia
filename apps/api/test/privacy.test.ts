@@ -24,6 +24,7 @@ async function webOrder(
     },
     body: JSON.stringify({
       nombre: "Marta Pérez",
+      email: "marta@test.local",
       telefono: phone,
       tipo_despacho: "retiro",
       metodo_pago: "efectivo",
