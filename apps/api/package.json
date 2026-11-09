@@ -17,7 +17,7 @@
     "@konnecttia/notifications": "workspace:*",
     "@supabase/supabase-js": "^2.119.0",
     "hono": "^4.13.16",
-    "postgres": "^3.4.5",
+    "postgres": "^4.1.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
