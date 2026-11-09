@@ -4,6 +4,7 @@ import "./roles.css";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { describePanelError } from "@/lib/panel/api";
 import {
+  customizeWarning,
   type PermissionGroup,
   type RoleDetail,
   type RolesCatalog,
@@ -25,6 +26,7 @@ export function RolesSection({ onChanged }: { readonly onChanged: (message: stri
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<RoleDetail | "new" | null>(null);
   const [viewing, setViewing] = useState<RoleDetail | null>(null);
+  const [customizing, setCustomizing] = useState<RoleDetail | null>(null);
   const canManage = can(PERMISSION.TeamManage);
 
   const load = useCallback(async () => {
@@ -86,9 +88,24 @@ export function RolesSection({ onChanged }: { readonly onChanged: (message: stri
                     Editar
                   </button>
                 ) : (
-                  <button type="button" className="k-link k-small" onClick={() => setViewing(role)}>
-                    Ver permisos
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="k-link k-small"
+                      onClick={() => setViewing(role)}
+                    >
+                      Ver permisos
+                    </button>
+                    {role.personalizable ? (
+                      <button
+                        type="button"
+                        className="k-btn k-btn-secondary k-btn-sm"
+                        onClick={() => setCustomizing(role)}
+                      >
+                        Personalizar
+                      </button>
+                    ) : null}
+                  </>
                 )}
               </span>
             </li>
@@ -106,11 +123,23 @@ export function RolesSection({ onChanged }: { readonly onChanged: (message: stri
           </ul>
           {viewing.plantilla ? (
             <p className="k-small k-muted">
-              Es un rol de EasyOrder y no se cambia. Si necesitas otra combinación, crea un rol
-              propio.
+              Es un rol de EasyOrder y no se cambia. Si necesitas otra combinación, personalízalo
+              (copia propia con los mismos permisos) o crea un rol propio.
             </p>
           ) : null}
         </Modal>
+      ) : null}
+
+      {customizing ? (
+        <CustomizeDialog
+          role={customizing}
+          onClose={() => setCustomizing(null)}
+          onDone={(message) => {
+            setCustomizing(null);
+            onChanged(message);
+            void load();
+          }}
+        />
       ) : null}
 
       {editing && data ? (
@@ -251,6 +280,64 @@ function RoleDialog(props: {
               Guardar
             </button>
           </span>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CustomizeDialog(props: {
+  readonly role: RoleDetail;
+  readonly onClose: () => void;
+  readonly onDone: (message: string) => void;
+}) {
+  const { api } = usePanel();
+  const { slug } = useAccess();
+  const [nombre, setNombre] = useState(`${props.role.nombre} (personalizado)`);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function confirm(event: FormEvent) {
+    event.preventDefault();
+    if (nombre.trim().length < 2) return setError("Ponle un nombre al rol.");
+    setBusy(true);
+    const result = await api.teamChange(slug, "POST", `/roles/${props.role.id}/personalizar`, {
+      nombre: nombre.trim(),
+    });
+    setBusy(false);
+    if (!result.ok) {
+      return setError(roleErrorMessage((result.body as { reason?: string } | null)?.reason));
+    }
+    props.onDone("Rol personalizado. Ya puedes editar sus permisos.");
+  }
+
+  return (
+    <Modal title={`Personalizar ${props.role.nombre}`} onClose={props.onClose}>
+      <form onSubmit={confirm} noValidate className="k-editor">
+        {error ? (
+          <p className="k-alert" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <p className="k-small">{customizeWarning(props.role)}</p>
+        <label className="k-field">
+          <span>Nombre de la copia</span>
+          <input
+            value={nombre}
+            maxLength={60}
+            onChange={(event) => setNombre(event.target.value)}
+          />
+        </label>
+        <p className="k-small k-muted">
+          El rol de EasyOrder no cambia y sigue disponible para otros restaurantes.
+        </p>
+        <div className="k-dialog-actions">
+          <button type="button" className="k-btn k-btn-secondary" onClick={props.onClose}>
+            Cancelar
+          </button>
+          <button type="submit" className="k-btn k-btn-go" disabled={busy}>
+            Personalizar
+          </button>
         </div>
       </form>
     </Modal>

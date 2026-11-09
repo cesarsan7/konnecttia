@@ -6,6 +6,7 @@ import {
   PERMISSION_LABEL,
   PERMISSION_MODULE,
   type PermissionCode,
+  ROLE_TEMPLATE,
 } from "@konnecttia/access";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
@@ -129,6 +130,12 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         invitaciones: byRole.get(role.id)?.invitaciones ?? 0,
         editable:
           manage && !role.plantilla && canGrantRole(access, role.permisos as PermissionCode[]),
+        // Se puede copiar a un rol propio (Propietario no: no se recorta).
+        personalizable:
+          manage &&
+          role.plantilla &&
+          role.code !== ROLE_TEMPLATE.Owner &&
+          canGrantRole(access, role.permisos as PermissionCode[]),
       })),
       // Permisos agrupados por módulo; solo se pueden dar los que tiene quien edita.
       catalogo: MODULES.map((module) => ({
@@ -189,6 +196,94 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       throw error;
     }
   });
+
+  /**
+   * «Personalizar» una plantilla: crea una copia propia del restaurante con los mismos permisos
+   * y pasa a ella a quienes tenían la plantilla (miembros e invitaciones pendientes de ESTE
+   * restaurante). La plantilla global no cambia. Propietario no se personaliza (el restaurante
+   * nunca se queda sin propietario). No toca la columna antigua local_memberships.rol, que lee
+   * el dashboard antiguo.
+   */
+  app.post(
+    "/:slug/equipo/roles/:id/personalizar",
+    requirePermission(deps, PERMISSION.TeamManage),
+    async (c) => {
+      const restauranteId = c.get("restaurant").id;
+      const template = await ownRole(c);
+      if (!template) return fail(c, 404, API_ERROR.NotFound);
+      if (!template.plantilla)
+        return fail(c, 422, API_ERROR.InvalidBody, { reason: "not_template" });
+      if (template.code === ROLE_TEMPLATE.Owner) {
+        return deny(c, "team.role.customize", "owner_not_customizable", template.id);
+      }
+      if (!canGrantRole(c.get("access"), template.permisos as PermissionCode[])) {
+        return deny(c, "team.role.customize", "role_above_yours", template.id);
+      }
+      const parsed = z
+        .object({ nombre: z.string().trim().min(2).max(60).optional() })
+        .safeParse(await c.req.json().catch(() => ({})));
+      if (!parsed.success) return fail(c, 400, API_ERROR.InvalidBody);
+      const nombre = parsed.data.nombre ?? `${template.nombre} (personalizado)`;
+      if (await nameTaken(c, nombre, null)) {
+        return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
+      }
+      try {
+        const result = await sql.begin(async (tx) => {
+          const base = roleCode(nombre);
+          const taken = await tx<{ code: string }[]>`
+            SELECT code FROM public.rol
+            WHERE  restaurante_id = ${restauranteId} AND code LIKE ${`${base}%`}
+          `;
+          const codes = new Set(taken.map((row) => row.code));
+          let code = base;
+          for (let n = 2; codes.has(code); n += 1) code = `${base}_${n}`;
+          const [row] = await tx<{ id: number }[]>`
+            INSERT INTO public.rol (restaurante_id, code, nombre, es_plantilla)
+            VALUES (${restauranteId}, ${code}, ${nombre}, false)
+            RETURNING id
+          `;
+          if (!row) throw new Error("El INSERT del rol no devolvió filas");
+          await tx`
+            INSERT INTO public.rol_permiso (rol_id, permiso_code)
+            SELECT ${row.id}, unnest(${template.permisos}::text[])
+          `;
+          const moved = await tx`
+            UPDATE public.membresia_rol mr SET rol_id = ${row.id}
+            FROM   public.local_memberships m
+            WHERE  m.id = mr.membership_id AND m.restaurante_id = ${restauranteId}
+              AND  mr.rol_id = ${template.id}
+          `;
+          const invites = await tx`
+            UPDATE public.restaurant_invites SET rol_id = ${row.id}
+            WHERE  restaurante_id = ${restauranteId} AND rol_id = ${template.id}
+              AND  used_at IS NULL AND revocada_at IS NULL
+              AND  expires_at > (now() AT TIME ZONE 'UTC')
+          `;
+          return { id: row.id, miembros: moved.count, invitaciones: invites.count };
+        });
+        await record(c, "team.role.customize", result.id, {
+          plantilla: template.code,
+          nombre,
+          permisos: template.permisos,
+          miembros_movidos: result.miembros,
+          invitaciones_movidas: result.invitaciones,
+        });
+        return c.json(
+          {
+            id: result.id,
+            miembros_movidos: result.miembros,
+            invitaciones_movidas: result.invitaciones,
+          },
+          201,
+        );
+      } catch (error) {
+        if ((error as { code?: string }).code === UNIQUE_VIOLATION) {
+          return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
+        }
+        throw error;
+      }
+    },
+  );
 
   app.put("/:slug/equipo/roles/:id", requirePermission(deps, PERMISSION.TeamManage), async (c) => {
     const role = await ownRole(c);

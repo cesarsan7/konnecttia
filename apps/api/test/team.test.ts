@@ -412,6 +412,113 @@ describe.skipIf(!TEST_DATABASE_URL)("equipo del restaurante", () => {
       ]);
     });
 
+    it("personaliza una plantilla: copia propia, mueve miembros e invitaciones, deja la global", async () => {
+      const before = (await roles()).body.roles;
+      const viewer = before.find((role: { code: string }) => role.code === "viewer");
+      const owner = before.find((role: { code: string }) => role.code === "owner");
+      expect(viewer).toMatchObject({ personalizable: true, miembros: 1 });
+      expect(owner.personalizable).toBe(false);
+
+      // Quien consulta no puede personalizar; Propietario tampoco.
+      expect(
+        (await call("viewerA", "POST", `/panel/prueba-a/equipo/roles/${viewer.id}/personalizar`))
+          .status,
+      ).toBe(403);
+      const denied = await call(
+        "ownerA",
+        "POST",
+        `/panel/prueba-a/equipo/roles/${owner.id}/personalizar`,
+      );
+      expect(denied.status).toBe(403);
+      expect(denied.body.reason).toBe("owner_not_customizable");
+
+      const done = await call(
+        "ownerA",
+        "POST",
+        `/panel/prueba-a/equipo/roles/${viewer.id}/personalizar`,
+        { nombre: "Consulta del local" },
+      );
+      expect(done.status).toBe(201);
+      expect(done.body).toMatchObject({ miembros_movidos: 1, invitaciones_movidas: 0 });
+
+      const after = (await roles()).body.roles;
+      const copy = after.find((role: { id: number }) => role.id === done.body.id);
+      expect(copy).toMatchObject({
+        nombre: "Consulta del local",
+        plantilla: false,
+        editable: true,
+        miembros: 1,
+        permisos: viewer.permisos,
+      });
+      // La plantilla global sigue igual y sin esta persona.
+      expect(after.find((role: { id: number }) => role.id === viewer.id)).toMatchObject({
+        permisos: viewer.permisos,
+        miembros: 0,
+      });
+      // Misma plantilla en otro restaurante: intacta.
+      const [others] = await ctx.sql<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM public.membresia_rol WHERE rol_id = ${viewer.id}
+      `;
+      expect(others?.n).toBe(0);
+
+      // Nombre repetido, y la copia ya se edita como cualquier rol propio.
+      const dup = await call(
+        "ownerA",
+        "POST",
+        `/panel/prueba-a/equipo/roles/${viewer.id}/personalizar`,
+        { nombre: "consulta del local" },
+      );
+      expect(dup.status).toBe(409);
+      expect(
+        (
+          await call("ownerA", "PUT", `/panel/prueba-a/equipo/roles/${done.body.id}`, {
+            nombre: "Consulta del local",
+            permisos: ["orders.view", "menu.view"],
+          })
+        ).status,
+      ).toBe(200);
+      // Una copia no es plantilla: no se personaliza otra vez.
+      expect(
+        (await call("ownerA", "POST", `/panel/prueba-a/equipo/roles/${done.body.id}/personalizar`))
+          .status,
+      ).toBe(422);
+
+      const trail = await ctx.sql<{ accion: string }[]>`
+        SELECT accion FROM public.auditoria
+        WHERE  recurso_tipo = 'rol' AND recurso_id = ${String(done.body.id)} ORDER BY id
+      `;
+      expect(trail.map((row) => row.accion)).toEqual(["team.role.customize", "team.role.update"]);
+
+      // Deja el estado como estaba para las demás pruebas.
+      await ctx.sql`UPDATE public.membresia_rol SET rol_id = ${viewer.id} WHERE rol_id = ${done.body.id}`;
+      await call("ownerA", "DELETE", `/panel/prueba-a/equipo/roles/${done.body.id}`);
+    });
+
+    it("al personalizar también pasan a la copia las invitaciones pendientes", async () => {
+      const waiter = (await roles()).body.roles.find(
+        (role: { code: string }) => role.code === "waiter",
+      );
+      const invite = await call("ownerA", "POST", "/panel/prueba-a/equipo/invitaciones", {
+        rol_id: waiter.id,
+        email: null,
+        sucursal_ids: [],
+      });
+      expect(invite.status).toBe(201);
+      const done = await call(
+        "ownerA",
+        "POST",
+        `/panel/prueba-a/equipo/roles/${waiter.id}/personalizar`,
+      );
+      expect(done.status).toBe(201);
+      expect(done.body.invitaciones_movidas).toBe(1);
+      const copy = (await roles()).body.roles.find(
+        (role: { id: number }) => role.id === done.body.id,
+      );
+      expect(copy).toMatchObject({ nombre: "Mesero (personalizado)", invitaciones: 1 });
+      await call("ownerA", "DELETE", `/panel/prueba-a/equipo/invitaciones/${invite.body.id}`);
+      await call("ownerA", "DELETE", `/panel/prueba-a/equipo/roles/${done.body.id}`);
+    });
+
     it("no deja tocar plantillas, roles en uso ni dar permisos que no se tienen", async () => {
       const waiter = (await roles()).body.roles.find(
         (role: { code: string }) => role.code === "waiter",

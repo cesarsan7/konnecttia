@@ -101,6 +101,8 @@ export type RoleDetail = {
   readonly miembros: number;
   readonly invitaciones: number;
   readonly editable: boolean;
+  /** Plantilla que se puede copiar a un rol propio (Propietario no). */
+  readonly personalizable: boolean;
 };
 
 export type PermissionGroup = {
@@ -119,6 +121,24 @@ export type RolesCatalog = {
   readonly catalogo: readonly PermissionGroup[];
 };
 
+/** Aviso previo a personalizar una plantilla: a quién se le cambia el rol. */
+export function customizeWarning(
+  role: Pick<RoleDetail, "nombre" | "miembros" | "invitaciones">,
+): string {
+  const parts: string[] = [];
+  if (role.miembros > 0) {
+    parts.push(`${role.miembros} ${role.miembros === 1 ? "persona" : "personas"}`);
+  }
+  if (role.invitaciones > 0) {
+    parts.push(
+      `${role.invitaciones} ${role.invitaciones === 1 ? "invitación pendiente" : "invitaciones pendientes"}`,
+    );
+  }
+  if (parts.length === 0)
+    return `Se creará una copia propia de «${role.nombre}» que podrás editar.`;
+  return `Se creará una copia propia de «${role.nombre}» y pasarán a ella ${parts.join(" y ")}. Tendrán los mismos permisos que ahora.`;
+}
+
 /** Mensaje del error al guardar o borrar un rol. */
 export function roleErrorMessage(reason: string | undefined): string {
   switch (reason) {
@@ -131,7 +151,9 @@ export function roleErrorMessage(reason: string | undefined): string {
     case "role_above_yours":
       return "No puedes dar permisos que tú no tienes.";
     case "template_role":
-      return "Los roles de EasyOrder no se pueden cambiar. Crea uno propio.";
+      return "Los roles de EasyOrder no se pueden cambiar. Personalízalo para tener una copia propia.";
+    case "owner_not_customizable":
+      return "El rol de propietario no se personaliza: el restaurante siempre necesita uno completo.";
     default:
       return "No se pudo guardar el rol. Revisa los datos.";
   }
