@@ -1,5 +1,7 @@
 import { MODULE_KIND, ROLE_TEMPLATE } from "@konnecttia/access";
 import {
+  countryFromTimeZone,
+  countryOrDefault,
   DEFERRED_PAYMENT_METHODS,
   type ImportedCategory,
   PAYMENT_METHODS,
@@ -64,6 +66,8 @@ export type NewRestaurant = {
   readonly zonaReparto?: NewDeliveryZone | undefined;
   /** Métodos de cobro iniciales. Sin indicar: `INITIAL_PAYMENT_METHODS`. */
   readonly metodosPago?: readonly string[] | undefined;
+  /** País (ISO alfa-2) del restaurante; sin indicar: el que sugiere la zona horaria, o ES. */
+  readonly pais?: string | undefined;
   /** Canal del código de verificación (capa 3). Sin indicar o null: apagada. */
   readonly codigoVerificacion?: "whatsapp" | null | undefined;
 };
@@ -99,9 +103,10 @@ export async function createRestaurant(
   if (taken.length > 0) throw new SlugTaken();
   const [restaurant] = await tx<{ id: number }[]>`
     INSERT INTO public.restaurante
-      (nombre, slug, zona_horaria, direccion, telefono, lat, long, payment_methods,
+      (nombre, slug, zona_horaria, pais_code, direccion, telefono, lat, long, payment_methods,
        pickup_enabled, delivery_enabled)
     VALUES (${input.nombre}, ${input.slug}, ${input.zonaHoraria},
+            ${countryOrDefault(input.pais ?? countryFromTimeZone(input.zonaHoraria)).code},
             ${input.local.direccion || null}, ${input.local.telefono || null},
             ${input.ubicacion?.lat ?? null}, ${input.ubicacion?.lng ?? null},
             ${tx.json([...(input.metodosPago ?? INITIAL_PAYMENT_METHODS)])},

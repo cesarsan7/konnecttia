@@ -35,6 +35,8 @@ export type RestaurantSettings = {
   readonly color_marca?: string | null;
   readonly redes_sociales?: readonly SocialLink[];
   readonly zona_horaria: string | null;
+  /** País (ISO alfa-2): prefijo telefónico por defecto del checkout. */
+  readonly pais?: string;
   readonly recogida: boolean;
   readonly reparto: boolean;
   readonly metodos_pago: readonly string[];

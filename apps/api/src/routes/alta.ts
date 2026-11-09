@@ -1,4 +1,10 @@
-import { checkRestaurantSlug, isValidTimeZone, TRIAL_STATE, trialEnd } from "@konnecttia/domain";
+import {
+  COUNTRIES,
+  checkRestaurantSlug,
+  isValidTimeZone,
+  TRIAL_STATE,
+  trialEnd,
+} from "@konnecttia/domain";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv, AuthenticatedUser } from "../context";
@@ -36,6 +42,8 @@ const signupSchema = z.object({
   nombre: z.string().trim().min(1).max(120),
   slug: z.string().trim().max(100),
   zona_horaria: z.string().trim().min(1).max(64),
+  /** País (ISO alfa-2). Sin indicar: el que sugiere la zona horaria, o España. */
+  pais: z.enum(COUNTRIES.map((country) => country.code) as [string, ...string[]]).optional(),
   local: z.object({
     nombre: z.string().trim().min(1).max(120),
     direccion: z.string().trim().max(200).optional(),
@@ -148,6 +156,7 @@ export function altaRoutes(deps: AppDeps) {
             nombre: input.nombre,
             slug,
             zonaHoraria: input.zona_horaria,
+            pais: input.pais,
             plan: TRIAL_PLAN,
             local: input.local,
             recogida: input.recogida,
@@ -199,6 +208,7 @@ export function altaRoutes(deps: AppDeps) {
         plan: TRIAL_PLAN,
         estado: state,
         zona_horaria: input.zona_horaria,
+        pais: input.pais ?? null,
         local: input.local.nombre,
         recogida: input.recogida,
         reparto: input.reparto,

@@ -44,6 +44,8 @@ export type Menu = {
     readonly logo_url?: string | null;
     /** Color de acento propio (`#rrggbb`); null o ausente = el de EasyOrder (pieza AA). */
     readonly color_marca?: string | null;
+    /** País del restaurante (ISO alfa-2): prefijo telefónico por defecto. */
+    readonly pais?: string;
     readonly redes_sociales?: readonly { readonly red: string; readonly url: string }[];
   };
   readonly local: { readonly id: number; readonly nombre: string } | null;

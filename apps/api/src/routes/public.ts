@@ -533,6 +533,7 @@ export function publicRoutes(deps: AppDeps) {
         logo_url: brand.logoUrl,
         redes_sociales: brand.socialLinks,
         color_marca: brand.color,
+        pais: brand.countryCode,
         // Lo que la web necesita para montar el checkout sin adivinar.
         recogida: restaurant.pickupEnabled && active.some((b) => b.acceptsPickup),
         reparto: restaurant.deliveryEnabled && active.some((b) => b.acceptsDelivery),

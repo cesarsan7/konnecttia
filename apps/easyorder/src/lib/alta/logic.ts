@@ -1,4 +1,4 @@
-import { isValidTimeZone, slugFromName } from "@konnecttia/domain";
+import { isValidTimeZone, resolveCountry, slugFromName } from "@konnecttia/domain";
 import { slugMessage } from "../interno/logic";
 import type { ApiErrorBody } from "../types";
 import type { AltaConfig, SignupBody, SlugCheck } from "./types";
@@ -17,6 +17,8 @@ export type SignupForm = {
   readonly direccion: string;
   readonly telefono: string;
   readonly zonaHoraria: string;
+  /** Código ISO del país; vacío = el que sugiere la zona horaria. */
+  readonly pais: string;
   readonly recogida: boolean;
   readonly reparto: boolean;
   readonly miembroNombre: string;
@@ -31,6 +33,7 @@ export const EMPTY_SIGNUP: SignupForm = {
   direccion: "",
   telefono: "",
   zonaHoraria: "",
+  pais: "",
   recogida: true,
   reparto: false,
   miembroNombre: "",
@@ -96,6 +99,7 @@ export function toSignupBody(form: SignupForm, captchaToken: string | null): Sig
     nombre: form.nombre.trim(),
     slug: form.slug.trim(),
     zona_horaria: form.zonaHoraria.trim(),
+    pais: resolveCountry(form.pais, form.zonaHoraria),
     local: {
       nombre: form.localNombre.trim(),
       ...(direccion ? { direccion } : {}),

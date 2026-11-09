@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveCountry } from "@konnecttia/domain";
 import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
 import {
@@ -13,6 +14,7 @@ import {
   validateNewRestaurant,
 } from "@/lib/interno/logic";
 import type { CreatedRestaurant } from "@/lib/interno/types";
+import { CountrySelect } from "../CountrySelect";
 import { usePlatform } from "./InternalShell";
 import { InviteLink } from "./InviteLink";
 import "./new-restaurant.css";
@@ -21,6 +23,7 @@ const EMPTY: NewRestaurantForm = {
   nombre: "",
   slug: "",
   zonaHoraria: "",
+  pais: "",
   plan: "",
   localNombre: "",
   direccion: "",
@@ -89,7 +92,7 @@ export function NewRestaurant() {
 
   function reset() {
     setCreated(null);
-    setForm({ ...EMPTY, zonaHoraria: form.zonaHoraria });
+    setForm({ ...EMPTY, zonaHoraria: form.zonaHoraria, pais: form.pais });
     setSlugTouched(false);
     setLocalTouched(false);
     setErrors({});
@@ -207,6 +210,10 @@ export function NewRestaurant() {
               </span>
               {field("zonaHoraria")}
             </label>
+            <CountrySelect
+              value={resolveCountry(form.pais, form.zonaHoraria)}
+              onChange={(code) => set("pais", code)}
+            />
             <label className="k-field">
               <span>Plan</span>
               <select

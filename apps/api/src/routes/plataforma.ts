@@ -9,7 +9,9 @@ import {
   resolveActiveModules,
 } from "@konnecttia/access";
 import {
+  COUNTRIES,
   checkRestaurantSlug,
+  countryOrDefault,
   isValidTimeZone,
   ORDER_STATUS,
   PAYMENT_METHOD,
@@ -98,6 +100,7 @@ const createSchema = z
     nombre: z.string().trim().min(1).max(120),
     slug: z.string().trim().max(100),
     zona_horaria: z.string().trim().min(1).max(64),
+    pais: z.enum(COUNTRIES.map((country) => country.code) as [string, ...string[]]).optional(),
     plan: z.string().trim().min(1).max(40),
     local: z.object({
       nombre: z.string().trim().min(1).max(120),
@@ -272,6 +275,7 @@ export function plataformaRoutes(deps: AppDeps) {
           nombre: string;
           slug: string | null;
           zona_horaria: string | null;
+          pais_code: string | null;
           direccion: string | null;
           telefono: string | null;
           creado: string | null;
@@ -279,7 +283,7 @@ export function plataformaRoutes(deps: AppDeps) {
           metodos_pago_permitidos: unknown;
         }[]
       >`
-        SELECT id, nombre, slug, zona_horaria, direccion, telefono,
+        SELECT id, nombre, slug, zona_horaria, pais_code, direccion, telefono,
                created_at AT TIME ZONE 'UTC' AS creado, payment_methods, metodos_pago_permitidos
         FROM   public.restaurante WHERE id = ${id}
       `,
@@ -372,6 +376,7 @@ export function plataformaRoutes(deps: AppDeps) {
         nombre: restaurant.nombre,
         slug: restaurant.slug,
         zona_horaria: restaurant.zona_horaria,
+        pais: countryOrDefault(restaurant.pais_code).code,
         direccion: restaurant.direccion,
         telefono: restaurant.telefono,
         creado: restaurant.creado,
@@ -441,6 +446,7 @@ export function plataformaRoutes(deps: AppDeps) {
             nombre: input.nombre,
             slug: input.slug,
             zonaHoraria: input.zona_horaria,
+            pais: input.pais,
             plan: input.plan,
             local: input.local,
             recogida: input.recogida,

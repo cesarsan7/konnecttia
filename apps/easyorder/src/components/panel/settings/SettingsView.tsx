@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveCountry } from "@konnecttia/domain";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useState } from "react";
 import type { ApiResult } from "@/lib/api";
 import { paymentLabel } from "@/lib/checkout";
@@ -26,6 +27,7 @@ import {
   type Settings,
   settingsErrorMessage,
 } from "@/lib/panel/settings";
+import { CountrySelect } from "../../CountrySelect";
 import { BusyModeHelp } from "../BusyModeControl";
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
@@ -445,6 +447,7 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
   const [telefono, setTelefono] = useState(r.telefono ?? "");
   const [direccion, setDireccion] = useState(r.direccion ?? "");
   const [eslogan, setEslogan] = useState(r.eslogan ?? "");
+  const [pais, setPais] = useState(resolveCountry(r.pais, r.zona_horaria));
   const [descripcion, setDescripcion] = useState(r.descripcion ?? "");
   const [apertura, setApertura] = useState<OpenMode>(r.apertura_manual);
 
@@ -456,6 +459,7 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
         telefono: nullIfEmpty(telefono),
         direccion: nullIfEmpty(direccion),
         eslogan: nullIfEmpty(eslogan),
+        pais,
         descripcion: nullIfEmpty(descripcion),
         apertura_manual: apertura,
       }),
@@ -519,6 +523,7 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
             optional
             placeholder="Ej.: Sabor colombiano en Arrecife"
           />
+          {editable ? <CountrySelect value={pais} onChange={setPais} /> : null}
         </div>
         <TextField
           label="Descripción"

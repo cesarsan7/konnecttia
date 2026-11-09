@@ -27,6 +27,11 @@ describe("teléfono", () => {
     expect(normalizePhone(raw)).toBe(expected);
   });
 
+  it("usa el prefijo elegido y respeta el que el cliente escribe", () => {
+    expect(normalizePhone("(305) 555-0123", "+1")).toBe("+13055550123");
+    expect(normalizePhone("+34 612 345 678", "+1")).toBe("+34612345678");
+  });
+
   it("rechaza lo que no es un teléfono", () => {
     expect(normalizePhone("123")).toBeNull();
     expect(normalizePhone("hola")).toBeNull();

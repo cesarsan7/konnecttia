@@ -603,3 +603,18 @@ a {
   margin: 24px 0 8px;
   font-size: 0.9375rem;
 }
+
+.phone-row {
+  display: flex;
+  gap: 8px;
+}
+
+.phone-row select {
+  flex: 0 1 12rem;
+  min-width: 0;
+}
+
+.phone-row input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
