@@ -9,6 +9,7 @@ import {
   ROLE_TEMPLATE,
 } from "@konnecttia/access";
 import type { Context, Hono } from "hono";
+import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { UNIQUE_VIOLATION } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
@@ -186,37 +187,25 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       }
       try {
         const result = await sql.begin(async (tx) => {
-          const base = roleCode(nombre);
-          const taken = await tx<{ code: string }[]>`
-            SELECT code FROM public.rol
-            WHERE  restaurante_id = ${restauranteId} AND code LIKE ${`${base}%`}
-          `;
-          const codes = new Set(taken.map((row) => row.code));
-          let code = base;
-          for (let n = 2; codes.has(code); n += 1) code = `${base}_${n}`;
-          const [row] = await tx<{ id: number }[]>`
-            INSERT INTO public.rol (restaurante_id, code, nombre, es_plantilla)
-            VALUES (${restauranteId}, ${code}, ${nombre}, false)
-            RETURNING id
-          `;
-          if (!row) throw new Error("El INSERT del rol no devolvió filas");
-          await tx`
-            INSERT INTO public.rol_permiso (rol_id, permiso_code)
-            SELECT ${row.id}, unnest(${template.permisos}::text[])
-          `;
+          const id = await insertRole(
+            tx,
+            restauranteId,
+            nombre,
+            template.permisos as PermissionCode[],
+          );
           const moved = await tx`
-            UPDATE public.membresia_rol mr SET rol_id = ${row.id}
+            UPDATE public.membresia_rol mr SET rol_id = ${id}
             FROM   public.local_memberships m
             WHERE  m.id = mr.membership_id AND m.restaurante_id = ${restauranteId}
               AND  mr.rol_id = ${template.id}
           `;
           const invites = await tx`
-            UPDATE public.restaurant_invites SET rol_id = ${row.id}
+            UPDATE public.restaurant_invites SET rol_id = ${id}
             WHERE  restaurante_id = ${restauranteId} AND rol_id = ${template.id}
               AND  used_at IS NULL AND revocada_at IS NULL
               AND  expires_at > (now() AT TIME ZONE 'UTC')
           `;
-          return { id: row.id, miembros: moved.count, invitaciones: invites.count };
+          return { id, miembros: moved.count, invitaciones: invites.count };
         });
         await record(c, "team.role.customize", result.id, {
           plantilla: template.code,

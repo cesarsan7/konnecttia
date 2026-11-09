@@ -15,6 +15,7 @@ import type {
   RoleBody,
   RolesInfo,
   SignupSettings,
+  TemplatesInfo,
   TrialAction,
   TrialConverted,
   TrialList,
@@ -76,6 +77,13 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
         `/restaurantes/${id}/carta/importar${simulate ? "?simular=1" : ""}`,
         { method: "POST", body: JSON.stringify({ texto }) },
       ),
+    templates: () => request<TemplatesInfo>("/plantillas"),
+    createTemplate: (body: RoleBody) =>
+      request<{ id: number }>("/plantillas", { method: "POST", body: JSON.stringify(body) }),
+    updateTemplate: (id: number, body: RoleBody) =>
+      put<{ id: number; miembros_afectados: number }>(`/plantillas/${id}`, body),
+    deleteTemplate: (id: number) =>
+      request<{ id: number }>(`/plantillas/${id}`, { method: "DELETE" }),
     changePlan: (id: number, plan: string) => put<PlanSaved>(`/restaurantes/${id}/plan`, { plan }),
     changeModule: (id: number, code: string, change: ModuleChangeBody) =>
       put<ModuleSaved>(`/restaurantes/${id}/modulos/${encodeURIComponent(code)}`, change),
