@@ -75,7 +75,7 @@ Las tarifas son de consulta pública (noviembre de 2026) y pueden cambiar; confi
   (tarjeta, pago online) pasa sin código.
 - Sin `WHATSAPP_*` y `CODE_HMAC_SECRET` en la API la capa está apagada. En staging,
   `ANTIFRAUD_CODE_SIMULATE=true` escribe el código en el log mientras Meta aprueba la plantilla.
-- Falta: el paso del código en el checkout web y elegir el canal en el alta de `/interno`.
+- Panel interno (`/interno`): el alta elige el canal (WhatsApp recomendado o apagado) y la ficha del restaurante cambia canal, importe y tope (`PUT /plataforma/restaurantes/:id/antifraude-codigo`, auditado). Falta: el paso del código en el checkout web.
 
 ## Pendiente
 

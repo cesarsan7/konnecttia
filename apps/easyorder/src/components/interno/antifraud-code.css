@@ -1,0 +1,44 @@
+.k-ac {
+  display: grid;
+  gap: 12px;
+}
+
+.k-ac .k-title,
+.k-ac p {
+  margin: 0;
+}
+
+.k-ac-set {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.k-ac-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.k-ac-option input {
+  width: 20px;
+  height: 20px;
+}
+
+.k-ac-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.k-ac-actions {
+  display: flex;
+  justify-content: flex-end;
+}

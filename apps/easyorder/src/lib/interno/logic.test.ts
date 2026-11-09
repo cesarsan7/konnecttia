@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeDependents,
   canCancelModule,
+  codeSettingsForm,
   EMPTY_OPENING_DATA,
   inactivePermissions,
   invitationLink,
@@ -11,11 +12,14 @@ import {
   type NewRestaurantForm,
   parseDecimal,
   platformErrorMessage,
+  sameCodeSettings,
   samePaymentSelection,
   slugMessage,
   suggestSlug,
   templateImpact,
+  toCodeSettingsBody,
   toNewRestaurantBody,
+  validateCodeSettings,
   validateNewRestaurant,
   validateRoleForm,
 } from "./logic";
@@ -111,6 +115,7 @@ describe("alta de restaurante: validación", () => {
       local: { nombre: "Bar Nuevo Centro", telefono: "900000000" },
       propietario_email: "dueno@nuevo.test",
       metodos_pago: ["efectivo", "tarjeta"],
+      codigo_verificacion: "whatsapp",
     });
   });
 
@@ -147,6 +152,7 @@ describe("alta de restaurante: validación", () => {
       expect(body.recogida_minutos).toBe(30);
       expect(body.zona_reparto).toEqual({ radio_km: 5, tarifa: 2, minimo: 30, minutos: 30 });
       expect(body.metodos_pago).toEqual(["efectivo"]);
+      expect(body.codigo_verificacion).toBe("whatsapp");
     });
 
     it("cada grupo va completo o vacío", () => {
@@ -345,5 +351,69 @@ describe("templateImpact", () => {
 
   it("traduce el rechazo de las plantillas base", () => {
     expect(platformErrorMessage(422, { reason: "base_template" } as never)).toContain("código");
+  });
+});
+
+describe("código de verificación (capa 3)", () => {
+  const info = {
+    canal: "whatsapp",
+    umbral_eur: 30,
+    umbral_personalizado: false,
+    tope_mensual_eur: 10,
+    tope_personalizado: false,
+    gasto_mes_eur: 0.05,
+    api_configurada: true,
+  } as const;
+
+  it("el alta lo deja en WhatsApp por defecto y permite apagarlo", () => {
+    expect(toNewRestaurantBody(valid).codigo_verificacion).toBe("whatsapp");
+    expect(
+      toNewRestaurantBody({ ...valid, codigoVerificacion: "apagado" }).codigo_verificacion,
+    ).toBe("apagado");
+  });
+
+  it("solo rellena los importes que el restaurante cambió", () => {
+    expect(codeSettingsForm(info)).toEqual({ canal: "whatsapp", umbral: "", tope: "" });
+    expect(
+      codeSettingsForm({
+        ...info,
+        umbral_eur: 45.5,
+        umbral_personalizado: true,
+        tope_mensual_eur: 20,
+        tope_personalizado: true,
+      }),
+    ).toEqual({ canal: "whatsapp", umbral: "45,5", tope: "20" });
+  });
+
+  it("vacío = valor por defecto (null); acepta coma decimal", () => {
+    expect(toCodeSettingsBody({ canal: "whatsapp", umbral: "", tope: "  " })).toEqual({
+      canal: "whatsapp",
+      umbral_eur: null,
+      tope_mensual_eur: null,
+    });
+    expect(toCodeSettingsBody({ canal: "apagado", umbral: "45,5", tope: "0" })).toEqual({
+      canal: "apagado",
+      umbral_eur: 45.5,
+      tope_mensual_eur: 0,
+    });
+  });
+
+  it("valida los importes", () => {
+    expect(validateCodeSettings({ canal: "whatsapp", umbral: "", tope: "" })).toEqual({});
+    expect(validateCodeSettings({ canal: "whatsapp", umbral: "30", tope: "10,5" })).toEqual({});
+    const bad = validateCodeSettings({ canal: "whatsapp", umbral: "mucho", tope: "5000" });
+    expect(bad).toHaveProperty("umbral");
+    expect(bad).toHaveProperty("tope");
+    expect(validateCodeSettings({ canal: "whatsapp", umbral: "-1", tope: "" })).toHaveProperty(
+      "umbral",
+    );
+  });
+
+  it("detecta si hay cambios sin guardar", () => {
+    const saved = codeSettingsForm(info);
+    expect(sameCodeSettings(saved, { ...saved })).toBe(true);
+    expect(sameCodeSettings(saved, { ...saved, umbral: "30" })).toBe(false);
+    expect(sameCodeSettings(saved, { ...saved, umbral: "  " })).toBe(true);
+    expect(sameCodeSettings(saved, { ...saved, canal: "apagado" })).toBe(false);
   });
 });

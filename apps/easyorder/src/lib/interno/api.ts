@@ -1,6 +1,8 @@
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type {
+  CodeSettingsBody,
+  CodeSettingsInfo,
   CreatedRestaurant,
   MenuImportSummary,
   ModuleChangeBody,
@@ -89,6 +91,8 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
       put<ModuleSaved>(`/restaurantes/${id}/modulos/${encodeURIComponent(code)}`, change),
     changePaymentMethods: (id: number, metodos: readonly string[] | null) =>
       put<PaymentSaved>(`/restaurantes/${id}/metodos-pago`, { metodos }),
+    changeCodeSettings: (id: number, body: CodeSettingsBody) =>
+      put<CodeSettingsInfo>(`/restaurantes/${id}/antifraude-codigo`, body),
     trials: () => request<TrialList>("/pruebas"),
     trialAction: (id: number, action: TrialAction) =>
       put<{ prueba: TrialRow | null }>(`/pruebas/${id}`, action),

@@ -54,6 +54,7 @@ export type RestaurantDetail = {
   readonly modulos: readonly ModuleRow[];
   readonly metodos_pago: PaymentMethodsInfo;
   readonly carta: { readonly categorias: number; readonly productos: number };
+  readonly antifraude_codigo: CodeSettingsInfo;
   readonly locales: readonly {
     readonly id: number;
     readonly nombre: string;
@@ -110,6 +111,31 @@ export type NewRestaurantBody = {
     readonly minutos: number;
   };
   readonly metodos_pago?: readonly string[];
+  /** Código de verificación del checkout web (capa 3). Sin indicar: apagado. */
+  readonly codigo_verificacion?: CodeChannel;
+};
+
+/** Canales que ofrece el panel interno (el SMS está descartado por ahora, ADR 0011). */
+export type CodeChannel = "whatsapp" | "apagado";
+
+export type CodeSettingsInfo = {
+  readonly canal: CodeChannel;
+  /** Importe desde el que se pide código; 30 € si el restaurante no lo cambió. */
+  readonly umbral_eur: number;
+  readonly umbral_personalizado: boolean;
+  /** Gasto máximo mensual en códigos; 10 € si el restaurante no lo cambió. */
+  readonly tope_mensual_eur: number;
+  readonly tope_personalizado: boolean;
+  readonly gasto_mes_eur: number;
+  /** false: la API no tiene WhatsApp configurado y no envía códigos aunque el canal esté activo. */
+  readonly api_configurada: boolean;
+};
+
+/** Cuerpo de PUT /restaurantes/:id/antifraude-codigo: null = valor por defecto. */
+export type CodeSettingsBody = {
+  readonly canal: CodeChannel;
+  readonly umbral_eur: number | null;
+  readonly tope_mensual_eur: number | null;
 };
 
 export type CreatedRestaurant = {

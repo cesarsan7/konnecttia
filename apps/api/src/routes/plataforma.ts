@@ -37,7 +37,9 @@ import {
   MenuAlreadyLoaded,
   MODULE_STATE,
   planExists,
+  readCodeSettings,
   SlugTaken,
+  saveCodeSettings,
 } from "../repositories/platform";
 import {
   insertRole,
@@ -88,6 +90,9 @@ const deliveryZoneSchema = z.object({
   minutos: z.number().int().min(1).max(240),
 });
 
+/** Canales del código de verificación que ofrece el panel interno (el SMS está descartado). */
+const CODE_CHANNEL = { WhatsApp: "whatsapp", Off: "apagado" } as const;
+
 const createSchema = z
   .object({
     nombre: z.string().trim().min(1).max(120),
@@ -116,6 +121,8 @@ const createSchema = z
       .max(2)
       .refine((list) => new Set(list).size === list.length)
       .optional(),
+    /** Código de verificación del checkout web (capa 3, ADR 0011). Sin indicar: apagado. */
+    codigo_verificacion: z.enum([CODE_CHANNEL.WhatsApp, CODE_CHANNEL.Off]).optional(),
   })
   .superRefine((input, ctx) => {
     if (
@@ -131,6 +138,14 @@ const createSchema = z
       ctx.addIssue({ code: "custom", path: ["zona_reparto"], message: "sin reparto" });
     }
   });
+
+const codeSettingsSchema = z.object({
+  canal: z.enum([CODE_CHANNEL.WhatsApp, CODE_CHANNEL.Off]),
+  /** Importe desde el que se pide código. null = valor por defecto (30 €); ausente = no cambia. */
+  umbral_eur: z.number().min(0).max(100_000).nullable().optional(),
+  /** Gasto máximo mensual en códigos. null = valor por defecto (10 €); ausente = no cambia. */
+  tope_mensual_eur: z.number().min(0).max(1_000).nullable().optional(),
+});
 
 const importMenuSchema = z.object({ texto: z.string().max(300_000) });
 
@@ -377,6 +392,11 @@ export function plataformaRoutes(deps: AppDeps) {
         activos: active,
       },
       carta: { categorias: menu?.categorias ?? 0, productos: menu?.productos ?? 0 },
+      antifraude_codigo: {
+        ...(await readCodeSettings(sql, id)),
+        // Sin proveedor y secreto en la API, el código no se envía aunque el canal esté activo.
+        api_configurada: Boolean(deps.sendCode && deps.codeSecret),
+      },
       locales: branches,
       equipo: members.map(({ apodo, ...member }) => ({
         ...member,
@@ -441,6 +461,8 @@ export function plataformaRoutes(deps: AppDeps) {
               minutos: input.zona_reparto.minutos,
             },
             metodosPago: input.metodos_pago,
+            codigoVerificacion:
+              input.codigo_verificacion === CODE_CHANNEL.WhatsApp ? CODE_CHANNEL.WhatsApp : null,
           },
           deps.now(),
         );
@@ -483,6 +505,7 @@ export function plataformaRoutes(deps: AppDeps) {
         reparto: Boolean(input.zona_reparto),
         recogida_minutos: input.recogida_minutos ?? null,
         metodos_pago: input.metodos_pago ?? null,
+        codigo_verificacion: input.codigo_verificacion ?? CODE_CHANNEL.Off,
       },
     });
     const base = panelBase(deps, c.req.header("Origin"));
@@ -775,6 +798,41 @@ export function plataformaRoutes(deps: AppDeps) {
       metodos_quitados: result.removed,
       // El restaurante se queda sin ningún método: no podrá cobrar hasta elegir uno permitido.
       sin_metodos_activos: result.kept.length === 0,
+    });
+  });
+
+  // ------------------------------------------------------- antifraude: código de verificación
+
+  app.put("/restaurantes/:id/antifraude-codigo", writer, async (c) => {
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const parsed = await body(c, codeSettingsSchema);
+    if (!parsed.success) return invalid(c, parsed.error.issues[0]?.path.join("."));
+    const input = parsed.data;
+    await sql.begin((tx) =>
+      saveCodeSettings(tx, restaurant.id, {
+        channel: input.canal === CODE_CHANNEL.WhatsApp ? CODE_CHANNEL.WhatsApp : null,
+        ...(input.umbral_eur !== undefined ? { amountThresholdEur: input.umbral_eur } : {}),
+        ...(input.tope_mensual_eur !== undefined ? { monthlyCapEur: input.tope_mensual_eur } : {}),
+      }),
+    );
+    await record(
+      c,
+      restaurant.id,
+      "plataforma.antifraude_codigo.cambiar",
+      "restaurante",
+      restaurant.id,
+      {
+        canal: input.canal,
+        ...(input.umbral_eur !== undefined ? { umbral_eur: input.umbral_eur } : {}),
+        ...(input.tope_mensual_eur !== undefined
+          ? { tope_mensual_eur: input.tope_mensual_eur }
+          : {}),
+      },
+    );
+    return c.json({
+      ...(await readCodeSettings(sql, restaurant.id)),
+      api_configurada: Boolean(deps.sendCode && deps.codeSecret),
     });
   });
 
