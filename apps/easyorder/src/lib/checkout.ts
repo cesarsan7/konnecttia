@@ -113,6 +113,9 @@ const ERROR_MESSAGE: Readonly<Record<string, string>> = {
   invalid_body: "Revisa los datos del formulario.",
   restaurant_not_found: "No encontramos este restaurante.",
   privacy_required: "Para pedir debes aceptar la política de privacidad.",
+  verification_unavailable:
+    "Ahora mismo no podemos verificar tu teléfono. Paga con tarjeta o llama al local para hacer el pedido.",
+  code_send_failed: "No hemos podido enviar el código. Inténtalo de nuevo en un momento.",
 };
 
 const LINE_ERROR_MESSAGE: Readonly<Record<string, string>> = {

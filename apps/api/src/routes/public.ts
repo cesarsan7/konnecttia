@@ -767,7 +767,8 @@ export function publicRoutes(deps: AppDeps) {
                 : API_ERROR.VerificationUnavailable,
             extra:
               result.kind === "required"
-                ? { reason: result.reason, canal: "whatsapp" }
+                ? // `importe`: el total que calculó el servidor, para que el cliente pida el código con él.
+                  { reason: result.reason, canal: "whatsapp", importe: totalCents / 100 }
                 : { reason: "monthly_cap" },
           };
         };

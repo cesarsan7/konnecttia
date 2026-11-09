@@ -277,6 +277,7 @@ describe.skipIf(!TEST_DATABASE_URL)("capa 3 del antifraude (API)", () => {
       reason: RISK_REASON.NewPhone,
       canal: "whatsapp",
     });
+    expect(blocked.body.importe).toBeGreaterThan(0);
 
     const asked = await requestCode(phone);
     expect(asked).toMatchObject({
