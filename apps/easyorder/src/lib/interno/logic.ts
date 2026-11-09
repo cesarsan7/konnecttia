@@ -239,8 +239,9 @@ const REASONS: Record<string, string> = {
   slug_too_long: SLUG_MESSAGES[SLUG_ERROR.TooLong],
   invalid_time_zone: "La zona horaria no es válida.",
   unknown_plan: "Ese plan no existe.",
-  base_template:
-    "Las plantillas base (Propietario, Encargado…) las define el código y no se cambian aquí.",
+  base_template: "Las plantillas base (Propietario, Encargado…) no se borran.",
+  owner_locked:
+    "Propietario debe conservar los permisos de equipo y ajustes: sin ellos nadie podría gestionar el restaurante.",
   duplicate_name: "Ya hay un rol con ese nombre.",
   template_role: "Las plantillas no se editan desde aquí.",
   role_in_use: "Hay personas con ese rol. Cámbiales el rol antes de borrarlo.",
