@@ -15,12 +15,14 @@ API y las migraciones de las que depende. La demo comercial de La Isla (producci
 repositorio privado `cesarsan7/easyorder` (`docs/n8n/la isla/`) y no se toca desde aquí.
 
 Reglas:
+
 - Ninguna URL de entorno escrita en un flujo: va como marcador y en `.env.example`.
   `python3 integrations/n8n/scripts/renderizar.py --comprobar` lo revisa.
 - Credenciales solo por nombre (`staging postgres`, `staging chatwoot`…), nunca con id ni valor.
 - Sin `pinData` (datos de ejecuciones de prueba, pueden contener teléfonos reales).
 
 Pendiente para producción (fase 4, en la migración a la UE):
+
 - webhooks autenticados por cabecera (`N8N_WEBHOOK_SECRET`);
 - `restaurante_id` explícito en todas las llamadas SQL;
 - llamadas a la API de Konnecttia en lugar de escribir en la base de datos (Despacho ya lo hace).

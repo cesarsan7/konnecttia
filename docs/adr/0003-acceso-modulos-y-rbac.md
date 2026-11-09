@@ -5,6 +5,7 @@
 ## Decisión
 
 Dos capas independientes:
+
 1. **Módulos por restaurante** (lo contratado): planes Básico y Premium más complementos.
 2. **RBAC por usuario** (lo que cada persona puede hacer): permisos `recurso.acción` agrupados en
    roles. Plantillas globales y, en el MVP, roles por restaurante creados solo por Konnecttia.
