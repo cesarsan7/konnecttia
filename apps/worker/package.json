@@ -14,7 +14,7 @@
     "@konnecttia/access": "workspace:*",
     "@konnecttia/domain": "workspace:*",
     "@konnecttia/notifications": "workspace:*",
-    "postgres": "^3.4.5",
+    "postgres": "^4.1.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
