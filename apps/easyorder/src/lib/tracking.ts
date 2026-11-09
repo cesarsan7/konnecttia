@@ -21,3 +21,9 @@ export async function copyText(
     return false;
   }
 }
+
+/** Texto de «Contactar con el local» cuando el pedido ya no se puede cancelar desde el seguimiento. */
+export function contactHref(phone: string | null | undefined): string | null {
+  const digits = (phone ?? "").replace(/[^\d+]/g, "");
+  return digits.replace(/\D/g, "").length >= 6 ? `tel:${digits}` : null;
+}

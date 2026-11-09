@@ -78,6 +78,11 @@ export function createApi(baseUrl: string) {
         body: JSON.stringify({ telefono, codigo }),
       }),
     tracking: (token: string) => request<TrackedOrder>(`${base}/orders/${segment(token)}`),
+    /** Cancela el pedido (solo mientras el local no lo ha aceptado). */
+    cancelOrder: (token: string) =>
+      request<{ ok: true; estado: string }>(`${base}/orders/${segment(token)}/cancelar`, {
+        method: "POST",
+      }),
     /** Corrige el email de avisos del pedido (con el token; solo mientras el pedido está abierto). */
     updateEmail: (token: string, email: string) =>
       request<{ ok: true; email_avisos: string }>(`${base}/orders/${segment(token)}/email`, {

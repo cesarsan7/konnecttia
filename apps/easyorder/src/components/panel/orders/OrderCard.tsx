@@ -99,6 +99,9 @@ export function OrderCard({
           <span className={`k-chip k-chip-${order.estado}`}>
             {STATUS_LABEL[order.estado] ?? order.estado}
           </span>
+          {order.cancelado_por_cliente ? (
+            <span className="k-chip k-chip-channel">Cancelado por el cliente</span>
+          ) : null}
           {order.canal === "whatsapp" ? (
             <span className="k-chip k-chip-channel">WhatsApp</span>
           ) : null}
