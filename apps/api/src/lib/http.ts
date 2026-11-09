@@ -35,6 +35,14 @@ export const API_ERROR = {
   OrderNotAccepted: "order_not_accepted",
   /** El restaurante no acepta pedidos ahora (prueba pendiente, rechazada o vencida). */
   RestaurantUnavailable: "restaurant_unavailable",
+  /** Antifraude capa 3: el pedido de riesgo necesita un código de verificación del teléfono. */
+  VerificationRequired: "verification_required",
+  /** Antifraude capa 3: se alcanzó el tope mensual de códigos; pagar con tarjeta o llamar al local. */
+  VerificationUnavailable: "verification_unavailable",
+  /** El código escrito no es correcto, caducó o se agotaron los intentos (`reason` dice cuál). */
+  CodeInvalid: "code_invalid",
+  /** El proveedor no pudo enviar el código. */
+  CodeSendFailed: "code_send_failed",
 } as const;
 
 export type ApiError = (typeof API_ERROR)[keyof typeof API_ERROR];

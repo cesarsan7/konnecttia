@@ -52,6 +52,16 @@ export type CaptchaVerifier = (token: string | undefined, ip: string | null) => 
  */
 export type RecoveryLinkGenerator = (email: string, redirectTo: string) => Promise<string | null>;
 
+/**
+ * Envía el código de verificación al teléfono del cliente (WhatsApp, plantilla de autenticación).
+ * Devuelve false si el proveedor no lo aceptó; nunca debe registrar el código.
+ */
+export type CodeSender = (message: {
+  readonly telefono: string;
+  readonly codigo: string;
+  readonly restaurante: string;
+}) => Promise<boolean>;
+
 /** Dependencias inyectadas: permiten probar la API con una base real y una autenticación falsa. */
 export type AppDeps = {
   readonly sql: Sql;
@@ -74,6 +84,13 @@ export type AppDeps = {
   readonly generateRecoveryLink?: RecoveryLinkGenerator | null;
   /** null si no hay TURNSTILE_SECRET_KEY: el pedido web no exige captcha. */
   readonly verifyCaptcha?: CaptchaVerifier | null;
+  /**
+   * Antifraude capa 3. Sin `sendCode` y `codeSecret` la capa queda apagada aunque un restaurante
+   * tenga `antifraude_codigo_canal`: no se pide código que no se pueda enviar.
+   */
+  readonly sendCode?: CodeSender | null;
+  /** Secreto del HMAC con el que se guarda el hash de cada código (mínimo 32 caracteres). */
+  readonly codeSecret?: string | null;
 };
 
 export type AppEnv = {
