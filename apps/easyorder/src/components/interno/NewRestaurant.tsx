@@ -387,6 +387,39 @@ export function NewRestaurant() {
         </fieldset>
 
         <fieldset className="k-nr-group">
+          <legend className="k-title">Antifraude en el pedido web</legend>
+          <p className="k-muted k-small k-nr-note">
+            Código de verificación por WhatsApp, solo cuando el pedido tiene riesgo: teléfono sin
+            pedidos entregados, reparto pagado en efectivo o importe alto. Se envía desde el número
+            de Konnecttia y cuesta unos 0,017 € por código, con un tope mensual por restaurante.
+          </p>
+          <fieldset className="k-nr-checks">
+            <legend className="k-sr-only">Código de verificación</legend>
+            <label className="k-nr-check">
+              <input
+                type="radio"
+                name="codigo-verificacion"
+                checked={form.codigoVerificacion === "whatsapp"}
+                onChange={() => set("codigoVerificacion", "whatsapp")}
+              />
+              <span>WhatsApp (recomendado)</span>
+            </label>
+            <label className="k-nr-check">
+              <input
+                type="radio"
+                name="codigo-verificacion"
+                checked={form.codigoVerificacion === "apagado"}
+                onChange={() => set("codigoVerificacion", "apagado")}
+              />
+              <span>Apagado</span>
+            </label>
+          </fieldset>
+          <span className="k-hint-text k-small k-muted">
+            Se puede cambiar después desde la ficha del restaurante, junto con el importe y el tope.
+          </span>
+        </fieldset>
+
+        <fieldset className="k-nr-group">
           <legend className="k-title">Persona propietaria</legend>
           <label className="k-field">
             <span>Email</span>

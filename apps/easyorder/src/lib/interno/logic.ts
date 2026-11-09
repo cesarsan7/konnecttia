@@ -7,6 +7,9 @@ import {
 } from "@konnecttia/domain";
 import type { ApiErrorBody } from "../types";
 import type {
+  CodeChannel,
+  CodeSettingsBody,
+  CodeSettingsInfo,
   ModuleChangeBody,
   ModuleOrigin,
   ModuleRow,
@@ -41,6 +44,8 @@ export type NewRestaurantForm = {
   readonly repartoMinutos: string;
   readonly efectivo: boolean;
   readonly tarjeta: boolean;
+  /** Código de verificación del checkout web (capa 3): WhatsApp es el valor recomendado. */
+  readonly codigoVerificacion: CodeChannel;
 };
 
 export type FormErrors = Partial<Record<keyof NewRestaurantForm, string>>;
@@ -73,6 +78,7 @@ export const EMPTY_OPENING_DATA = {
   repartoMinutos: "",
   efectivo: true,
   tarjeta: true,
+  codigoVerificacion: "whatsapp",
 } as const;
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -201,6 +207,7 @@ export function toNewRestaurantBody(form: NewRestaurantForm): NewRestaurantBody 
         }
       : {}),
     metodos_pago: metodos,
+    codigo_verificacion: form.codigoVerificacion,
     nombre: form.nombre.trim(),
     slug: form.slug.trim(),
     zona_horaria: form.zonaHoraria.trim(),
@@ -403,4 +410,58 @@ export function methodsThatWouldBeRemoved(
   draft: readonly string[] | null,
 ): string[] {
   return draft === null ? [] : active.filter((method) => !draft.includes(method));
+}
+
+// ---------------------------------------------------------- código de verificación (capa 3)
+
+/** Valores por defecto de la API (ADR 0011): se muestran como ayuda en los campos vacíos. */
+export const CODE_DEFAULT_THRESHOLD_EUR = 30;
+export const CODE_DEFAULT_CAP_EUR = 10;
+
+export type CodeSettingsForm = {
+  readonly canal: CodeChannel;
+  /** Vacío = valor por defecto. */
+  readonly umbral: string;
+  readonly tope: string;
+};
+
+const amountText = (value: number) => String(value).replace(".", ",");
+
+/** Formulario a partir de lo guardado: solo se rellenan los valores que el restaurante cambió. */
+export function codeSettingsForm(info: CodeSettingsInfo): CodeSettingsForm {
+  return {
+    canal: info.canal,
+    umbral: info.umbral_personalizado ? amountText(info.umbral_eur) : "",
+    tope: info.tope_personalizado ? amountText(info.tope_mensual_eur) : "",
+  };
+}
+
+/** Importe en euros: vacío vale (= por defecto); si hay texto, un número entre 0 y el máximo. */
+function amountProblem(text: string, max: number): string | null {
+  if (!filled(text)) return null;
+  const value = parseDecimal(text);
+  if (value === null || value < 0 || value > max) {
+    return `Escribe un importe entre 0 y ${max} €, o déjalo vacío para el valor por defecto.`;
+  }
+  return null;
+}
+
+export function validateCodeSettings(form: CodeSettingsForm): { umbral?: string; tope?: string } {
+  const umbral = amountProblem(form.umbral, 100_000);
+  const tope = amountProblem(form.tope, 1_000);
+  return { ...(umbral ? { umbral } : {}), ...(tope ? { tope } : {}) };
+}
+
+/** Cuerpo de PUT /antifraude-codigo a partir del formulario ya validado. */
+export function toCodeSettingsBody(form: CodeSettingsForm): CodeSettingsBody {
+  return {
+    canal: form.canal,
+    umbral_eur: filled(form.umbral) ? parseDecimal(form.umbral) : null,
+    tope_mensual_eur: filled(form.tope) ? parseDecimal(form.tope) : null,
+  };
+}
+
+export function sameCodeSettings(a: CodeSettingsForm, b: CodeSettingsForm): boolean {
+  const body = (form: CodeSettingsForm) => JSON.stringify(toCodeSettingsBody(form));
+  return body(a) === body(b);
 }

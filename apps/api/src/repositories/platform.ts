@@ -6,6 +6,8 @@ import {
 } from "@konnecttia/domain";
 import type { TransactionSql } from "postgres";
 import type { Sql } from "../lib/db";
+import { CONFIG_KEY } from "./restaurants";
+import { codeSettings } from "./verification";
 
 type Tx = TransactionSql<{ bigint: number }>;
 
@@ -62,6 +64,8 @@ export type NewRestaurant = {
   readonly zonaReparto?: NewDeliveryZone | undefined;
   /** Métodos de cobro iniciales. Sin indicar: `INITIAL_PAYMENT_METHODS`. */
   readonly metodosPago?: readonly string[] | undefined;
+  /** Canal del código de verificación (capa 3). Sin indicar o null: apagada. */
+  readonly codigoVerificacion?: "whatsapp" | null | undefined;
 };
 
 export type NewScheduleDay = {
@@ -139,6 +143,9 @@ export async function createRestaurant(
              s.restaurante_id, s.id, s.lat, s.lng, ${zone.radioKm}, 'fija', true
       FROM   public.sucursal s WHERE s.id = ${branch.id}
     `;
+  }
+  if (input.codigoVerificacion) {
+    await saveCodeSettings(tx, restaurant.id, { channel: input.codigoVerificacion });
   }
   await applyPlan(tx, restaurant.id, input.plan, now);
   const modules = await tx<{ modulo_code: string }[]>`
@@ -399,4 +406,84 @@ export async function importMenu(
     }
   }
   return { categorias: categories.length, productos: products, precios: prices };
+}
+
+// ---------------------------------------------------------- antifraude capa 3 (código por WhatsApp)
+
+const CODE_CONFIG = {
+  channel: {
+    key: CONFIG_KEY.AntifraudCodeChannel,
+    description:
+      "Canal del código de verificación del checkout web (whatsapp). Sin valor: apagado.",
+  },
+  threshold: {
+    key: CONFIG_KEY.AntifraudCodeAmountThreshold,
+    description: "Importe del pedido (EUR) desde el que se pide código de verificación.",
+  },
+  cap: {
+    key: CONFIG_KEY.AntifraudCodeMonthlyCap,
+    description: "Gasto máximo mensual (EUR) en códigos de verificación.",
+  },
+} as const;
+
+/**
+ * Guarda los ajustes del código de verificación de un restaurante. Para cada valor, `undefined`
+ * lo deja como está, `null` lo borra (vuelve al valor por defecto) y un valor lo escribe. El canal
+ * `null` apaga la capa 3 para ese restaurante.
+ */
+export async function saveCodeSettings(
+  tx: Tx,
+  restaurantId: number,
+  settings: {
+    readonly channel?: "whatsapp" | null;
+    readonly amountThresholdEur?: number | null;
+    readonly monthlyCapEur?: number | null;
+  },
+): Promise<void> {
+  const entries = [
+    [CODE_CONFIG.channel, settings.channel],
+    [CODE_CONFIG.threshold, settings.amountThresholdEur],
+    [CODE_CONFIG.cap, settings.monthlyCapEur],
+  ] as const;
+  for (const [config, value] of entries) {
+    if (value === undefined) continue;
+    if (value === null) {
+      await tx`
+        DELETE FROM public.restaurante_config
+        WHERE  restaurante_id = ${restaurantId} AND config_key = ${config.key}
+      `;
+      continue;
+    }
+    await tx`
+      INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value, description)
+      VALUES (${restaurantId}, ${config.key}, ${String(value)}, ${config.description})
+      ON CONFLICT (restaurante_id, config_key)
+      DO UPDATE SET config_value = EXCLUDED.config_value
+    `;
+  }
+}
+
+/** Ajustes del código de verificación de un restaurante para la ficha del panel interno. */
+export async function readCodeSettings(sql: Sql, restaurantId: number) {
+  const config = new Map(
+    (
+      await sql<{ config_key: string; config_value: string }[]>`
+        SELECT config_key, config_value FROM public.restaurante_config
+        WHERE  restaurante_id = ${restaurantId}
+          AND  config_key IN ${sql([CODE_CONFIG.channel.key, CODE_CONFIG.threshold.key, CODE_CONFIG.cap.key])}
+      `
+    ).map((row) => [row.config_key, row.config_value]),
+  );
+  const settings = codeSettings(config);
+  const [spend] = await sql<{ gasto: string }[]>`
+    SELECT public.fn_codigo_gasto_mes(${restaurantId}::int4, now()) AS gasto
+  `;
+  return {
+    canal: settings.channel ?? "apagado",
+    umbral_eur: settings.amountThresholdEur,
+    umbral_personalizado: config.has(CODE_CONFIG.threshold.key),
+    tope_mensual_eur: settings.monthlyCapEur,
+    tope_personalizado: config.has(CODE_CONFIG.cap.key),
+    gasto_mes_eur: Math.round(Number(spend?.gasto ?? 0) * 10_000) / 10_000,
+  };
 }
