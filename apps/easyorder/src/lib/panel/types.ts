@@ -78,6 +78,10 @@ export type PanelOrder = {
   readonly justificantes?: number;
   /** Fotos de entrega que ha subido el repartidor (tablero e historial las traen). */
   readonly fotos_entrega?: number;
+  /** El cliente canceló el pedido desde el seguimiento (aviso en el tablero). */
+  readonly cancelado_por_cliente?: boolean;
+  /** Incidencias del cliente aún sin resolver (pieza P). */
+  readonly incidencias_abiertas?: number;
 };
 
 export type BusyMode = {

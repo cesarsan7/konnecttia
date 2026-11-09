@@ -1,7 +1,10 @@
 import type { Fulfillment, Quote } from "@konnecttia/domain";
 import {
+  canClientCancel,
+  canReportIncident,
   DEFERRED_PAYMENT_METHODS,
   effectiveBrandColor,
+  MAX_OPEN_INCIDENTS_PER_ORDER,
   ORDER_STATUS,
   PAYMENT_METHOD,
   PAYMENT_STATUS,
@@ -243,6 +246,13 @@ export type TrackedOrder = {
   readonly emailAvisos: string | null;
   /** Se puede corregir el email mientras el pedido siga abierto. */
   readonly emailEditable: boolean;
+  /** El cliente puede cancelar: el local aún no ha aceptado el pedido (`canClientCancel`). */
+  readonly puedeCancelar: boolean;
+  /** Se puede abrir una incidencia (pieza P) y cuántas hay abiertas. */
+  readonly puedeReportar: boolean;
+  readonly incidenciasAbiertas: number;
+  /** Teléfono del restaurante, para «Contactar con el local» cuando ya no puede cancelar. */
+  readonly contactoTelefono: string | null;
   readonly pedidoCodigo: string | null;
   readonly restaurante: string;
   /** Marca (pieza AA): color de acento y logo para que el seguimiento se parezca a la carta. */
@@ -321,6 +331,8 @@ export async function findOrderByTrackingToken(
       justificantes_max: string | null;
       brand_color: string | null;
       logo_url: string | null;
+      contacto_telefono: string | null;
+      incidencias_abiertas: number;
       email_cliente: string | null;
       created_at: string;
       updated_at: string | null;
@@ -335,6 +347,9 @@ export async function findOrderByTrackingToken(
            (SELECT c.config_value FROM public.restaurante_config c
             WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ProofsMaxPerOrder})
              AS justificantes_max,
+           r.telefono AS contacto_telefono,
+           (SELECT count(*)::int FROM public.pedido_incidencia i
+            WHERE  i.pedido_id = p.id AND i.estado = 'abierta') AS incidencias_abiertas,
            s.nombre AS local_nombre, s.direccion AS local_direccion
     FROM   public.pedidos p
     JOIN   public.restaurante r ON r.id = p.restaurante_id
@@ -357,6 +372,11 @@ export async function findOrderByTrackingToken(
   return {
     emailAvisos: row.email_cliente ? maskEmail(row.email_cliente) : null,
     emailEditable: !FINAL_STATES.has(row.estado),
+    puedeCancelar: canClientCancel({ estado: row.estado, justificantes: row.justificantes }),
+    contactoTelefono: row.contacto_telefono?.trim() || null,
+    puedeReportar:
+      canReportIncident(row.estado) && row.incidencias_abiertas < MAX_OPEN_INCIDENTS_PER_ORDER,
+    incidenciasAbiertas: row.incidencias_abiertas,
     pedidoCodigo: row.pedido_codigo,
     restaurante: row.restaurante,
     colorMarca: effectiveBrandColor(row.brand_color),

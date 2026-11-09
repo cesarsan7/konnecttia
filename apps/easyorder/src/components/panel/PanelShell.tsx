@@ -192,6 +192,12 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
       : []),
     { href: base, label: "Pedidos", icon: "orders", permission: PERMISSION.OrdersView },
     {
+      href: `${base}/incidencias`,
+      label: "Incidencias",
+      icon: "bell",
+      permission: PERMISSION.OrdersView,
+    },
+    {
       href: `${base}/estadisticas`,
       label: "Estadísticas",
       icon: "chart",

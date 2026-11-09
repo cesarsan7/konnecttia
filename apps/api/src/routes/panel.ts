@@ -18,6 +18,7 @@ import { registerActivityRoutes } from "./panel-activity";
 import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerDriverRoutes } from "./panel-drivers";
+import { registerIncidentRoutes } from "./panel-incidents";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerOnboardingRoutes } from "./panel-onboarding";
 import { registerManualOrderRoutes } from "./panel-orders";
@@ -85,6 +86,7 @@ export function panelRoutes(deps: AppDeps) {
   registerOrderListRoutes(app, deps);
   registerProofRoutes(app, deps);
   registerCustomerRoutes(app, deps);
+  registerIncidentRoutes(app, deps);
   registerStreamRoutes(app, deps);
   registerWaiterRoutes(app, deps);
   registerActivityRoutes(app, deps);
@@ -122,7 +124,12 @@ export function panelRoutes(deps: AppDeps) {
              (SELECT count(*)::int FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
                AS justificantes,
              (SELECT count(*)::int FROM public.pedido_foto_entrega f WHERE f.pedido_id = p.id)
-               AS fotos_entrega
+               AS fotos_entrega,
+             EXISTS (SELECT 1 FROM public.pedido_estado_log l
+                     WHERE  l.pedido_id = p.id AND l.estado_nuevo = ${ORDER_STATUS.Cancelled}
+                       AND  l.origen = 'cliente') AS cancelado_por_cliente,
+             (SELECT count(*)::int FROM public.pedido_incidencia i
+              WHERE  i.pedido_id = p.id AND i.estado = 'abierta') AS incidencias_abiertas
       FROM   public.pedidos p
       LEFT   JOIN public.sucursal s ON s.id = p.sucursal_id
       LEFT   JOIN public.mesa me    ON me.id = p.mesa_id

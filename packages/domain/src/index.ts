@@ -3,6 +3,7 @@ export * from "./branches";
 export * from "./brand";
 export * from "./delivery";
 export * from "./eta";
+export * from "./incident";
 export * from "./menu";
 export * from "./menu-import";
 export * from "./money";
