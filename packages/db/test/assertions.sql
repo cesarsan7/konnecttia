@@ -236,3 +236,44 @@ BEGIN
   DELETE FROM public.restaurante_prueba WHERE restaurante_id = 9001;
   DELETE FROM public.pedidos WHERE restaurante_id = 9001 AND telefono = '+34600000000';
 END $$;
+
+-- Antifraude capa 3 (0026): el código no caduca antes de crearse, un código no verificado no se
+-- consume, y el gasto del mes solo cuenta el mes natural del restaurante.
+DO $$
+DECLARE
+  v_gasto numeric;
+BEGIN
+  BEGIN
+    INSERT INTO public.verificacion_codigo (restaurante_id, telefono, canal, motivo, codigo_hash, caduca_at)
+    VALUES (9001, '34600000001', 'sms', 'telefono_nuevo', 'x', now() - interval '1 minute');
+    RAISE EXCEPTION 'FALLO: un código caducado al crearse';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  BEGIN
+    INSERT INTO public.verificacion_codigo
+      (restaurante_id, telefono, canal, motivo, codigo_hash, caduca_at, consumido_at)
+    VALUES (9001, '34600000001', 'sms', 'telefono_nuevo', 'x', now() + interval '10 minutes', now());
+    RAISE EXCEPTION 'FALLO: un código sin verificar quedó consumido';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  BEGIN
+    INSERT INTO public.verificacion_codigo (restaurante_id, telefono, canal, motivo, codigo_hash, caduca_at)
+    VALUES (9001, '600000001', 'sms', 'telefono_nuevo', 'x', now() + interval '10 minutes');
+    RAISE EXCEPTION 'FALLO: teléfono sin normalizar';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+
+  INSERT INTO public.verificacion_codigo (restaurante_id, telefono, canal, motivo, codigo_hash, caduca_at, coste_eur)
+  VALUES (9001, '34600000001', 'whatsapp', 'telefono_nuevo', 'x', now() + interval '10 minutes', 0.0166);
+  INSERT INTO public.verificacion_codigo (restaurante_id, telefono, canal, motivo, codigo_hash, created_at, caduca_at, coste_eur)
+  VALUES (9001, '34600000001', 'sms', 'efectivo_reparto', 'x', now() - interval '70 days', now() - interval '70 days' + interval '10 minutes', 5);
+
+  SELECT public.fn_codigo_gasto_mes(9001, now()) INTO v_gasto;
+  IF v_gasto <> 0.0166 THEN
+    RAISE EXCEPTION 'FALLO: el gasto del mes es %, esperado 0.0166', v_gasto;
+  END IF;
+
+  DELETE FROM public.verificacion_codigo WHERE restaurante_id = 9001;
+END $$;
