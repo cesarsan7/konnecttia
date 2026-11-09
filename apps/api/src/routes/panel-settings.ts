@@ -9,10 +9,14 @@ import {
   FULFILLMENT,
   isValidIban,
   PAYMENT_METHODS,
+  parseSocialLinks,
+  readSocialLinks,
+  SOCIAL_NETWORKS,
   sameWeekday,
   WEEKDAYS_ES,
 } from "@konnecttia/domain";
 import type { Context, Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import type { TransactionSql } from "postgres";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -30,6 +34,7 @@ import { audit } from "../repositories/access";
 import { phoneLimits } from "../repositories/antifraud";
 import { loadBranches } from "../repositories/branches";
 import { deliveryPhotoMode } from "../repositories/delivery-photos";
+import { detectImageType } from "../repositories/menu-admin";
 import { CONFIG_KEY, loadConfig, surchargeRules } from "../repositories/restaurants";
 
 /**
@@ -52,6 +57,8 @@ const OPEN_MODE = { Auto: "auto", Open: "abierto", Closed: "cerrado" } as const;
 
 const time = z.string().regex(TIME).nullable();
 const minutes = z.number().int().min(1).max(600).nullable();
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+
 const text = (max: number) =>
   z
     .string()
@@ -121,6 +128,10 @@ const restaurantSchema = z
       .max(PHONE_LIMIT_MAX)
       .nullable()
       .refine(isValidPhoneLimit),
+    /** Redes sociales y web (pieza Z): `[{ red, url }]`, una por red. Vacío = ninguna. */
+    redes_sociales: z
+      .array(z.object({ red: z.string().max(20), url: z.string().max(400) }))
+      .max(SOCIAL_NETWORKS.length),
     /** Suplementos por pedido pequeño (envases…): se guardan en surcharge_rules. */
     suplementos: z
       .array(
@@ -316,10 +327,13 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
           payment_methods: unknown;
           metodos_pago_permitidos: unknown;
           datos_bancarios: unknown;
+          logo_url: string | null;
+          redes_sociales: unknown;
         }[]
       >`
         SELECT nombre, telefono, direccion, descripcion, eslogan, zona_horaria, pickup_enabled,
-               delivery_enabled, payment_methods, metodos_pago_permitidos, datos_bancarios
+               delivery_enabled, payment_methods, metodos_pago_permitidos, datos_bancarios,
+               logo_url, redes_sociales
         FROM   public.restaurante WHERE id = ${restauranteId}
       `,
       loadConfig(sql, restauranteId),
@@ -384,6 +398,8 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         direccion: restaurant.direccion,
         descripcion: restaurant.descripcion,
         eslogan: restaurant.eslogan,
+        logo_url: restaurant.logo_url?.trim() || null,
+        redes_sociales: readSocialLinks(restaurant.redes_sociales),
         zona_horaria: restaurant.zona_horaria,
         recogida: restaurant.pickup_enabled,
         reparto: restaurant.delivery_enabled,
@@ -501,6 +517,11 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         const problem = checkPaymentSetup(methods, bank);
         if (problem) return invalid(c, "metodos_pago", problem);
       }
+      const social =
+        body.redes_sociales === undefined ? null : parseSocialLinks(body.redes_sociales);
+      if (social && !social.ok) {
+        return invalid(c, `redes_sociales.${social.index}`, social.error);
+      }
       const min = body.reparto_minutos_min;
       const max = body.reparto_minutos_max;
       if (min != null && max != null && min > max)
@@ -533,6 +554,9 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                  direccion        = CASE WHEN ${has("direccion")} THEN ${body.direccion ?? null} ELSE direccion END,
                  descripcion      = CASE WHEN ${has("descripcion")} THEN ${body.descripcion ?? null} ELSE descripcion END,
                  eslogan          = CASE WHEN ${has("eslogan")} THEN ${body.eslogan ?? null} ELSE eslogan END,
+                 redes_sociales   = CASE WHEN ${has("redes_sociales")}
+                                         THEN ${social?.ok && social.links.length > 0 ? tx.json([...social.links]) : null}::jsonb
+                                         ELSE redes_sociales END,
                  pickup_enabled   = ${pickup},
                  delivery_enabled = ${delivery},
                  payment_methods  = CASE WHEN ${has("metodos_pago")}
@@ -649,6 +673,54 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         ...(has("datos_bancarios") ? { datos_bancarios: "actualizados" } : {}),
       });
       return c.json({ ok: true });
+    },
+  );
+
+  /**
+   * Logo del restaurante (pieza Z): se sube al mismo almacenamiento público que las fotos de la
+   * carta, se reconoce por su firma (JPG, PNG o WebP) y se guarda su URL en `restaurante.logo_url`.
+   * Los archivos anteriores no se borran (el almacenamiento solo sube).
+   */
+  app.post(
+    "/:slug/ajustes/logo",
+    requirePermission(deps, PERMISSION.SettingsUpdate),
+    bodyLimit({
+      maxSize: MAX_LOGO_BYTES + 64 * 1024,
+      onError: (c) => fail(c, 413, API_ERROR.InvalidImage, { reason: "too_large" }),
+    }),
+    async (c) => {
+      const denied = await requireAllBranches(c, PERMISSION.SettingsUpdate);
+      if (denied) return denied;
+      const storage = deps.imageStorage;
+      if (!storage) return fail(c, 503, API_ERROR.StorageNotConfigured);
+      const form = await c.req.parseBody().catch(() => null);
+      const file = form?.logo;
+      if (!(file instanceof File)) return invalid(c, "logo");
+      if (file.size > MAX_LOGO_BYTES) {
+        return fail(c, 413, API_ERROR.InvalidImage, { reason: "too_large" });
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const type = detectImageType(bytes);
+      if (!type) return fail(c, 415, API_ERROR.InvalidImage, { reason: "unsupported_type" });
+      const restauranteId = c.get("restaurant").id;
+      const path = `${restauranteId}/logo-${crypto.randomUUID()}.${type.ext}`;
+      const url = await storage.upload(path, bytes, type.mime);
+      await sql`UPDATE public.restaurante SET logo_url = ${url} WHERE id = ${restauranteId}`;
+      await record(c, "ajustes.logo", "restaurante", restauranteId, { ruta: path });
+      return c.json({ logo_url: url });
+    },
+  );
+
+  app.delete(
+    "/:slug/ajustes/logo",
+    requirePermission(deps, PERMISSION.SettingsUpdate),
+    async (c) => {
+      const denied = await requireAllBranches(c, PERMISSION.SettingsUpdate);
+      if (denied) return denied;
+      const restauranteId = c.get("restaurant").id;
+      await sql`UPDATE public.restaurante SET logo_url = NULL WHERE id = ${restauranteId}`;
+      await record(c, "ajustes.logo.quitar", "restaurante", restauranteId);
+      return c.json({ logo_url: null });
     },
   );
 

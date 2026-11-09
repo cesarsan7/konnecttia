@@ -40,6 +40,9 @@ export type Menu = {
     readonly acepta_pedidos?: boolean;
     /** Política propia del restaurante; null = se enlaza a la página genérica /<slug>/privacidad. */
     readonly privacidad_url: string | null;
+    /** Marca (pieza Z): logo y redes sociales. Ausentes en respuestas antiguas. */
+    readonly logo_url?: string | null;
+    readonly redes_sociales?: readonly { readonly red: string; readonly url: string }[];
   };
   readonly local: { readonly id: number; readonly nombre: string } | null;
   readonly abierto: boolean;

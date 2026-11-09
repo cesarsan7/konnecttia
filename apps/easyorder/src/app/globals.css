@@ -585,3 +585,21 @@ a {
   font-size: 0.8rem;
   color: var(--muted);
 }
+
+.store-logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  object-fit: contain;
+}
+
+.store-social {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  margin: 24px 0 8px;
+  font-size: 0.9375rem;
+}

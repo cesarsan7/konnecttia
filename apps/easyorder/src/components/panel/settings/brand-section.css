@@ -1,0 +1,49 @@
+.k-brand-logo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.k-brand-logo-img,
+.k-brand-logo-empty {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  object-fit: contain;
+}
+
+.k-brand-logo-empty {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border-style: dashed;
+}
+
+.k-brand-actions,
+.k-brand-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.k-brand-rows {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.k-brand-field {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 260px;
+}
+
+.k-brand-add {
+  max-width: 280px;
+}

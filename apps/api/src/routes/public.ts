@@ -24,6 +24,7 @@ import {
   phoneLimits,
 } from "../repositories/antifraud";
 import { loadBranches, openChecker, unavailableItems } from "../repositories/branches";
+import { loadBrand } from "../repositories/brand";
 import { loadPublicMenu } from "../repositories/catalog";
 import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
@@ -465,10 +466,14 @@ export function publicRoutes(deps: AppDeps) {
     // Sin local elegido, la carta se muestra abierta si algún local atiende ahora.
     const abierto = branch ? isOpen(branch) : active.some(isOpen);
     const hidden = branch ? await unavailableItems(deps.sql, branch.id) : new Set<number>();
+    const brand = await loadBrand(deps.sql, restaurant.id);
     return c.json({
       restaurante: {
         nombre: restaurant.nombre,
         slug: restaurant.slug,
+        // Marca (pieza Z): logo y redes que la carta muestra en la cabecera y el pie.
+        logo_url: brand.logoUrl,
+        redes_sociales: brand.socialLinks,
         // Lo que la web necesita para montar el checkout sin adivinar.
         recogida: restaurant.pickupEnabled && active.some((b) => b.acceptsPickup),
         reparto: restaurant.deliveryEnabled && active.some((b) => b.acceptsDelivery),

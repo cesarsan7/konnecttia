@@ -21,12 +21,17 @@ export type BankDetails = {
   readonly bizum?: string;
 };
 
+import type { SocialLink } from "@konnecttia/domain";
+
 export type RestaurantSettings = {
   readonly nombre: string;
   readonly telefono: string | null;
   readonly direccion: string | null;
   readonly descripcion: string | null;
   readonly eslogan: string | null;
+  /** Logo (URL pública) y redes sociales del restaurante (pieza Z). */
+  readonly logo_url?: string | null;
+  readonly redes_sociales?: readonly SocialLink[];
   readonly zona_horaria: string | null;
   readonly recogida: boolean;
   readonly reparto: boolean;
@@ -100,6 +105,9 @@ const SETTINGS_ERROR: Readonly<Record<string, string>> = {
   principal_required: "El local principal no se puede desactivar.",
   lat_lng_together: "Indica latitud y longitud juntas.",
   duplicate_date: "Ya hay un festivo en esa fecha.",
+  unknown_network: "Esa red social no está admitida.",
+  duplicate_network: "Cada red solo puede aparecer una vez.",
+  invalid_url: "El enlace no es válido. Pega la dirección completa (https://…).",
   branch_scope_limited: "Tu usuario solo opera algunos locales: esto lo cambia el propietario.",
 };
 
