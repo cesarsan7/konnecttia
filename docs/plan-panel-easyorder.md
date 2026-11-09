@@ -237,16 +237,20 @@ Se retoman cuando el promotor tenga estos datos:
 
 ### Estado del 9/11
 
-| Pieza                                                           | PR  | Migración | Estado                                    |
-| --------------------------------------------------------------- | --- | --------- | ----------------------------------------- |
-| Alta de Arepa's Factory y su carta                              | #68 | —         | Fusionado; aplicar el seed en staging     |
-| Alta completa desde `/interno` con importación de la carta      | #69 | —         | Fusionado                                 |
-| Roles por restaurante en `/interno`                             | #70 | —         | Fusionado                                 |
-| V · Personalizar plantillas de rol en el panel                  | #71 | —         | Fusionado                                 |
-| U · Actividad de repartidores y meseros                         | #72 | —         | Fusionado                                 |
-| Arreglo del typecheck de `panel-roles` tras #70 y #71           | #73 | —         | Fusionado                                 |
-| Plantillas de rol propias de Konnecttia (`/interno/plantillas`) | #74 | —         | Abierto, pendiente de revisión            |
-| Q · Antifraude capa 3: propuesta (ADR 0011)                     | #75 | —         | Abierto; falta elegir canal y presupuesto |
+| Pieza                                                           | PR  | Migración | Estado                                  |
+| --------------------------------------------------------------- | --- | --------- | --------------------------------------- |
+| Alta de Arepa's Factory y su carta                              | #68 | —         | Fusionado; aplicar el seed en staging   |
+| Alta completa desde `/interno` con importación de la carta      | #69 | —         | Fusionado                               |
+| Roles por restaurante en `/interno`                             | #70 | —         | Fusionado                               |
+| V · Personalizar plantillas de rol en el panel                  | #71 | —         | Fusionado                               |
+| U · Actividad de repartidores y meseros                         | #72 | —         | Fusionado                               |
+| Arreglo del typecheck de `panel-roles` tras #70 y #71           | #73 | —         | Fusionado                               |
+| Plantillas de rol propias de Konnecttia (`/interno/plantillas`) | #74 | —         | Fusionado                               |
+| Q · Antifraude capa 3: propuesta (ADR 0011)                     | #75 | —         | Fusionado; canales y tope decididos     |
+| Migraciones automáticas al desplegar la API                     | #77 | —         | Fusionado; vigilar el primer despliegue |
+| Q · Antifraude capa 3, paso 1: tabla de códigos                 | #78 | 0026      | Fusionado; confirmar la migración       |
+| Costes, prueba de impresión y escenarios de prueba (T, W)       | #79 | —         | Fusionado (`docs/comercial/`)           |
+| Email del cliente obligatorio en el checkout web                | #80 | 0027      | Abierto, pendiente de revisión          |
 
 ### Decisiones del promotor (9/11)
 
@@ -254,7 +258,9 @@ Se retoman cuando el promotor tenga estos datos:
   tope de 10 € al mes por restaurante. Tabla de códigos en la migración 0026 (PR #78); la API, la
   web y n8n vienen después. Detalle en el ADR 0011.
 - **Migraciones:** se aplican solas al desplegar la API (PR #77).
-- **Email del cliente:** obligatorio en el checkout y editable después (pendiente de implementar).
+- **Email del cliente:** obligatorio en el checkout web y editable desde el seguimiento (PR #80,
+  abierto, migración 0027). Con él, el worker ya puede enviar los avisos al cliente. WhatsApp y el
+  pedido manual no cambian.
 - **Reparto externo (M):** pasa a después del MVP.
 - **Costes (T):** estimación hecha en `docs/comercial/coste-restaurante-nuevo.md`; faltan datos
   reales de uso y la confirmación de la tarifa de Meta desde el 1/10/2026.

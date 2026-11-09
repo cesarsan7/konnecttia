@@ -12,4 +12,4 @@ documentación» (ver `AGENTS.md`).
 | [Prueba de impresión de comanda](prueba-impresion-comanda.md)      | Visita a Siempre Juntos: probar la impresora de cocina                | https://claude.ai/artifact/UJJ9SvA2XD2RyvmcH9uvPA |
 | [Escenarios de prueba](escenarios-de-prueba.md)                    | Guiones por rol para probar y enseñar EasyOrder (pieza W)             | Solo en el repositorio, de momento                |
 
-Última actualización: 9 de noviembre de 2026: inventario con lo fusionado hasta el PR #73 (actividad del equipo y personalizar roles, en pruebas).
+Última actualización: 9 de noviembre de 2026 (tarde): plan al día hasta el PR #79 (el #80, email obligatorio en el checkout, sigue abierto). El inventario de la guía no cambia: no hay funcionalidad nueva fusionada visible para el cliente.
