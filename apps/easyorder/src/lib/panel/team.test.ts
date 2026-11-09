@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   branchesLabel,
+  customizeWarning,
   inviteLink,
   inviteMessage,
   parseMemberName,
@@ -48,5 +49,19 @@ describe("equipo", () => {
     expect(parseMemberName("x".repeat(81), "")).toHaveProperty("error");
     expect(parseMemberName("Nuria", "y".repeat(81))).toHaveProperty("error");
     expect(teamErrorMessage("name_required")).toMatch(/nombre/);
+  });
+});
+
+describe("customizeWarning", () => {
+  it("avisa de a quién se le cambia el rol", () => {
+    expect(customizeWarning({ nombre: "Mesero", miembros: 0, invitaciones: 0 })).toBe(
+      "Se creará una copia propia de «Mesero» que podrás editar.",
+    );
+    expect(customizeWarning({ nombre: "Mesero", miembros: 2, invitaciones: 1 })).toContain(
+      "2 personas y 1 invitación pendiente",
+    );
+    expect(customizeWarning({ nombre: "Mesero", miembros: 1, invitaciones: 0 })).toContain(
+      "1 persona",
+    );
   });
 });
