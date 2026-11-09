@@ -39,7 +39,9 @@ export async function boardFingerprint(
                SELECT string_agg(p.id || ':' || p.estado || ':' || p.estado_pago || ':' ||
                                  COALESCE(p.updated_at::text, '') || ':' ||
                                  (SELECT count(*) FROM public.pedido_justificante j
-                                  WHERE j.pedido_id = p.id), ',' ORDER BY p.id)
+                                  WHERE j.pedido_id = p.id) || ':' ||
+                                 (SELECT count(*) FROM public.pedido_incidencia i
+                                  WHERE i.pedido_id = p.id AND i.estado = 'abierta'), ',' ORDER BY p.id)
                FROM   public.pedidos p
                WHERE  p.restaurante_id = ${restauranteId}
                  AND  p.estado <> ${ORDER_STATUS.InCart}

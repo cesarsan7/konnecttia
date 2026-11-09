@@ -495,6 +495,12 @@ async function anonymizeCustomer(
                ), '[]'::jsonb) ELSE items END
       WHERE  restaurante_id = ${restauranteId} AND id IN ${tx([...pedidoIds])}
     `;
+    // El texto de las incidencias puede describir a la persona: se vacía (queda el tipo y la fecha).
+    await tx`
+      UPDATE public.pedido_incidencia
+      SET    descripcion = '', nota_resolucion = NULL
+      WHERE  restaurante_id = ${restauranteId} AND pedido_id IN ${tx([...pedidoIds])}
+    `;
     // El email también viaja en el payload de los eventos pendientes del outbox: se quita.
     await tx`
       UPDATE public.outbox_evento

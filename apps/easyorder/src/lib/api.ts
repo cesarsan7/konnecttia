@@ -83,6 +83,13 @@ export function createApi(baseUrl: string) {
       request<{ ok: true; estado: string }>(`${base}/orders/${segment(token)}/cancelar`, {
         method: "POST",
       }),
+    /** Abre una incidencia sobre el pedido (tipo y texto libre). */
+    reportIncident: (token: string, body: { tipo: string; descripcion: string }) =>
+      request<{ ok: true }>(`${base}/orders/${segment(token)}/incidencias`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
     /** Corrige el email de avisos del pedido (con el token; solo mientras el pedido está abierto). */
     updateEmail: (token: string, email: string) =>
       request<{ ok: true; email_avisos: string }>(`${base}/orders/${segment(token)}/email`, {
