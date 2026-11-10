@@ -262,6 +262,7 @@ export function invitationLink(apiLink: string | null, token: string, origin: st
 }
 
 const REASONS: Record<string, string> = {
+  no_slug: "Este restaurante aún no tiene enlace propio.",
   no_account:
     "Esa persona aún no tiene cuenta. Pídele que entre una vez en EasyOrder (con ese email) y vuelve a intentarlo.",
   no_auth_admin:

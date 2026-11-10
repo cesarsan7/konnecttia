@@ -11,6 +11,7 @@ import { MenuImportSection } from "./MenuImportSection";
 import { PaymentMethodsSection } from "./PaymentMethodsSection";
 import { PlanModulesSection } from "./PlanModulesSection";
 import { RolesSection } from "./RolesSection";
+import { SupportEntry } from "./SupportEntry";
 import "./restaurant-detail.css";
 
 type Load =
@@ -91,12 +92,7 @@ export function RestaurantDetail({ id }: { readonly id: number }) {
         </div>
         {restaurant.slug ? (
           <div className="k-head-tools">
-            <Link href={`/panel/${restaurant.slug}`} className="k-btn k-btn-secondary k-rd-open">
-              Abrir su panel
-            </Link>
-            <p className="k-muted k-small k-rd-open-note">
-              Solo te lleva a su pantalla de entrada: no da acceso si no eres de su equipo.
-            </p>
+            <SupportEntry id={restaurant.id} />
           </div>
         ) : null}
       </header>

@@ -62,6 +62,7 @@ import { legacyRole, rolesOf } from "./panel-team";
 import { registerPlatformTeamRoutes } from "./plataforma-equipo";
 import { registerPlatformTemplateRoutes } from "./plataforma-plantillas";
 import { registerPlatformTrialRoutes } from "./plataforma-pruebas";
+import { registerPlatformSupportRoutes } from "./plataforma-soporte";
 
 /**
  * Panel interno de Konnecttia (ADR 0009, pieza 8 y K). Toda ruta exige pertenecer al equipo de
@@ -955,6 +956,7 @@ export function plataformaRoutes(deps: AppDeps) {
   registerPlatformTrialRoutes(app, deps);
   registerPlatformTemplateRoutes(app, deps);
   registerPlatformTeamRoutes(app, deps);
+  registerPlatformSupportRoutes(app, deps);
 
   return app;
 }

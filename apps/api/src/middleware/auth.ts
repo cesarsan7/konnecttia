@@ -3,6 +3,7 @@ import type { MiddlewareHandler } from "hono";
 import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
 import { audit, loadAccessContext } from "../repositories/access";
+import { activeSupportSession, loadSupportAccess } from "../repositories/support-access";
 
 const BEARER_PREFIX = "Bearer ";
 
@@ -20,10 +21,22 @@ export function requireMember(deps: AppDeps): MiddlewareHandler<AppEnv> {
     const restaurant = c.get("restaurant");
     const access = await loadAccessContext(deps.sql, user.userId, restaurant.id);
     if (!access) {
-      return fail(c, 403, API_ERROR.Forbidden);
+      // No es miembro: solo pasa el equipo de Konnecttia con una sesión de soporte vigente, y
+      // únicamente para consultar (GET/HEAD).
+      const session = await activeSupportSession(deps.sql, user.userId, restaurant.id, deps.now());
+      if (!session) return fail(c, 403, API_ERROR.Forbidden);
+      if (c.req.method !== "GET" && c.req.method !== "HEAD") {
+        return fail(c, 403, API_ERROR.Forbidden, { reason: "support_read_only" });
+      }
+      c.set("user", user);
+      c.set("access", await loadSupportAccess(deps.sql, restaurant.id));
+      c.set("support", session);
+      await next();
+      return;
     }
     c.set("user", user);
     c.set("access", access);
+    c.set("support", null);
     await next();
   };
 }

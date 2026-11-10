@@ -37,6 +37,12 @@ export type PanelAccess = {
     readonly zona_horaria: string;
   };
   readonly roles: readonly { readonly code: string; readonly nombre: string }[];
+  /** Presente si quien mira es del equipo de Konnecttia en modo soporte (solo lectura). */
+  readonly soporte?: {
+    readonly restaurante_id: number;
+    readonly expira_en: string;
+    readonly motivo: string;
+  } | null;
   readonly permisos: readonly string[];
   readonly modulos: readonly string[];
   readonly locales: "todos" | readonly number[];

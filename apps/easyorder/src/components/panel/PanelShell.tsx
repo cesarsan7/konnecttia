@@ -11,6 +11,7 @@ import { Icon, type IconName } from "./Icon";
 import { rememberRestaurant } from "./LoginScreen";
 import { usePanel } from "./PanelProvider";
 import { ProfileDialog } from "./ProfileDialog";
+import { SupportBanner } from "./SupportBanner";
 import { TrialBanner } from "./TrialBanner";
 import { PanelGuide } from "./tour/PanelGuide";
 import "./profile-dialog.css";
@@ -314,6 +315,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
         </aside>
         <main id="contenido" className="k-main">
           <PanelGuide slug={slug} access={access} />
+          {access.soporte ? <SupportBanner support={access.soporte} /> : null}
           <TrialBanner trial={access.prueba} />
           {children}
         </main>
