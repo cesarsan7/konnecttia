@@ -12,7 +12,7 @@ import { INTERNO_HELP } from "@/lib/interno/help";
 
 /** Clonar (crear a partir de este) y borrar. Borrar es irreversible y pide escribir el enlace. */
 export function LifecycleSection({ detail }: { readonly detail: Detail }) {
-  const { api, canWrite } = usePlatform();
+  const { api, canWrite, toast } = usePlatform();
   const router = useRouter();
   const restaurant = detail.restaurante;
   const [typed, setTyped] = useState("");
@@ -31,6 +31,15 @@ export function LifecycleSection({ detail }: { readonly detail: Detail }) {
     const result = await api.deleteRestaurant(restaurant.id, typed.trim());
     setBusy(false);
     if (result.ok) {
+      const orphans = result.data.cuentas_sin_uso.length;
+      if (orphans > 0) {
+        // Las cuentas de Supabase no se borran solas: se avisa y se revisan en «Equipo».
+        toast(
+          `Restaurante borrado. ${orphans} ${orphans === 1 ? "cuenta quedó" : "cuentas quedaron"} sin ningún uso: revísalas en Equipo.`,
+        );
+        router.replace("/interno/equipo#cuentas");
+        return;
+      }
       router.replace("/interno");
       return;
     }

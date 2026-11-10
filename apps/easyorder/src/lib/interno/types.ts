@@ -1,5 +1,30 @@
 /** Respuestas de la API del panel interno (apps/api/src/routes/plataforma.ts). */
 
+/** Equipo de Konnecttia (GET /plataforma/equipo). */
+export type PlatformMemberRow = {
+  readonly user_id: string;
+  readonly email: string | null;
+  readonly rol: "admin" | "soporte";
+  readonly activo: boolean;
+  readonly created_at: string;
+};
+export type PlatformTeam = {
+  readonly miembros: readonly PlatformMemberRow[];
+  readonly yo: string;
+  readonly busqueda_por_email: boolean;
+};
+/** Cuenta de Supabase sin ningún uso (GET /plataforma/cuentas-sin-uso). */
+export type UnusedAccount = {
+  readonly user_id: string;
+  readonly email: string | null;
+  readonly creada: string;
+  readonly ultimo_acceso: string | null;
+};
+export type UnusedAccounts = {
+  readonly dias_minimos: number;
+  readonly cuentas: readonly UnusedAccount[];
+};
+
 export type PlatformRole = "admin" | "soporte";
 
 export type PlatformMe = { readonly email: string | null; readonly rol: PlatformRole };
