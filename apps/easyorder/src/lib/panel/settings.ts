@@ -51,6 +51,10 @@ export type RestaurantSettings = {
   readonly reparto_foto_entrega: DeliveryPhotoMode;
   readonly privacidad_url: string | null;
   readonly privacidad_version: string | null;
+  readonly avisos_local_activo: boolean;
+  readonly avisos_local_emails: readonly string[];
+  readonly avisos_cliente_activo: boolean;
+  readonly avisos_cliente_estados: readonly string[];
   readonly antifraude_abiertos: number | null;
   readonly antifraude_por_hora: number | null;
   readonly suplementos: readonly Surcharge[];

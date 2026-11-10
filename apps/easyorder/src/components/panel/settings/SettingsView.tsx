@@ -6,6 +6,7 @@ import type { ApiResult } from "@/lib/api";
 import { paymentLabel } from "@/lib/checkout";
 import { describePanelError } from "@/lib/panel/api";
 import { parsePrice, priceInput } from "@/lib/panel/menu";
+import { STATUS_LABEL } from "@/lib/panel/orders";
 import {
   type BankDetails,
   type BranchSettings,
@@ -214,7 +215,10 @@ export function SettingsView() {
         <GeneralSection data={data} editable={editRestaurant} save={save} patch={patch} />
       ) : null}
       {current === TAB.Orders ? (
-        <OrdersSection data={data} editable={editRestaurant} save={save} patch={patch} />
+        <>
+          <OrdersSection data={data} editable={editRestaurant} save={save} patch={patch} />
+          <NoticesSection data={data} editable={editRestaurant} save={save} patch={patch} />
+        </>
       ) : null}
       {current === TAB.Privacy ? (
         <PrivacySection data={data} editable={editRestaurant} save={save} patch={patch} />
@@ -545,6 +549,105 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
           optional
           multiline
         />
+      </Section>
+      <SaveBar busy={form.busy} editable={editable} error={form.error} />
+    </form>
+  );
+}
+
+// ------------------------------------------------------------------------- avisos por email
+
+/** Estados que el worker sabe avisar al cliente (apps/worker/src/plan.ts). */
+const NOTICE_STATUSES = ["confirmado", "listo", "en_camino", "cancelado"] as const;
+
+function parseEmails(text: string): string[] | undefined {
+  const items = text
+    .split(/[,;\s]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item.length > 0);
+  const valid = items.every((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
+  return valid && items.length <= 10 ? [...new Set(items)] : undefined;
+}
+
+function NoticesSection({ data, editable, save, patch }: SectionProps) {
+  const r = data.restaurante;
+  const [localOn, setLocalOn] = useState(r.avisos_local_activo);
+  const [emails, setEmails] = useState(r.avisos_local_emails.join(", "));
+  const [customerOn, setCustomerOn] = useState(r.avisos_cliente_activo);
+  const [statuses, setStatuses] = useState<string[]>([...r.avisos_cliente_estados]);
+
+  const form = useSubmit(async () => {
+    const list = parseEmails(emails);
+    if (list === undefined)
+      return "Los emails van separados por comas (máximo 10) y deben ser válidos.";
+    if (localOn && list.length === 0) return "Indica al menos un email para avisar al local.";
+    if (customerOn && statuses.length === 0)
+      return "Elige al menos un estado para avisar al cliente.";
+    return save(
+      patch({
+        avisos_local_activo: localOn,
+        avisos_local_emails: list,
+        avisos_cliente_activo: customerOn,
+        avisos_cliente_estados: statuses,
+      }),
+      "Avisos guardados",
+    );
+  });
+
+  return (
+    <form onSubmit={form.submit} noValidate className="k-settings-stack">
+      <Section
+        title="Avisos por email"
+        lead="Un email al local con cada pedido nuevo y otro al cliente cuando cambia el estado de su pedido."
+        help={SETTINGS_HELP.avisos}
+      >
+        <div className="k-toggle-list">
+          <Toggle
+            checked={localOn}
+            onChange={setLocalOn}
+            disabled={!editable}
+            label="Avisar al local de cada pedido nuevo"
+          />
+        </div>
+        {localOn ? (
+          <TextField
+            label="Emails del local"
+            value={emails}
+            onChange={setEmails}
+            disabled={!editable}
+            max={400}
+            placeholder="pedidos@mirestaurante.es, cocina@mirestaurante.es"
+            hint="Separados por comas. Hasta 10."
+          />
+        ) : null}
+        <div className="k-toggle-list">
+          <Toggle
+            checked={customerOn}
+            onChange={setCustomerOn}
+            disabled={!editable}
+            label="Avisar al cliente por email"
+          />
+        </div>
+        {customerOn ? (
+          <fieldset className="k-fieldset k-fieldset-flat">
+            <legend className="k-field-label">¿En qué estados?</legend>
+            <div className="k-toggle-list">
+              {NOTICE_STATUSES.map((status) => (
+                <Toggle
+                  key={status}
+                  checked={statuses.includes(status)}
+                  onChange={(on) =>
+                    setStatuses((list) =>
+                      on ? [...list, status] : list.filter((item) => item !== status),
+                    )
+                  }
+                  disabled={!editable}
+                  label={STATUS_LABEL[status] ?? status}
+                />
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
       </Section>
       <SaveBar busy={form.busy} editable={editable} error={form.error} />
     </form>

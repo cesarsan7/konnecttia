@@ -67,6 +67,12 @@ export const CONFIG_KEY = {
   ProofsMaxPerOrder: "justificantes_max_por_pedido",
   /** Foto de entrega del repartidor: no | opcional | obligatoria. Sin clave: no. */
   DeliveryPhoto: "reparto_foto_entrega",
+  /** Avisos por email (worker, migración 0025): al local con cada pedido nuevo. */
+  NoticeLocalActive: "avisos_email_local_activo",
+  NoticeLocalEmails: "avisos_email_local",
+  /** Avisos por email al cliente: confirmación y cambios de estado. */
+  NoticeCustomerActive: "avisos_email_cliente_activo",
+  NoticeCustomerStatuses: "avisos_email_cliente_estados",
   /** URL de la política de privacidad del restaurante (checkout web). */
   PrivacyUrl: "privacidad_url",
   /** Texto que identifica la versión vigente de esa política. */

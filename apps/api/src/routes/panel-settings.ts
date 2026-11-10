@@ -12,6 +12,7 @@ import {
   FULFILLMENT,
   isValidIban,
   normalizeHex,
+  ORDER_STATUS,
   PAYMENT_METHODS,
   parseSocialLinks,
   readSocialLinks,
@@ -60,6 +61,29 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const OPEN_MODE = { Auto: "auto", Open: "abierto", Closed: "cerrado" } as const;
 
 const time = z.string().regex(TIME).nullable();
+/** Estados con aviso al cliente por email (los que sabe redactar el worker). */
+const CUSTOMER_NOTICE_STATUSES = [
+  ORDER_STATUS.Confirmed,
+  ORDER_STATUS.Ready,
+  ORDER_STATUS.OnTheWay,
+  ORDER_STATUS.Cancelled,
+] as const;
+
+function noticeEmails(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(/[,;\s]+/)
+    .map((item) => item.trim().toLowerCase())
+    .filter((item) => item.length > 0);
+}
+
+/** Sin clave valen los de por defecto del worker: los cuatro. */
+function noticeStatuses(value: string | undefined): string[] {
+  const chosen = noticeEmails(value).filter((item) =>
+    (CUSTOMER_NOTICE_STATUSES as readonly string[]).includes(item),
+  );
+  return chosen.length > 0 ? chosen : [...CUSTOMER_NOTICE_STATUSES];
+}
+
 const minutes = z.number().int().min(1).max(600).nullable();
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
@@ -117,6 +141,13 @@ const restaurantSchema = z
     reparto_foto_entrega: z.enum(["no", "opcional", "obligatoria"]),
     /** Política de privacidad propia (http/https); vacío = página plantilla /[slug]/privacidad. */
     privacidad_url: text(PRIVACY_URL_MAX).refine(isValidPolicyUrl),
+    /** Avisos por email (pieza B): al local por cada pedido nuevo y al cliente por estado. */
+    avisos_local_activo: z.boolean(),
+    avisos_local_emails: z.array(z.string().trim().toLowerCase().email().max(254)).max(10),
+    avisos_cliente_activo: z.boolean(),
+    avisos_cliente_estados: z
+      .array(z.enum(CUSTOMER_NOTICE_STATUSES))
+      .max(CUSTOMER_NOTICE_STATUSES.length),
     /** Versión vigente de la política: los pedidos web nuevos guardan esta. */
     privacidad_version: text(PRIVACY_VERSION_MAX),
     /** Límites antifraude por teléfono; vacío = sin límite. */
@@ -435,6 +466,10 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         reparto_foto_entrega: deliveryPhotoMode(config),
         privacidad_url: config.get(CONFIG_KEY.PrivacyUrl)?.trim() || null,
         privacidad_version: config.get(CONFIG_KEY.PrivacyVersion)?.trim() || null,
+        avisos_local_activo: config.get(CONFIG_KEY.NoticeLocalActive) === "true",
+        avisos_local_emails: noticeEmails(config.get(CONFIG_KEY.NoticeLocalEmails)),
+        avisos_cliente_activo: config.get(CONFIG_KEY.NoticeCustomerActive) === "true",
+        avisos_cliente_estados: noticeStatuses(config.get(CONFIG_KEY.NoticeCustomerStatuses)),
         antifraude_abiertos: phoneLimits(config).open,
         antifraude_por_hora: phoneLimits(config).perHour,
         suplementos: surchargeRules(config).map((rule) => ({
@@ -633,6 +668,34 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
             CONFIG_KEY.DeliveryPhoto,
             body.reparto_foto_entrega ?? null,
             "Foto de entrega del repartidor (panel)",
+          ],
+          [
+            "avisos_local_activo",
+            CONFIG_KEY.NoticeLocalActive,
+            body.avisos_local_activo === undefined ? null : String(body.avisos_local_activo),
+            "Avisar por email al local de cada pedido nuevo (panel)",
+          ],
+          [
+            "avisos_local_emails",
+            CONFIG_KEY.NoticeLocalEmails,
+            body.avisos_local_emails && body.avisos_local_emails.length > 0
+              ? [...new Set(body.avisos_local_emails)].join(", ")
+              : null,
+            "Emails del local para los avisos de pedido nuevo (panel)",
+          ],
+          [
+            "avisos_cliente_activo",
+            CONFIG_KEY.NoticeCustomerActive,
+            body.avisos_cliente_activo === undefined ? null : String(body.avisos_cliente_activo),
+            "Avisar por email al cliente del estado de su pedido (panel)",
+          ],
+          [
+            "avisos_cliente_estados",
+            CONFIG_KEY.NoticeCustomerStatuses,
+            body.avisos_cliente_estados && body.avisos_cliente_estados.length > 0
+              ? body.avisos_cliente_estados.join(", ")
+              : null,
+            "Estados del pedido que avisan al cliente por email (panel)",
           ],
           [
             "privacidad_url",

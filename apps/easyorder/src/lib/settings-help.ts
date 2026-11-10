@@ -121,6 +121,21 @@ export const SETTINGS_HELP = {
       ejemplo: "Envases · si no llega a 25 € · +1 €: un pedido de 18 € paga 19 €.",
     },
   ],
+  avisos: [
+    {
+      campo: "Avisar al local de cada pedido nuevo",
+      para: "Enterarte de un pedido aunque no tengas el tablero abierto.",
+      como: "Cada pedido nuevo envía un email a las direcciones que pongas (hasta 10). No avisa de pedidos hechos por el propio local (teléfono, mostrador, mesa).",
+      ejemplo: "pedidos@mirestaurante.es y el email de cocina.",
+      cuidado: "Requiere que tu plan incluya los avisos por email; si no, no se envía nada.",
+    },
+    {
+      campo: "Avisar al cliente por email",
+      para: "Que el cliente sepa en qué punto está su pedido sin llamar al local.",
+      como: "Se envía al email que dejó en el checkout, solo en los estados que marques (aceptado, listo, en camino, cancelado). Si el pedido no tiene email, no se envía.",
+      ejemplo: "Marca «listo» y «en camino»: el cliente recibe un email cuando sale su pedido.",
+    },
+  ],
   horario: [
     {
       campo: "Turnos por día",
