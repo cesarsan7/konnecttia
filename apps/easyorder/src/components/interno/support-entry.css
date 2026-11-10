@@ -1,0 +1,11 @@
+.k-support-entry {
+  display: grid;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.k-support-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}

@@ -89,6 +89,13 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
         `/restaurantes/${id}/carta/importar${simulate ? "?simular=1" : ""}`,
         { method: "POST", body: JSON.stringify({ texto }) },
       ),
+    enterSupport: (id: number, motivo: string) =>
+      request<{ slug: string; expira_en: string; minutos: number }>(`/restaurantes/${id}/soporte`, {
+        method: "POST",
+        body: JSON.stringify({ motivo }),
+      }),
+    leaveSupport: (id: number) =>
+      request<{ ok: boolean }>(`/restaurantes/${id}/soporte`, { method: "DELETE" }),
     team: () => request<PlatformTeam>("/equipo"),
     addTeamMember: (email: string, rol: "admin" | "soporte") =>
       request<{ user_id: string }>("/equipo", {

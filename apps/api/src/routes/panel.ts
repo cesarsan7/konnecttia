@@ -558,6 +558,14 @@ export function panelRoutes(deps: AppDeps) {
         zona_horaria: restaurant.zonaHoraria,
       },
       roles,
+      // Modo soporte de Konnecttia (solo lectura): el panel lo avisa con una banda.
+      soporte: c.get("support")
+        ? {
+            restaurante_id: restaurant.id,
+            expira_en: c.get("support")?.expiraEn.toISOString(),
+            motivo: c.get("support")?.motivo,
+          }
+        : null,
       permisos: [...access.permissions].filter(
         (permission) => authorize(access, permission).allowed,
       ),

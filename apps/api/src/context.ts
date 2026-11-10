@@ -117,5 +117,7 @@ export type AppEnv = {
     user: AuthenticatedUser;
     access: AccessContext;
     platform: PlatformUser;
+    /** Presente solo si quien consulta es del equipo de Konnecttia en modo soporte (solo lectura). */
+    support: { readonly expiraEn: Date; readonly motivo: string } | null;
   };
 };
