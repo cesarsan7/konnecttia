@@ -91,7 +91,7 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                (SELECT count(*)::int FROM public.restaurant_invites i
                 WHERE  i.rol_id = r.id AND i.restaurante_id = ${restauranteId}
                   AND  i.used_at IS NULL AND i.revocada_at IS NULL
-                  AND  i.expires_at > (now() AT TIME ZONE 'UTC')) AS invitaciones
+                  AND  i.expires_at > (${deps.now()}::timestamptz AT TIME ZONE 'UTC')) AS invitaciones
         FROM   public.rol r
         WHERE  r.restaurante_id IS NULL OR r.restaurante_id = ${restauranteId}
       `,
@@ -203,7 +203,7 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
             UPDATE public.restaurant_invites SET rol_id = ${id}
             WHERE  restaurante_id = ${restauranteId} AND rol_id = ${template.id}
               AND  used_at IS NULL AND revocada_at IS NULL
-              AND  expires_at > (now() AT TIME ZONE 'UTC')
+              AND  expires_at > (${deps.now()}::timestamptz AT TIME ZONE 'UTC')
           `;
           return { id, miembros: moved.count, invitaciones: invites.count };
         });
@@ -267,7 +267,7 @@ export function registerRoleRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       if (!canGrantRole(c.get("access"), role.permisos as PermissionCode[])) {
         return deny(c, "team.role.delete", "role_above_yours", role.id);
       }
-      const usage = await roleUsage(sql, role.id);
+      const usage = await roleUsage(sql, role.id, deps.now());
       if (usage.miembros > 0) {
         return fail(c, 409, API_ERROR.Conflict, { reason: "role_in_use" });
       }
