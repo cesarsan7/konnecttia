@@ -1,6 +1,8 @@
 "use client";
 
+import { MODULE_HELP } from "@/lib/module-help";
 import type { PrintSettings } from "@/lib/panel/comanda";
+import { HelpNote } from "../../HelpNote";
 import { Toggle } from "../menu/Editors";
 import { Modal } from "../menu/Modal";
 
@@ -21,6 +23,7 @@ export function PrintSettingsDialog(props: {
           Se guarda en este navegador: cada ordenador o tableta usa su impresora. Funciona con
           impresoras de tickets (58 u 80 mm) y con impresoras normales.
         </p>
+        <HelpNote items={MODULE_HELP.comanda} summary="¿Qué significa cada opción?" />
         <fieldset className="k-fieldset k-fieldset-flat">
           <legend className="k-field-label">Papel</legend>
           <div className="k-segment k-segment-sm">
