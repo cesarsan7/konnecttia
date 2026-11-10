@@ -12,6 +12,7 @@ import type {
   PlanSaved,
   PlatformMe,
   PlatformSettings,
+  PlatformTeam,
   RestaurantDetail,
   RestaurantRow,
   RoleBody,
@@ -22,6 +23,7 @@ import type {
   TrialConverted,
   TrialList,
   TrialRow,
+  UnusedAccounts,
 } from "./types";
 
 /** Cliente de la API `/plataforma/*`. Cada llamada lleva el token de la sesión de Supabase. */
@@ -65,10 +67,13 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
     createRestaurant: (body: NewRestaurantBody) =>
       request<CreatedRestaurant>("/restaurantes", { method: "POST", body: JSON.stringify(body) }),
     deleteRestaurant: (id: number, confirmar: string) =>
-      request<{ id: number; eliminado: boolean; pedidos: number; miembros: number }>(
-        `/restaurantes/${id}`,
-        { method: "DELETE", body: JSON.stringify({ confirmar }) },
-      ),
+      request<{
+        id: number;
+        eliminado: boolean;
+        pedidos: number;
+        miembros: number;
+        cuentas_sin_uso: { user_id: string; email: string | null }[];
+      }>(`/restaurantes/${id}`, { method: "DELETE", body: JSON.stringify({ confirmar }) }),
     roles: (id: number) => request<RolesInfo>(`/restaurantes/${id}/roles`),
     createRole: (id: number, body: RoleBody) =>
       request<{ id: number }>(`/restaurantes/${id}/roles`, {
@@ -84,6 +89,17 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
         `/restaurantes/${id}/carta/importar${simulate ? "?simular=1" : ""}`,
         { method: "POST", body: JSON.stringify({ texto }) },
       ),
+    team: () => request<PlatformTeam>("/equipo"),
+    addTeamMember: (email: string, rol: "admin" | "soporte") =>
+      request<{ user_id: string }>("/equipo", {
+        method: "POST",
+        body: JSON.stringify({ email, rol }),
+      }),
+    changeTeamMember: (userId: string, change: { rol?: "admin" | "soporte"; activo?: boolean }) =>
+      put<{ user_id: string }>(`/equipo/${userId}`, change),
+    unusedAccounts: () => request<UnusedAccounts>("/cuentas-sin-uso"),
+    deleteAccount: (userId: string) =>
+      request<{ eliminada: boolean }>(`/cuentas/${userId}`, { method: "DELETE" }),
     templates: () => request<TemplatesInfo>("/plantillas"),
     createTemplate: (body: RoleBody) =>
       request<{ id: number }>("/plantillas", { method: "POST", body: JSON.stringify(body) }),

@@ -1,6 +1,7 @@
 import type { AccessContext } from "@konnecttia/access";
 import type { PlatformRole } from "@konnecttia/domain";
 import type { Mailer } from "@konnecttia/notifications";
+import type { AuthAdmin } from "./lib/auth-admin";
 import type { Sql } from "./lib/db";
 import type { PushSender } from "./lib/push";
 import type { StripeClient } from "./lib/stripe";
@@ -98,6 +99,8 @@ export type AppDeps = {
   /** Secreto del HMAC con el que se guarda el hash de cada código (mínimo 32 caracteres). */
   readonly codeSecret?: string | null;
   /** null si no hay STRIPE_SECRET_KEY: el cobro de la suscripción queda apagado. */
+  /** null si no hay clave de servicio: el panel interno no puede buscar ni borrar cuentas de Supabase. */
+  readonly authAdmin?: AuthAdmin | null;
   /** null si no hay claves VAPID: el tablero no ofrece activar los avisos push. */
   readonly push?: PushSender | null;
   readonly stripe?: StripeClient | null;

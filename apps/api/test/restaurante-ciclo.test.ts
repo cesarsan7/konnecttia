@@ -223,6 +223,11 @@ describe.skipIf(!TEST_DATABASE_URL)("borrar y clonar restaurantes desde /interno
         }),
       );
       id = created.body.id as number;
+      // Dos personas con acceso: una solo aquí (quedará sin uso) y otra también en otro restaurante.
+      await ctx.sql`
+        INSERT INTO public.local_memberships (user_id, restaurante_id, email) VALUES
+          ('20000000-0000-0000-0000-000000000001', ${id}, 'solo-aqui@borrable.test'),
+          (${USERS.ownerA.userId}::uuid, ${id}, ${USERS.ownerA.email})`;
       const [mesero] = await ctx.sql<{ id: number }[]>`
         INSERT INTO public.meseros (restaurante_id, nombre) VALUES (${id}, 'Ana') RETURNING id`;
       await ctx.sql`
@@ -281,6 +286,10 @@ describe.skipIf(!TEST_DATABASE_URL)("borrar y clonar restaurantes desde /interno
         pedidos: 2,
         archivos: { carta: "sin_almacen" },
       });
+      // Las cuentas de Supabase no se borran solas: solo se avisa de las que quedan sin ningún uso.
+      expect(result.body.cuentas_sin_uso).toEqual([
+        { user_id: "20000000-0000-0000-0000-000000000001", email: "solo-aqui@borrable.test" },
+      ]);
 
       const [left] = await ctx.sql<{ n: number }[]>`
         SELECT (SELECT count(*)::int FROM public.restaurante WHERE id = ${id})

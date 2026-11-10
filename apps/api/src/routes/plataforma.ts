@@ -43,6 +43,7 @@ import {
   SlugTaken,
   saveCodeSettings,
 } from "../repositories/platform";
+import { isOrphan } from "../repositories/platform-team";
 import {
   cloneRestaurantData,
   deleteRestaurant,
@@ -58,6 +59,7 @@ import {
 } from "../repositories/roles";
 import { TRIAL_PLAN } from "../repositories/trial";
 import { legacyRole, rolesOf } from "./panel-team";
+import { registerPlatformTeamRoutes } from "./plataforma-equipo";
 import { registerPlatformTemplateRoutes } from "./plataforma-plantillas";
 import { registerPlatformTrialRoutes } from "./plataforma-pruebas";
 
@@ -597,7 +599,22 @@ export function plataformaRoutes(deps: AppDeps) {
     if (parsed.data.confirmar !== expected) {
       return unprocessable(c, "confirmation_mismatch", { field: "confirmar" });
     }
+    // Personas con acceso a este restaurante: tras borrarlo se mira cuáles se quedan sin ningún uso.
+    const members = await sql<{ user_id: string; email: string | null }[]>`
+      SELECT DISTINCT user_id::text AS user_id, email FROM public.local_memberships
+      WHERE  restaurante_id = ${restaurant.id}
+    `;
     const removed = await sql.begin((tx) => deleteRestaurant(tx, restaurant.id));
+    const sinUso: { user_id: string; email: string | null }[] = [];
+    for (const member of members) {
+      const account = {
+        id: member.user_id,
+        email: member.email,
+        createdAt: "",
+        lastSignInAt: null,
+      };
+      if (await isOrphan(sql, account)) sinUso.push(member);
+    }
     // Archivos en Storage (mejor esfuerzo, ya con la base limpia): si fallan no deshace el borrado,
     // queda anotado en la auditoría para limpiarlos a mano.
     const archivos = await removeRestaurantFiles(deps, restaurant.id);
@@ -609,10 +626,24 @@ export function plataformaRoutes(deps: AppDeps) {
       recursoTipo: "restaurante",
       recursoId: String(restaurant.id),
       resultado: "ok",
-      detalle: { slug: restaurant.slug, nombre: restaurant.nombre, ...removed, archivos },
+      detalle: {
+        slug: restaurant.slug,
+        nombre: restaurant.nombre,
+        ...removed,
+        archivos,
+        cuentas_sin_uso: sinUso.length,
+      },
       requestId: c.get("requestId"),
     });
-    return c.json({ id: restaurant.id, eliminado: true, ...removed, archivos });
+    // Las cuentas de Supabase NO se borran solas: la persona puede tener otro restaurante o volver.
+    // Las que se quedan sin ningún uso se avisan y se borran, si se quiere, desde «Equipo».
+    return c.json({
+      id: restaurant.id,
+      eliminado: true,
+      ...removed,
+      archivos,
+      cuentas_sin_uso: sinUso,
+    });
   });
 
   // ----------------------------------------------------------------------------------- carta
@@ -751,7 +782,7 @@ export function plataformaRoutes(deps: AppDeps) {
       return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
     }
     await sql.begin((tx) => replaceRole(tx, role.id, input.nombre, input.permisos));
-    const usage = await roleUsage(sql, role.id);
+    const usage = await roleUsage(sql, role.id, deps.now());
     await record(c, restaurant.id, "plataforma.rol.editar", "rol", role.id, {
       nombre: input.nombre,
       antes: role.permisos,
@@ -767,7 +798,7 @@ export function plataformaRoutes(deps: AppDeps) {
     const role = await ownRoleFromUrl(c, restaurant.id);
     if (!role) return fail(c, 404, API_ERROR.NotFound);
     if (role.plantilla) return unprocessable(c, "template_role");
-    const usage = await roleUsage(sql, role.id);
+    const usage = await roleUsage(sql, role.id, deps.now());
     if (usage.miembros > 0) return fail(c, 409, API_ERROR.Conflict, { reason: "role_in_use" });
     if (usage.invitaciones > 0) {
       return fail(c, 409, API_ERROR.Conflict, { reason: "pending_invites" });
@@ -923,6 +954,7 @@ export function plataformaRoutes(deps: AppDeps) {
 
   registerPlatformTrialRoutes(app, deps);
   registerPlatformTemplateRoutes(app, deps);
+  registerPlatformTeamRoutes(app, deps);
 
   return app;
 }

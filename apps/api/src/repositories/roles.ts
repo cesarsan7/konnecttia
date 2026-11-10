@@ -97,12 +97,13 @@ export async function replaceRole(
 export async function roleUsage(
   sql: Sql | Tx,
   roleId: number,
+  now: Date,
 ): Promise<{ miembros: number; invitaciones: number }> {
   const [usage] = await sql<{ miembros: number; invitaciones: number }[]>`
     SELECT (SELECT count(*)::int FROM public.membresia_rol WHERE rol_id = ${roleId}) AS miembros,
            (SELECT count(*)::int FROM public.restaurant_invites
             WHERE  rol_id = ${roleId} AND used_at IS NULL AND revocada_at IS NULL
-              AND  expires_at > (now() AT TIME ZONE 'UTC')) AS invitaciones
+              AND  expires_at > (${now}::timestamptz AT TIME ZONE 'UTC')) AS invitaciones
   `;
   return usage ?? { miembros: 0, invitaciones: 0 };
 }

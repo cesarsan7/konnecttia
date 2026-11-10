@@ -262,6 +262,14 @@ export function invitationLink(apiLink: string | null, token: string, origin: st
 }
 
 const REASONS: Record<string, string> = {
+  no_account:
+    "Esa persona aún no tiene cuenta. Pídele que entre una vez en EasyOrder (con ese email) y vuelve a intentarlo.",
+  no_auth_admin:
+    "El servidor no tiene la clave de servicio de Supabase: no se puede buscar por email.",
+  last_admin: "Tiene que quedar al menos un administrador activo.",
+  self_change: "No puedes quitarte a ti mismo el acceso o el rol de administrador.",
+  account_in_use: "Esa cuenta tiene uso (restaurante, equipo o invitación): no se puede borrar.",
+  auth_delete_failed: "Supabase no pudo borrar la cuenta. Inténtalo de nuevo.",
   slug_taken: "Ya existe un restaurante con ese enlace.",
   slug_reserved: SLUG_MESSAGES[SLUG_ERROR.Reserved],
   slug_invalid_format: SLUG_MESSAGES[SLUG_ERROR.InvalidFormat],

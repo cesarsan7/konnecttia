@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { createClient } from "@supabase/supabase-js";
 import { createApp } from "./app";
 import type { ImageStorage, ProofStorage } from "./context";
+import { createAuthAdmin } from "./lib/auth-admin";
 import { createSql } from "./lib/db";
 import { loadEnv } from "./lib/env";
 import { createResendMailer } from "./lib/mailer";
@@ -137,7 +138,18 @@ function codeSender() {
   return env.ANTIFRAUD_CODE_SIMULATE ? createSimulatedCodeSender() : null;
 }
 
+/** Administración de cuentas de Supabase (solo con clave de servicio). */
+function authAdmin() {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  return createAuthAdmin(
+    createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    }),
+  );
+}
+
 const app = createApp({
+  authAdmin: authAdmin(),
   sendCode: codeSender(),
   codeSecret: env.CODE_HMAC_SECRET ?? null,
   push:
