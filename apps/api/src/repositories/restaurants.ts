@@ -73,6 +73,8 @@ export const CONFIG_KEY = {
   /** Avisos por email al cliente: confirmación y cambios de estado. */
   NoticeCustomerActive: "avisos_email_cliente_activo",
   NoticeCustomerStatuses: "avisos_email_cliente_estados",
+  /** Sonidos del tablero por evento (JSON). Sin clave: solo suena el pedido nuevo. */
+  BoardSounds: "sonidos_tablero",
   /** URL de la política de privacidad del restaurante (checkout web). */
   PrivacyUrl: "privacidad_url",
   /** Texto que identifica la versión vigente de esa política. */

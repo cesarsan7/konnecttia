@@ -1,6 +1,8 @@
 "use client";
 
+import { BOARD_SOUND, type BoardSound } from "@konnecttia/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SOUND_TONES } from "@/lib/panel/sounds";
 
 const STORAGE_KEY = "easyorder.panel.sonido";
 
@@ -51,24 +53,41 @@ export function useChime() {
     return () => window.removeEventListener("pointerdown", resume);
   }, [ensureContext, store]);
 
-  const play = useCallback(() => {
+  const sing = useCallback((sound: BoardSound) => {
     const audio = context.current;
-    if (!enabledRef.current || !audio) return;
+    if (!audio) return;
     const start = audio.currentTime;
-    // Dos tonos ascendentes, dos veces: se oye en una cocina sin ser estridente.
-    [0, 0.18, 0.6, 0.78].forEach((offset, index) => {
+    for (const tone of SOUND_TONES[sound]) {
       const oscillator = audio.createOscillator();
       const gain = audio.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.value = index % 2 === 0 ? 880 : 1320;
-      gain.gain.setValueAtTime(0.0001, start + offset);
-      gain.gain.exponentialRampToValueAtTime(0.35, start + offset + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.32);
+      oscillator.type = tone.type;
+      oscillator.frequency.value = tone.freq;
+      gain.gain.setValueAtTime(0.0001, start + tone.at);
+      gain.gain.exponentialRampToValueAtTime(tone.gain, start + tone.at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.at + tone.dur);
       oscillator.connect(gain).connect(audio.destination);
-      oscillator.start(start + offset);
-      oscillator.stop(start + offset + 0.34);
-    });
+      oscillator.start(start + tone.at);
+      oscillator.stop(start + tone.at + tone.dur + 0.02);
+    }
   }, []);
+
+  /** Suena si el sonido está activado en este navegador. Sin argumento, la campana de siempre. */
+  const play = useCallback(
+    (sound: BoardSound = BOARD_SOUND.Bell) => {
+      if (!enabledRef.current) return;
+      sing(sound);
+    },
+    [sing],
+  );
+
+  /** Para probar un sonido desde Ajustes: va con un clic, así que el navegador lo permite. */
+  const preview = useCallback(
+    (sound: BoardSound) => {
+      ensureContext();
+      sing(sound);
+    },
+    [ensureContext, sing],
+  );
 
   const toggle = useCallback(() => {
     if (enabledRef.current) {
@@ -80,5 +99,5 @@ export function useChime() {
     play();
   }, [ensureContext, store, play]);
 
-  return useMemo(() => ({ enabled, play, toggle }), [enabled, play, toggle]);
+  return useMemo(() => ({ enabled, play, preview, toggle }), [enabled, play, preview, toggle]);
 }

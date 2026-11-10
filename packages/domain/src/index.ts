@@ -1,4 +1,5 @@
 export * from "./allergens";
+export * from "./board-sounds";
 export * from "./branches";
 export * from "./brand";
 export * from "./country";

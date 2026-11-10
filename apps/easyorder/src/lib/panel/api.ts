@@ -1,3 +1,4 @@
+import type { BoardSounds } from "@konnecttia/domain";
 import type { SignupBody, SignupResult } from "../alta/types";
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
@@ -95,6 +96,7 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     billingPay: (slug: string, plan: string) =>
       send<{ url: string }>(slug, "/facturacion/pago", "POST", { plan }),
     billingPortal: (slug: string) => send<{ url: string }>(slug, "/facturacion/portal", "POST", {}),
+    boardSounds: (slug: string) => request<{ sonidos: BoardSounds }>(panel(slug, "/sonidos")),
     pushState: (slug: string) => request<PushState>(panel(slug, "/push")),
     pushSubscribe: (slug: string, subscription: unknown) =>
       send<{ ok: boolean }>(slug, "/push", "POST", subscription),
