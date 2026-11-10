@@ -26,10 +26,16 @@ export async function runMigrations(
   const applied: string[] = [];
   try {
     await lock`SELECT pg_advisory_lock(${LOCK_KEY}::bigint)`;
-    await sql`CREATE TABLE IF NOT EXISTS public.konnecttia_migrations (
-      name text PRIMARY KEY,
-      applied_at timestamptz NOT NULL DEFAULT now()
-    )`;
+    // Solo se crea si falta: con un rol sin CREATE en `public` (p. ej. konnecttia_app) un
+    // `CREATE TABLE IF NOT EXISTS` falla aunque la tabla exista.
+    const registry = await sql<{ exists: boolean }[]>`
+      SELECT to_regclass('public.konnecttia_migrations') IS NOT NULL AS exists`;
+    if (!registry[0]?.exists) {
+      await sql`CREATE TABLE IF NOT EXISTS public.konnecttia_migrations (
+        name text PRIMARY KEY,
+        applied_at timestamptz NOT NULL DEFAULT now()
+      )`;
+    }
     const done = new Set(
       (await sql<{ name: string }[]>`SELECT name FROM public.konnecttia_migrations`).map(
         (row) => row.name,

@@ -73,6 +73,34 @@ describe.skipIf(!TEST_DATABASE_URL)("migraciones al arrancar", () => {
     expect(tables?.n).toBe(0);
   });
 
+  it("con el registro ya creado no ejecuta CREATE: sirve un rol sin CREATE en public", async () => {
+    const sql = await freshDb();
+    expect(await runMigrations(sql, dir)).toHaveLength(2);
+    const dbName = created[created.length - 1];
+    const role = `konnecttia_sin_create_${process.pid}`;
+    await admin.unsafe(`DROP ROLE IF EXISTS ${role}`);
+    await admin.unsafe(`CREATE ROLE ${role} LOGIN PASSWORD 'x'`);
+    try {
+      await sql.unsafe("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
+      await sql.unsafe(`GRANT USAGE ON SCHEMA public TO ${role}`);
+      await sql.unsafe(`GRANT SELECT, INSERT ON public.konnecttia_migrations TO ${role}`);
+      const base = new URL(TEST_DATABASE_URL ?? "");
+      base.username = role;
+      base.password = "x";
+      base.pathname = `/${dbName}`;
+      const limited = createSql(base.toString());
+      try {
+        expect(await runMigrations(limited, dir)).toEqual([]);
+      } finally {
+        await limited.end({ timeout: 1 });
+      }
+    } finally {
+      await sql.end({ timeout: 1 });
+      await admin.unsafe(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
+      await admin.unsafe(`DROP ROLE IF EXISTS ${role}`);
+    }
+  });
+
   it("dos instancias a la vez no se pisan", async () => {
     const sql = await freshDb();
     const otra = createSql(
