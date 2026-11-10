@@ -1,7 +1,7 @@
 # Plan del panel de EasyOrder (lo que falta para el MVP)
 
 Documento de traspaso: cualquier sesión de trabajo (persona o agente) puede retomar desde aquí.
-Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 6 de noviembre de 2026 (noche).
+Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 9 de noviembre de 2026 (noche).
 
 ## Hecho
 
@@ -26,6 +26,7 @@ Leer antes `AGENTS.md` y `docs/konnecTTia.md`. Estado al 6 de noviembre de 2026 
 | **Invitación por email** (Resend): PR #35                                                  | `lib/mailer.ts`, `RESEND_API_KEY`, `RESEND_FROM`, `PANEL_PUBLIC_URL`                                                         |
 | Requerimientos A–F del 4/11 (tabla, mesas, roles, meseros, repartidores), comanda: #37–#43 | ver sección «Requerimientos del promotor (4/11)»                                                                             |
 | Requerimientos G–S del 6/11 y extras: #44–#62                                              | ver sección «Requerimientos del promotor (6/11)»                                                                             |
+| Requerimientos O, P, Y, Z, AA y AC–AF del 9/11 (noche): #86, #92–#100                      | ver «Estado del 9/11 (noche)»; migraciones 0028–0031                                                                         |
 
 ### Notas de la pieza 1 (Carta)
 
@@ -265,6 +266,26 @@ Se retoman cuando el promotor tenga estos datos:
 - **Costes (T):** estimación hecha en `docs/comercial/coste-restaurante-nuevo.md`; faltan datos
   reales de uso y la confirmación de la tarifa de Meta desde el 1/10/2026.
 
+### Estado del 9/11 (noche)
+
+Todo fusionado en `main`. Las migraciones 0028 a 0031 están aplicadas en staging (la API de
+staging corre con `AUTO_MIGRATE=false` y el usuario `konnecttia_app`, sin permiso de crear en
+`public`: las migraciones se aplican con `infra/scripts/migrate-easypanel.sh` como `postgres`).
+
+| Pieza                                                                  | PR      | Migración  | Estado                                          |
+| ---------------------------------------------------------------------- | ------- | ---------- | ----------------------------------------------- |
+| Email del cliente obligatorio, antifraude capa 3 (API, alta, checkout) | #80–#85 | 0026, 0027 | Fusionado; capa 3 apagada hasta configurar Meta |
+| Editar los permisos de las plantillas base de rol en `/interno`        | #86     | —          | Fusionado                                       |
+| O · Cancelación por el cliente (antes de que el local acepte)          | #92     | —          | Fusionado; n8n propuesto, sin aplicar           |
+| P · Incidencias del cliente y pantalla «Incidencias» del panel         | #93     | 0028       | Fusionado; n8n propuesto, sin aplicar           |
+| Y · Enlaces y QR de la carta y del panel (Ajustes)                     | #94     | —          | Fusionado                                       |
+| Z · Logo y redes sociales (Ajustes → Marca)                            | #95     | —          | Fusionado                                       |
+| AA · Color de marca en la carta y el seguimiento                       | #96     | —          | Fusionado; sin color secundario                 |
+| AC · Permisos «Ver carta online» y «Ayuda» en los roles                | #97     | 0029       | Fusionado                                       |
+| AD · Eslogan y redes sociales en la cabecera de la carta               | #98     | —          | Fusionado                                       |
+| AE · País del restaurante y prefijo telefónico con bandera             | #99     | 0030       | Fusionado                                       |
+| AF · Borrar un restaurante y crear uno a partir de otro (`/interno`)   | #100    | 0031       | Fusionado                                       |
+
 ## Requerimientos del promotor (6/11), aterrizados
 
 A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) → O + P → Q + R → L → K
@@ -330,7 +351,7 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
 - Al marcar «entregado», el repartidor puede (o debe, según ajuste del local) subir una foto.
   Se guarda en almacenamiento privado y se enlaza en `pedido_reparto`; la ve el local.
 
-### O · Cancelación por el cliente (MVP)
+### O · Cancelación por el cliente (MVP, hecho en #92)
 
 - Como en las plataformas: el cliente cancela solo mientras el local no ha aceptado el pedido;
   después, «Contactar con el local» (decide el local).
@@ -338,13 +359,18 @@ A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) �
   la misma regla y, si ya está aceptado, deriva a humano.
 - Mismo cambio de estado que el tablero (`changeOrderStatus`, origen `cliente`) y aviso en el
   tablero.
+- Hecho en la web (`POST /public/orders/:token/cancelar`; el tablero marca «Cancelado por el
+  cliente»). El cambio de n8n está propuesto en `integrations/n8n/cambios/cancelacion-cliente.md`
+  y **sin aplicar**.
 
-### P · Incidencias del cliente (MVP)
+### P · Incidencias del cliente (MVP, hecho en #93)
 
 - En el seguimiento: «¿Algún problema con tu pedido?» → tipo (falta algo, llegó mal, retraso,
   otro), texto y foto opcional. Tabla nueva de incidencias por pedido; aviso y listado en el
   panel, con estado (abierta, resuelta).
 - WhatsApp: un reclamo sigue derivándose a humano (regla 12) y además queda como incidencia.
+- Hecho en la web (migración 0028, `pedido_incidencia`, máximo 3 abiertas por pedido). **Sin foto**
+  todavía. El cambio de n8n está propuesto en `integrations/n8n/cambios/incidencias-cliente.md`.
 
 ### Q · Pedidos fraudulentos (MVP por capas, código por SMS post-MVP)
 
@@ -438,14 +464,16 @@ U y V están hechas; el resto solo está planificado y se implementa cuando el p
 - Sin tablas nuevas; usa `datos_bancarios` y el token de seguimiento. Dependencia: una librería
   de QR (proponerla en su PR).
 
-### Y · QR de los enlaces del restaurante (MVP)
+### Y · QR de los enlaces del restaurante (MVP, hecho en #94)
 
 - En Ajustes, una sección «Enlaces y QR»: carta pública (`/<slug>`), panel (`/panel`) y, para
   Konnecttia, el alta (`/alta`). Cada uno con su QR para descargar (PNG y SVG, varios tamaños) y
   compartir (botón compartir del móvil), con el logo y el color del restaurante si los hay.
 - Pensado para redes sociales, mesas, bolsas y el escaparate. Misma librería de QR que X.
+- Hecho: carta y panel, PNG y SVG. Pendiente: QR con logo y color de marca, y el QR de `/alta`
+  en `/interno`.
 
-### Z · Logo y redes sociales del restaurante (MVP)
+### Z · Logo y redes sociales del restaurante (MVP, hecho en #95)
 
 - La tabla `restaurante` ya tiene `logo_url` y `redes_sociales` (de la versión anterior), pero el
   panel nuevo no las edita y la carta pública no las muestra.
@@ -453,13 +481,15 @@ U y V están hechas; el resto solo está planificado y se implementa cuando el p
   verlo en la cabecera del panel y de la carta; redes sociales (Instagram, Facebook, TikTok,
   Google, web, WhatsApp…) con validación de URL, que la carta muestra como iconos.
 
-### AA · Colores de marca en la carta pública (MVP)
+### AA · Colores de marca en la carta pública (MVP, hecho en #96)
 
 - `restaurante.brand_color` y `theme_id` ya existen. Ajustes → Marca: color principal (y
   opcionalmente secundario) con vista previa; la carta pública y el seguimiento usan esos colores
   y el logo.
 - Contraste: el sistema calcula el color del texto sobre el color de marca y avisa si no se lee
   bien (accesibilidad). El panel mantiene los colores de EasyOrder.
+- Hecho el color principal (`brand_color`; el antiguo `#E63946` cuenta como «sin color propio»).
+  El secundario queda fuera: pediría una clave de configuración nueva.
 
 ### AB · Promociones en la carta (post-MVP, módulo nuevo)
 
@@ -472,6 +502,33 @@ U y V están hechas; el resto solo está planificado y se implementa cuando el p
   se calcula SIEMPRE en el servidor (ADR 0004) y queda guardado en el pedido. n8n (WhatsApp) debe
   aplicar las mismas reglas usando la misma función de precios.
 - Fases: 1) banners informativos con fechas, sin descuento; 2) descuentos automáticos; 3) códigos.
+
+## Requerimientos del promotor (9/11, noche), aterrizados
+
+### AC · Permisos de los enlaces del panel (hecho en #97)
+
+- «Ver carta online» y «Ayuda» (pie del panel) son permisos (`storefront.view`, `help.view`) que
+  se pueden incluir o quitar en cada rol. Solo ocultan el enlace: la carta y `/ayuda` siguen
+  siendo públicas. Migración 0029: todos los roles existentes los reciben.
+
+### AD · Eslogan y redes arriba en la carta (hecho en #98)
+
+- La carta pública muestra el eslogan bajo el nombre y las redes en la cabecera, no en el pie.
+
+### AE · País del restaurante y prefijo telefónico (hecho en #99)
+
+- Tabla nueva `pais` y `restaurante.pais_code` (0030). El checkout ofrece un selector de prefijo
+  con bandera que parte del país del restaurante y sigue siendo editable. El país se elige en el
+  alta, en `/interno` y en Ajustes → General. En Windows la bandera puede verse como letras.
+- Pendiente: el pedido manual del panel todavía asume +34.
+
+### AF · Borrar y clonar restaurantes (hecho en #100)
+
+- En `/interno`: borrar un restaurante (hay que escribir su enlace; `DELETE
+  /plataforma/restaurantes/:id`) y crear uno a partir de otro (`clonar_de`: carta, horario,
+  zonas de reparto y ajustes; nunca datos bancarios, logo, equipo, pedidos ni clientes).
+- La migración 0031 permite desvincular la auditoría (único cambio permitido a sus filas).
+- Pendiente: el borrado no elimina los archivos de Storage (logo, fotos, justificantes).
 
 ## Documentación comercial
 

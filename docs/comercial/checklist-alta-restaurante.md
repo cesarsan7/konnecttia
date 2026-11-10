@@ -10,11 +10,12 @@ Todo lo que necesitamos para dejar tu restaurante listo en EasyOrder. Lo marcado
 - [ ] **Dirección web deseada**, p. ej. `pizzeria-luna` — obligatorio (confirmamos que esté libre)
 - [ ] **Persona de contacto**: nombre, teléfono y email — obligatorio
 - [ ] **Datos de facturación**: razón social, NIF/CIF y dirección fiscal — obligatorio para el contrato
+- [ ] **País del restaurante** (define el prefijo telefónico que verán sus clientes por defecto) — obligatorio
 - [ ] **Logo** en PNG o SVG, cuadrado, con fondo transparente si es posible — recomendado
 - [ ] **Color de la marca** (código, o una foto del rótulo para sacarlo) — opcional
-- [ ] **Frase o descripción corta** de 1–2 líneas para la cabecera de la carta — opcional
+- [ ] **Frase o descripción corta** (eslogan) de 1–2 líneas para la cabecera de la carta — opcional
 - [ ] **Foto de portada** del local o de un plato estrella — opcional
-- [ ] **Redes**: Instagram, Facebook, ficha de Google — opcional
+- [ ] **Redes**: Instagram, Facebook, ficha de Google; salen en la parte superior de la carta — opcional
 
 > Sin logo se puede empezar: ponemos el nombre en texto y lo cambiamos cuando lo tengan.
 

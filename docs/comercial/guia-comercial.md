@@ -61,6 +61,11 @@ Estado a 9 de noviembre: **Disponible** = construido y probado en el entorno de 
 | Alta           | Alta autoservicio con prueba    | El restaurante se da de alta solo en /alta y prueba gratis por días o por pedidos; Konnecttia la activa, la aprueba y la convierte en plan                           | —           | En pruebas   |
 | Equipo         | Actividad del equipo            | Ficha de cada repartidor y mesero: repartos o mesas, horas, fotos de entrega e importes; cada uno ve solo la suya                                                    | Premium     | En pruebas   |
 | Equipo         | Personalizar roles              | El dueño parte de un rol de Konnecttia y ajusta sus permisos para su restaurante                                                                                     | Básico      | En pruebas   |
+| Pedidos web    | Cancelar el pedido              | El cliente puede cancelar su pedido desde el seguimiento                                                                                                             | Básico      | En pruebas   |
+| Pedidos web    | Avisar de un problema           | El cliente avisa al local de una incidencia con su pedido y el local la ve en el panel                                                                               | Básico      | En pruebas   |
+| Pedidos web    | Teléfono con prefijo del país   | El cliente elige el prefijo con la bandera; por defecto, el país del restaurante                                                                                     | Básico      | En pruebas   |
+| Ajustes        | Marca del local                 | Logo, color de marca, eslogan y redes sociales en la parte superior de la carta                                                                                      | Básico      | En pruebas   |
+| Ajustes        | Enlaces y QR                    | Enlace de la carta y código QR para compartir; los accesos del panel se muestran según los permisos del rol                                                          | Básico      | En pruebas   |
 
 Para la demo, enseña solo lo que está **Disponible**. Lo de **Próximamente** se puede mencionar como hoja de ruta, sin prometer fechas. Lo que está **En pruebas** se puede enseñar avisando de que aún se está validando.
 
