@@ -110,6 +110,48 @@ describe.skipIf(!TEST_DATABASE_URL)("ajustes de privacidad y antifraude", () => 
     expect(await configValue("privacidad_url")).toBeNull();
   });
 
+  it("guarda y devuelve los avisos por email, y rechaza emails o estados inválidos", async () => {
+    for (const body of [
+      { avisos_local_emails: ["no-es-email"] },
+      { avisos_cliente_estados: ["entregado"] },
+      { avisos_local_activo: "si" },
+    ]) {
+      expect((await patch("ownerA", "prueba-a", body)).status, JSON.stringify(body)).toBe(400);
+    }
+    const saved = await patch("ownerA", "prueba-a", {
+      avisos_local_activo: true,
+      avisos_local_emails: ["Cocina@Prueba-A.test", "cocina@prueba-a.test", "caja@prueba-a.test"],
+      avisos_cliente_activo: true,
+      avisos_cliente_estados: ["listo", "en_camino"],
+    });
+    expect(saved.status).toBe(200);
+    expect(await configValue("avisos_email_local_activo")).toBe("true");
+    expect(await configValue("avisos_email_local")).toBe(
+      "cocina@prueba-a.test, caja@prueba-a.test",
+    );
+    expect(await configValue("avisos_email_cliente_estados")).toBe("listo, en_camino");
+    const read = await call("ownerA", "GET", "/panel/prueba-a/ajustes");
+    expect(read.body.restaurante).toMatchObject({
+      avisos_local_activo: true,
+      avisos_local_emails: ["cocina@prueba-a.test", "caja@prueba-a.test"],
+      avisos_cliente_activo: true,
+      avisos_cliente_estados: ["listo", "en_camino"],
+    });
+    // Apagar y vaciar vuelve a los valores por defecto del worker.
+    await patch("ownerA", "prueba-a", {
+      avisos_local_activo: false,
+      avisos_local_emails: [],
+      avisos_cliente_activo: false,
+      avisos_cliente_estados: [],
+    });
+    const reset = await call("ownerA", "GET", "/panel/prueba-a/ajustes");
+    expect(reset.body.restaurante).toMatchObject({
+      avisos_local_activo: false,
+      avisos_local_emails: [],
+      avisos_cliente_estados: ["confirmado", "listo", "en_camino", "cancelado"],
+    });
+  });
+
   it("solo quien puede cambiar los ajustes del restaurante los guarda", async () => {
     const body = { privacidad_version: "2027-01" };
     expect((await patch("viewerA", "prueba-a", body)).status).toBe(403);
