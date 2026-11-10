@@ -1,4 +1,6 @@
 import type { TransactionSql } from "postgres";
+import type { AppDeps } from "../context";
+import { DELIVERY_PHOTO_PREFIX } from "./delivery-photos";
 import { CONFIG_KEY } from "./restaurants";
 
 type Tx = TransactionSql;
@@ -211,7 +213,7 @@ export async function cloneRestaurantData(
  * Borra un restaurante y todo lo suyo (pedidos, carta, equipo, clientes…). Casi todas las tablas
  * cuelgan de `restaurante` con ON DELETE CASCADE; `meseros` no, y `pedidos.mesero_id` apunta a
  * `meseros`, así que el orden es pedidos → meseros → restaurante. La auditoría se conserva (queda
- * sin restaurante: ver 0031). Los archivos de Storage (logo, fotos, justificantes) no se tocan.
+ * sin restaurante: ver 0031). Los archivos de Storage se borran aparte (`removeRestaurantFiles`).
  */
 export async function deleteRestaurant(
   tx: Tx,
@@ -225,4 +227,40 @@ export async function deleteRestaurant(
   await tx`DELETE FROM public.meseros WHERE restaurante_id = ${id}`;
   await tx`DELETE FROM public.restaurante WHERE id = ${id}`;
   return counts ?? { pedidos: 0, miembros: 0 };
+}
+
+/** Resultado del borrado de archivos: cuántos se borraron o `error` si esa parte falló. */
+export type FilesResult = {
+  readonly carta: number | "sin_almacen" | "error";
+  readonly justificantes: number | "sin_almacen" | "error";
+  readonly fotos_entrega: number | "sin_almacen" | "error";
+};
+
+async function attempt(
+  run: (() => Promise<number>) | undefined,
+): Promise<number | "sin_almacen" | "error"> {
+  if (!run) return "sin_almacen";
+  try {
+    return await run();
+  } catch {
+    return "error";
+  }
+}
+
+/**
+ * Borra de Storage lo del restaurante: logo y fotos de producto (bucket de la carta, carpeta
+ * `<id>/`), justificantes de pago (`<id>/` del bucket privado) y fotos de entrega
+ * (`entregas/<id>/`). Mejor esfuerzo: cada parte informa su resultado y ninguna lanza.
+ */
+export async function removeRestaurantFiles(
+  deps: Pick<AppDeps, "imageStorage" | "proofStorage">,
+  id: number,
+): Promise<FilesResult> {
+  const images = deps.imageStorage?.removeFolder;
+  const proofs = deps.proofStorage?.removeFolder;
+  return {
+    carta: await attempt(images && (() => images(String(id)))),
+    justificantes: await attempt(proofs && (() => proofs(String(id)))),
+    fotos_entrega: await attempt(proofs && (() => proofs(`${DELIVERY_PHOTO_PREFIX}/${id}`))),
+  };
 }

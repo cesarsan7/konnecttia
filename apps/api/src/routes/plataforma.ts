@@ -46,6 +46,7 @@ import {
 import {
   cloneRestaurantData,
   deleteRestaurant,
+  removeRestaurantFiles,
   restaurantExists,
 } from "../repositories/restaurant-lifecycle";
 import {
@@ -597,6 +598,9 @@ export function plataformaRoutes(deps: AppDeps) {
       return unprocessable(c, "confirmation_mismatch", { field: "confirmar" });
     }
     const removed = await sql.begin((tx) => deleteRestaurant(tx, restaurant.id));
+    // Archivos en Storage (mejor esfuerzo, ya con la base limpia): si fallan no deshace el borrado,
+    // queda anotado en la auditoría para limpiarlos a mano.
+    const archivos = await removeRestaurantFiles(deps, restaurant.id);
     await audit(sql, {
       restauranteId: null,
       actorTipo: "plataforma",
@@ -605,10 +609,10 @@ export function plataformaRoutes(deps: AppDeps) {
       recursoTipo: "restaurante",
       recursoId: String(restaurant.id),
       resultado: "ok",
-      detalle: { slug: restaurant.slug, nombre: restaurant.nombre, ...removed },
+      detalle: { slug: restaurant.slug, nombre: restaurant.nombre, ...removed, archivos },
       requestId: c.get("requestId"),
     });
-    return c.json({ id: restaurant.id, eliminado: true, ...removed });
+    return c.json({ id: restaurant.id, eliminado: true, ...removed, archivos });
   });
 
   // ----------------------------------------------------------------------------------- carta
