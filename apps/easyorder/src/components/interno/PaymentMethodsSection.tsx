@@ -10,6 +10,8 @@ import {
 import type { RestaurantDetail } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./payment-methods.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 type Props = {
   readonly detail: RestaurantDetail;
@@ -63,6 +65,7 @@ export function PaymentMethodsSection({ detail, onChanged }: Props) {
         Lo que este restaurante puede activar en sus Ajustes. Ahora tiene activos:{" "}
         {activos.length > 0 ? activos.map(paymentLabel).join(", ") : "ninguno"}.
       </p>
+      <HelpNote items={INTERNO_HELP.pagos} />
 
       <fieldset className="k-mp-set" disabled={!canWrite || busy}>
         <legend className="k-sr-only">Métodos de pago permitidos</legend>

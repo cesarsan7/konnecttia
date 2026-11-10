@@ -13,6 +13,8 @@ import {
 import type { CodeSettingsInfo, RestaurantDetail } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./antifraud-code.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 type Props = {
   readonly detail: RestaurantDetail;
@@ -61,6 +63,7 @@ export function AntifraudCodeSection({ detail, onChanged }: Props) {
         entregados, reparto pagado en efectivo o importe alto. Gasto este mes:{" "}
         <strong>{euros(info.gasto_mes_eur)}</strong> de {euros(info.tope_mensual_eur)}.
       </p>
+      <HelpNote items={INTERNO_HELP.antifraude} />
       {on && !info.api_configurada ? (
         <p className="k-warn" role="status">
           La API aún no tiene WhatsApp configurado: aunque esté activo, no se pide ni se envía

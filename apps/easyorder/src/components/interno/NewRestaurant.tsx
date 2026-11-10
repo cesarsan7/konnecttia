@@ -18,6 +18,8 @@ import { CountrySelect } from "../CountrySelect";
 import { usePlatform } from "./InternalShell";
 import { InviteLink } from "./InviteLink";
 import "./new-restaurant.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 const EMPTY: NewRestaurantForm = {
   nombre: "",
@@ -176,6 +178,7 @@ export function NewRestaurant() {
           <h1 className="k-heading">Nuevo restaurante</h1>
         </div>
       </header>
+      <HelpNote items={INTERNO_HELP.nuevo} />
 
       <form className="k-card k-nr-form" onSubmit={onSubmit} noValidate>
         <fieldset className="k-nr-group">

@@ -12,6 +12,8 @@ import {
 import type { ModuleRow, RestaurantDetail } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./plan-modules.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 const KIND_LABEL: Record<ModuleRow["tipo"], string> = {
   core: "Básico",
@@ -69,6 +71,7 @@ export function PlanModulesSection({ detail, onChanged }: Props) {
       <h2 id="pm-title" className="k-title">
         Plan y módulos
       </h2>
+      <HelpNote items={INTERNO_HELP.plan} />
 
       <div className="k-pm-plan">
         <label className="k-field k-pm-select">

@@ -12,6 +12,8 @@ import {
 import type { PlatformSettings, SignupSettings } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./signup-settings.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 type Load =
   | { readonly kind: "loading" }
@@ -74,6 +76,7 @@ export function SignupSettingsView() {
           <h1 className="k-heading">Configuración del alta</h1>
         </div>
       </header>
+      <HelpNote items={INTERNO_HELP.alta} />
 
       {state.kind === "loading" || !draft ? (
         state.kind === "error" ? (
