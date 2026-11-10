@@ -782,7 +782,7 @@ export function plataformaRoutes(deps: AppDeps) {
       return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
     }
     await sql.begin((tx) => replaceRole(tx, role.id, input.nombre, input.permisos));
-    const usage = await roleUsage(sql, role.id);
+    const usage = await roleUsage(sql, role.id, deps.now());
     await record(c, restaurant.id, "plataforma.rol.editar", "rol", role.id, {
       nombre: input.nombre,
       antes: role.permisos,
@@ -798,7 +798,7 @@ export function plataformaRoutes(deps: AppDeps) {
     const role = await ownRoleFromUrl(c, restaurant.id);
     if (!role) return fail(c, 404, API_ERROR.NotFound);
     if (role.plantilla) return unprocessable(c, "template_role");
-    const usage = await roleUsage(sql, role.id);
+    const usage = await roleUsage(sql, role.id, deps.now());
     if (usage.miembros > 0) return fail(c, 409, API_ERROR.Conflict, { reason: "role_in_use" });
     if (usage.invitaciones > 0) {
       return fail(c, 409, API_ERROR.Conflict, { reason: "pending_invites" });

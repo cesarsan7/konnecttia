@@ -123,7 +123,7 @@ export function registerPlatformTemplateRoutes(app: Hono<AppEnv>, deps: AppDeps)
              (SELECT count(*)::int FROM public.membresia_rol mr WHERE mr.rol_id = r.id) AS miembros,
              (SELECT count(*)::int FROM public.restaurant_invites i
               WHERE  i.rol_id = r.id AND i.used_at IS NULL AND i.revocada_at IS NULL
-                AND  i.expires_at > (now() AT TIME ZONE 'UTC')) AS invitaciones,
+                AND  i.expires_at > (${deps.now()}::timestamptz AT TIME ZONE 'UTC')) AS invitaciones,
              (SELECT count(DISTINCT m.restaurante_id)::int
               FROM   public.membresia_rol mr
               JOIN   public.local_memberships m ON m.id = mr.membership_id
@@ -215,7 +215,7 @@ export function registerPlatformTemplateRoutes(app: Hono<AppEnv>, deps: AppDeps)
       return fail(c, 409, API_ERROR.Conflict, { reason: "duplicate_name" });
     }
     await sql.begin((tx) => replaceRole(tx, template.id, input.nombre, input.permisos));
-    const usage = await roleUsage(sql, template.id);
+    const usage = await roleUsage(sql, template.id, deps.now());
     await record(c, "plataforma.plantilla.editar", template.id, {
       nombre: input.nombre,
       base: isBase,
@@ -232,7 +232,7 @@ export function registerPlatformTemplateRoutes(app: Hono<AppEnv>, deps: AppDeps)
     if (BASE_CODES.has(template.code)) {
       return fail(c, 422, API_ERROR.Unprocessable, { reason: "base_template" });
     }
-    const usage = await roleUsage(sql, template.id);
+    const usage = await roleUsage(sql, template.id, deps.now());
     if (usage.miembros > 0) return fail(c, 409, API_ERROR.Conflict, { reason: "role_in_use" });
     if (usage.invitaciones > 0) {
       return fail(c, 409, API_ERROR.Conflict, { reason: "pending_invites" });
