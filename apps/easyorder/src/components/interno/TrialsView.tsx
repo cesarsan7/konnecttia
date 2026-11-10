@@ -18,6 +18,8 @@ import {
 import type { TrialAction, TrialList, TrialRow } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./trials.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 type Load =
   | { readonly kind: "loading" }
@@ -64,6 +66,7 @@ export function TrialsView() {
           </Link>
         </div>
       </header>
+      <HelpNote items={INTERNO_HELP.pruebas} />
 
       {state.kind === "loading" ? (
         <div className="k-skeleton k-skeleton-tall" aria-busy="true" />

@@ -7,6 +7,8 @@ import { deleteConfirmed, platformErrorMessage } from "@/lib/interno/logic";
 import type { RestaurantDetail as Detail } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./lifecycle-section.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 /** Clonar (crear a partir de este) y borrar. Borrar es irreversible y pide escribir el enlace. */
 export function LifecycleSection({ detail }: { readonly detail: Detail }) {
@@ -40,6 +42,7 @@ export function LifecycleSection({ detail }: { readonly detail: Detail }) {
       <h2 id="rd-ciclo" className="k-title">
         Clonar y borrar
       </h2>
+      <HelpNote items={INTERNO_HELP.ciclo} />
 
       <div className="k-lc-block">
         <p className="k-muted k-small">

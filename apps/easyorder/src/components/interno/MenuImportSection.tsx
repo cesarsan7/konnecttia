@@ -5,6 +5,8 @@ import { menuImportMessage } from "@/lib/interno/logic";
 import type { MenuImportSummary, RestaurantDetail } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./menu-import.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 const EXAMPLE = `categoria;producto;descripcion;variante;precio
 Arepas;Arepa frita;Maíz cocido, asado y frito;;3,00
@@ -49,6 +51,7 @@ export function MenuImportSection({ detail, onChanged }: Props) {
       <h2 id="rd-carta" className="k-title">
         Carta
       </h2>
+      <HelpNote items={INTERNO_HELP.importar} />
       {hasMenu ? (
         <p className="k-muted">
           {detail.carta.productos} productos en {detail.carta.categorias} categorías. La carta se

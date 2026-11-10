@@ -5,6 +5,8 @@ import { inactivePermissions, platformErrorMessage, validateRoleForm } from "@/l
 import type { RestaurantDetail, RoleRowInfo, RolesInfo } from "@/lib/interno/types";
 import { usePlatform } from "./InternalShell";
 import "./roles-section.css";
+import { HelpNote } from "@/components/HelpNote";
+import { INTERNO_HELP } from "@/lib/interno/help";
 
 type Props = { readonly detail: RestaurantDetail };
 
@@ -119,6 +121,7 @@ export function RolesSection({ detail }: Props) {
         Las plantillas son comunes a todos los restaurantes y no se editan aquí. Los roles propios
         solo existen en este restaurante.
       </p>
+      <HelpNote items={INTERNO_HELP.roles} />
 
       {failed ? <p className="k-alert">No se pudieron cargar los roles.</p> : null}
       {!info && !failed ? <p className="k-muted">Cargando…</p> : null}
