@@ -34,6 +34,7 @@ import { OrdersTable } from "./orders/OrdersTable";
 import { PrintSettingsDialog } from "./orders/PrintSettingsDialog";
 import { usePanel } from "./PanelProvider";
 import { PERMISSION, useAccess } from "./PanelShell";
+import { PushToggle } from "./PushToggle";
 import { useChime } from "./useChime";
 
 /** Cada cuánto se consulta el tablero. */
@@ -367,6 +368,7 @@ export function OrdersBoard() {
             <Icon name={chime.enabled ? "bell" : "bellOff"} size={18} />
             {chime.enabled ? "Sonido activado" : "Activar sonido"}
           </button>
+          <PushToggle />
           {permissions.create ? (
             <button
               type="button"

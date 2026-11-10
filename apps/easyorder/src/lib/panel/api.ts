@@ -11,6 +11,7 @@ import type { IncidentList } from "./incidents";
 import type { AdminMenu } from "./menu";
 import type { FirstSteps } from "./onboarding";
 import type { OrderProofs } from "./proofs";
+import type { PushState } from "./push";
 import type { PreviousOrders } from "./reorder";
 import type { DeliveryZone, PeakTime, Settings, ZoneBranch } from "./settings";
 import type { TablePlan } from "./tables";
@@ -94,6 +95,11 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     billingPay: (slug: string, plan: string) =>
       send<{ url: string }>(slug, "/facturacion/pago", "POST", { plan }),
     billingPortal: (slug: string) => send<{ url: string }>(slug, "/facturacion/portal", "POST", {}),
+    pushState: (slug: string) => request<PushState>(panel(slug, "/push")),
+    pushSubscribe: (slug: string, subscription: unknown) =>
+      send<{ ok: boolean }>(slug, "/push", "POST", subscription),
+    pushUnsubscribe: (slug: string, endpoint: string) =>
+      send<{ ok: boolean }>(slug, "/push", "DELETE", { endpoint }),
     peaks: (slug: string) => request<{ franjas: PeakTime[] }>(panel(slug, "/ajustes/franjas")),
     team: (slug: string) => request<Team>(panel(slug, "/equipo")),
     /** Equipo: `path` relativo a /equipo (por ejemplo «/invitaciones»). */

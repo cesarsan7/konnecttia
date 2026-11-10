@@ -16,6 +16,7 @@ import { loadEtaContext } from "./eta";
 import { resolveFulfillment } from "./fulfillment";
 import { type CreatedOrder, createOrder, type OrderChannel } from "./orders";
 import { privacyPolicy } from "./privacy";
+import { notifyStaff, SILENT_CHANNELS } from "./push";
 import {
   fulfillmentEnabled,
   loadConfig,
@@ -205,5 +206,16 @@ export async function placeOrder(
         }
       : {}),
   });
+  // Aviso push al personal (mejor esfuerzo: no espera ni afecta al pedido ya guardado).
+  if (order.created && deps.push && !SILENT_CHANNELS.has(channel)) {
+    void notifyStaff(deps.sql, deps.push, restaurant.id, {
+      title: "Pedido nuevo",
+      body: `${order.pedidoCodigo ?? "Pedido"} · ${body.nombre} · ${(order.totalCents / 100)
+        .toFixed(2)
+        .replace(".", ",")} €`,
+      url: `/panel/${restaurant.slug}`,
+      tag: `pedido-${order.id}`,
+    });
+  }
   return { ok: true, order, branch, eta, priced };
 }
