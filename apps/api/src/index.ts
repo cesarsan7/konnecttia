@@ -6,6 +6,7 @@ import { createSql } from "./lib/db";
 import { loadEnv } from "./lib/env";
 import { createResendMailer } from "./lib/mailer";
 import { runMigrations } from "./lib/migrate";
+import { createStripeClient } from "./lib/stripe";
 import { createTurnstileVerifier } from "./lib/turnstile";
 import { createSimulatedCodeSender, createWhatsAppCodeSender } from "./lib/whatsapp-code";
 
@@ -138,6 +139,12 @@ function codeSender() {
 const app = createApp({
   sendCode: codeSender(),
   codeSecret: env.CODE_HMAC_SECRET ?? null,
+  stripe: env.STRIPE_SECRET_KEY ? createStripeClient(env.STRIPE_SECRET_KEY) : null,
+  stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ?? null,
+  stripePrices: {
+    ...(env.STRIPE_PRICE_BASICO ? { basico: env.STRIPE_PRICE_BASICO } : {}),
+    ...(env.STRIPE_PRICE_PREMIUM ? { premium: env.STRIPE_PRICE_PREMIUM } : {}),
+  },
   imageStorage: imageStorage(),
   proofStorage: proofStorage(),
   mailer: env.RESEND_API_KEY ? createResendMailer(env.RESEND_API_KEY, env.RESEND_FROM) : null,

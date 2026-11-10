@@ -2,6 +2,7 @@ import type { AccessContext } from "@konnecttia/access";
 import type { PlatformRole } from "@konnecttia/domain";
 import type { Mailer } from "@konnecttia/notifications";
 import type { Sql } from "./lib/db";
+import type { StripeClient } from "./lib/stripe";
 import type { Restaurant } from "./repositories/restaurants";
 
 export type AuthenticatedUser = {
@@ -95,6 +96,12 @@ export type AppDeps = {
   readonly sendCode?: CodeSender | null;
   /** Secreto del HMAC con el que se guarda el hash de cada código (mínimo 32 caracteres). */
   readonly codeSecret?: string | null;
+  /** null si no hay STRIPE_SECRET_KEY: el cobro de la suscripción queda apagado. */
+  readonly stripe?: StripeClient | null;
+  /** Secreto del endpoint del webhook de Stripe; sin él, el webhook responde 503. */
+  readonly stripeWebhookSecret?: string | null;
+  /** Precio de Stripe de cada plan de pago (código del plan → id del precio). */
+  readonly stripePrices?: Readonly<Record<string, string>>;
 };
 
 export type AppEnv = {

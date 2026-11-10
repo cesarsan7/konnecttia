@@ -10,6 +10,7 @@ import { meRoutes } from "./routes/me";
 import { panelRoutes } from "./routes/panel";
 import { plataformaRoutes } from "./routes/plataforma";
 import { publicRoutes } from "./routes/public";
+import { webhookRoutes } from "./routes/webhooks";
 
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
@@ -36,6 +37,7 @@ export function createApp(deps: AppDeps) {
   app.route("/me", meRoutes(deps));
   app.route("/panel", panelRoutes(deps));
   app.route("/plataforma", plataformaRoutes(deps));
+  app.route("/webhooks", webhookRoutes(deps));
 
   app.onError((error, c) => {
     // Nunca se devuelven detalles internos: solo una referencia para soporte.
