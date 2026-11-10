@@ -27,7 +27,9 @@ import {
   type Settings,
   settingsErrorMessage,
 } from "@/lib/panel/settings";
+import { SETTINGS_HELP } from "@/lib/settings-help";
 import { CountrySelect } from "../../CountrySelect";
+import { type HelpItem, HelpNote } from "../../HelpNote";
 import { BusyModeHelp } from "../BusyModeControl";
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
@@ -292,10 +294,13 @@ function Section({
   title,
   lead,
   tour,
+  help,
   children,
 }: {
   readonly title: string;
   readonly lead?: string;
+  /** Ayuda plegable con el para qué y el cómo de cada parámetro de la sección. */
+  readonly help?: readonly HelpItem[];
   /** Valor de `data-tour` si la guía del panel señala esta sección. */
   readonly tour?: string;
   readonly children: ReactNode;
@@ -305,6 +310,7 @@ function Section({
       <header className="k-settings-head">
         <h2 className="k-title">{title}</h2>
         {lead ? <p className="k-muted k-small">{lead}</p> : null}
+        {help ? <HelpNote items={help} /> : null}
       </header>
       {children}
     </section>
@@ -471,6 +477,7 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
     <form onSubmit={form.submit} noValidate className="k-settings-stack">
       <Section
         title="Apertura"
+        help={SETTINGS_HELP.apertura}
         lead="Para abrir o cerrar al momento sin tocar el horario (un imprevisto, inventario…)."
         tour="ajustes-apertura"
       >
@@ -488,7 +495,11 @@ function GeneralSection({ data, editable, save, patch }: SectionProps) {
           </p>
         ) : null}
       </Section>
-      <Section title="Datos del restaurante" lead="Se muestran en la carta online.">
+      <Section
+        title="Datos del restaurante"
+        lead="Se muestran en la carta online."
+        help={SETTINGS_HELP.datos}
+      >
         <div className="k-form-grid">
           <TextField
             label="Nombre"
@@ -573,6 +584,7 @@ function PrivacySection({ data, editable, save, patch }: SectionProps) {
     <form onSubmit={form.submit} noValidate className="k-settings-stack">
       <Section
         title="Privacidad"
+        help={SETTINGS_HELP.privacidad}
         lead="El cliente acepta la política al pedir por la web. Si no indicas la tuya, se enlaza la página plantilla de tu carta."
       >
         <div className="k-form-grid">
@@ -601,6 +613,7 @@ function PrivacySection({ data, editable, save, patch }: SectionProps) {
       </Section>
       <Section
         title="Pedidos sospechosos"
+        help={SETTINGS_HELP.sospechosos}
         lead="Límites por teléfono en los pedidos de la web. Vacío: sin límite."
       >
         <div className="k-form-grid">
@@ -716,7 +729,11 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
 
   return (
     <form onSubmit={form.submit} noValidate className="k-settings-stack">
-      <Section title="Servicios" lead="Cómo pueden recibir el pedido tus clientes.">
+      <Section
+        title="Servicios"
+        lead="Cómo pueden recibir el pedido tus clientes."
+        help={SETTINGS_HELP.servicios}
+      >
         <div className="k-toggle-list">
           <Toggle
             checked={recogida}
@@ -738,7 +755,11 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
         ) : null}
       </Section>
 
-      <Section title="Métodos de pago" lead="Lo que el cliente puede elegir al pedir.">
+      <Section
+        title="Métodos de pago"
+        lead="Lo que el cliente puede elegir al pedir."
+        help={SETTINGS_HELP.pagos}
+      >
         <div className="k-chips-pick">
           {data.metodos_disponibles.map((method) => {
             const on = metodos.includes(method);
@@ -824,6 +845,7 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
 
       <Section
         title="Tiempos de preparación"
+        help={SETTINGS_HELP.tiempos}
         lead="Base que ve el cliente. Las zonas de reparto pueden tener el suyo; la hora punta y el modo ocupado lo amplían."
       >
         <div className="k-form-grid k-form-grid-3">
@@ -860,6 +882,7 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
 
       <Section
         title="Modo ocupado"
+        help={SETTINGS_HELP.ocupado}
         lead="Botón del tablero de pedidos que suma minutos al tiempo estimado durante un rato."
       >
         <BusyModeHelp duration={Number(busyDuration) || null} />
@@ -887,6 +910,7 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
 
       <Section
         title="Suplementos"
+        help={SETTINGS_HELP.suplementos}
         lead="Cargo que se suma a los pedidos pequeños, por ejemplo envases: +1 € si el pedido no llega a 25 €."
       >
         {surcharges.length === 0 ? <p className="k-muted k-small">Sin suplementos.</p> : null}
@@ -1011,7 +1035,7 @@ function WeekEditor(props: {
 
   return (
     <form onSubmit={form.submit} noValidate>
-      <Section title={props.title} lead={props.lead}>
+      <Section title={props.title} lead={props.lead} help={SETTINGS_HELP.horario}>
         {props.extra}
         <ul className="k-week">
           {week.map((day) => {
@@ -1188,6 +1212,7 @@ function HolidaysSection({
   return (
     <Section
       title="Festivos"
+      help={SETTINGS_HELP.festivos}
       lead="Un festivo usa el horario del domingo, salvo que lo marques como cerrado todo el día."
     >
       {data.festivos.length === 0 ? (

@@ -19,6 +19,8 @@ import type { RestaurantSettings } from "@/lib/panel/settings";
 import { usePanel } from "../PanelProvider";
 import { useAccess } from "../PanelShell";
 import "./brand-section.css";
+import { SETTINGS_HELP } from "@/lib/settings-help";
+import { HelpNote } from "../../HelpNote";
 
 type Saver = (run: () => Promise<ApiResult<unknown>>, done: string) => Promise<string | null>;
 
@@ -113,6 +115,7 @@ export function BrandSection({ restaurant, editable, save }: Props) {
             Se ve en la cabecera de tu carta online. PNG, JPG o WebP, hasta 2 MB; mejor cuadrado o
             con el fondo transparente.
           </p>
+          <HelpNote items={SETTINGS_HELP.logo} />
         </header>
         <div className="k-brand-logo">
           {logo ? (
@@ -165,6 +168,7 @@ export function BrandSection({ restaurant, editable, save }: Props) {
             Tu carta online y el seguimiento de los pedidos usan este color en botones, bordes y
             selección. El panel mantiene los colores de EasyOrder.
           </p>
+          <HelpNote items={SETTINGS_HELP.color} />
         </header>
         <div className="k-brand-color">
           <input
@@ -242,6 +246,7 @@ export function BrandSection({ restaurant, editable, save }: Props) {
             Tu carta las muestra como enlaces. Pega la dirección completa; en WhatsApp basta el
             teléfono.
           </p>
+          <HelpNote items={SETTINGS_HELP.redes} />
         </header>
         <ul className="k-brand-rows">
           {rows.map((row, index) => (

@@ -13,6 +13,8 @@ import {
 } from "@/lib/panel/qr";
 import { useAccess } from "../PanelShell";
 import "./qr-links.css";
+import { SETTINGS_HELP } from "@/lib/settings-help";
+import { HelpNote } from "../../HelpNote";
 
 const COPIED_MS = 2500;
 
@@ -168,6 +170,7 @@ export function QrLinks() {
         Imprime el QR en mesas, bolsas o el escaparate, o compártelo en redes. Lo lee cualquier
         móvil con la cámara.
       </p>
+      <HelpNote items={SETTINGS_HELP.enlaces} />
       <ul className="k-qr-list">
         {qrLinks(origin, slug).map((link) => (
           <QrCard key={link.id} link={link} slug={slug} />

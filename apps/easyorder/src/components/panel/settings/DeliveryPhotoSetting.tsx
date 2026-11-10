@@ -3,6 +3,8 @@
 import "./delivery-photo-setting.css";
 import { type FormEvent, useState } from "react";
 import { DELIVERY_PHOTO_OPTIONS, type DeliveryPhotoMode } from "@/lib/panel/delivery-photo";
+import { SETTINGS_HELP } from "@/lib/settings-help";
+import { HelpNote } from "../../HelpNote";
 
 type Props = {
   readonly value: DeliveryPhotoMode;
@@ -33,6 +35,7 @@ export function DeliveryPhotoSetting({ value, editable, onSave }: Props) {
           Foto que hace el repartidor con el móvil al entregar el pedido. La ve el local en el
           pedido; no se envía al cliente.
         </p>
+        <HelpNote items={SETTINGS_HELP.fotoEntrega} />
       </header>
       <fieldset className="k-fieldset k-fieldset-flat">
         <legend className="k-field-label">Foto de entrega</legend>
