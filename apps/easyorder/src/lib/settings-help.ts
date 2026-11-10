@@ -6,6 +6,17 @@ import type { HelpItem } from "@/components/HelpNote";
  * la API y la carta; si cambia una regla, se cambia aquí.
  */
 export const SETTINGS_HELP = {
+  sonidos: [
+    {
+      campo: "Sonido de cada evento",
+      para: "Que el tablero avise con un sonido distinto cuando llega un pedido nuevo o cambia de estado, para enterarte sin mirar la pantalla.",
+      como: "Eliges un sonido por evento (o «Sin sonido»). Se guarda en el restaurante: todos los dispositivos que tengan el tablero abierto suenan igual. Con «Probar» lo oyes al momento.",
+      ejemplo:
+        "Pedido nuevo: campana; Listo: arpegio, para que quien reparte lo oiga; Cancelado: alerta.",
+      cuidado:
+        "Cada persona tiene que pulsar «Activar sonido» en el tablero (el navegador no deja sonar sin un toque). Los cambios que haces tú mismo no suenan. Si llegan varios eventos a la vez, suena uno solo: el pedido nuevo manda.",
+    },
+  ],
   apertura: [
     {
       campo: "Estado: Según horario / Abierto ahora / Cerrado ahora",

@@ -2,6 +2,8 @@ import { ALL_BRANCHES, canAccessBranch, PERMISSION } from "@konnecttia/access";
 import {
   allowedPaymentMethods,
   type BankDetails,
+  BOARD_SOUND_EVENTS,
+  BOARD_SOUNDS,
   COUNTRIES,
   checkDaySchedule,
   checkPaymentSetup,
@@ -14,10 +16,12 @@ import {
   normalizeHex,
   ORDER_STATUS,
   PAYMENT_METHODS,
+  parseBoardSounds,
   parseSocialLinks,
   readSocialLinks,
   SOCIAL_NETWORKS,
   sameWeekday,
+  serializeBoardSounds,
   WEEKDAYS_ES,
 } from "@konnecttia/domain";
 import type { Context, Hono } from "hono";
@@ -148,6 +152,8 @@ const restaurantSchema = z
     avisos_cliente_estados: z
       .array(z.enum(CUSTOMER_NOTICE_STATUSES))
       .max(CUSTOMER_NOTICE_STATUSES.length),
+    /** Sonido de cada evento del tablero; null = volver a los de por defecto. */
+    sonidos: z.partialRecord(z.enum(BOARD_SOUND_EVENTS), z.enum(BOARD_SOUNDS)).nullable(),
     /** Versión vigente de la política: los pedidos web nuevos guardan esta. */
     privacidad_version: text(PRIVACY_VERSION_MAX),
     /** Límites antifraude por teléfono; vacío = sin límite. */
@@ -353,6 +359,15 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
 
   // ---------------------------------------------------------------------------------- lectura
 
+  /** Sonidos del tablero: los lee quien ve los pedidos (no hace falta poder abrir Ajustes). */
+  app.get("/:slug/sonidos", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
+    const [row] = await sql<{ config_value: string }[]>`
+      SELECT config_value FROM public.restaurante_config
+      WHERE  restaurante_id = ${c.get("restaurant").id} AND config_key = ${CONFIG_KEY.BoardSounds}
+    `;
+    return c.json({ sonidos: parseBoardSounds(row?.config_value) });
+  });
+
   app.get("/:slug/ajustes", requirePermission(deps, PERMISSION.SettingsView), async (c) => {
     const restauranteId = c.get("restaurant").id;
     const branchIds = await visibleBranchIds(c);
@@ -466,6 +481,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         reparto_foto_entrega: deliveryPhotoMode(config),
         privacidad_url: config.get(CONFIG_KEY.PrivacyUrl)?.trim() || null,
         privacidad_version: config.get(CONFIG_KEY.PrivacyVersion)?.trim() || null,
+        sonidos: parseBoardSounds(config.get(CONFIG_KEY.BoardSounds)),
         avisos_local_activo: config.get(CONFIG_KEY.NoticeLocalActive) === "true",
         avisos_local_emails: noticeEmails(config.get(CONFIG_KEY.NoticeLocalEmails)),
         avisos_cliente_activo: config.get(CONFIG_KEY.NoticeCustomerActive) === "true",
@@ -696,6 +712,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
               ? body.avisos_cliente_estados.join(", ")
               : null,
             "Estados del pedido que avisan al cliente por email (panel)",
+          ],
+          [
+            "sonidos",
+            CONFIG_KEY.BoardSounds,
+            body.sonidos ? serializeBoardSounds(body.sonidos) : null,
+            "Sonidos del tablero por evento (panel)",
           ],
           [
             "privacidad_url",

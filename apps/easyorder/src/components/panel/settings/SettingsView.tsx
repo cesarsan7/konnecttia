@@ -1,6 +1,13 @@
 "use client";
 
-import { resolveCountry } from "@konnecttia/domain";
+import {
+  BOARD_SOUND_EVENTS,
+  BOARD_SOUNDS,
+  type BoardSound,
+  type BoardSounds,
+  DEFAULT_BOARD_SOUNDS,
+  resolveCountry,
+} from "@konnecttia/domain";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useState } from "react";
 import type { ApiResult } from "@/lib/api";
 import { paymentLabel } from "@/lib/checkout";
@@ -28,6 +35,7 @@ import {
   type Settings,
   settingsErrorMessage,
 } from "@/lib/panel/settings";
+import { EVENT_HINT, EVENT_LABEL, SOUND_LABEL } from "@/lib/panel/sounds";
 import { SETTINGS_HELP } from "@/lib/settings-help";
 import { CountrySelect } from "../../CountrySelect";
 import { type HelpItem, HelpNote } from "../../HelpNote";
@@ -35,7 +43,9 @@ import { BusyModeHelp } from "../BusyModeControl";
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { useChime } from "../useChime";
 import { BillingSection } from "./BillingSection";
+import "./sounds-section.css";
 import { BrandSection } from "./BrandSection";
 import { DeliveryPhotoSetting } from "./DeliveryPhotoSetting";
 import { DeliverySection } from "./DeliverySection";
@@ -52,6 +62,7 @@ const TAB = {
   Brand: "marca",
   Links: "enlaces",
   Billing: "plan",
+  Sounds: "sonidos",
 } as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
 
@@ -171,6 +182,7 @@ export function SettingsView() {
         { id: TAB.Branches, label: data.locales.length > 1 ? "Locales" : "Local" },
         { id: TAB.Brand, label: "Marca" },
         { id: TAB.Links, label: "Enlaces y QR" },
+        { id: TAB.Sounds, label: "Sonidos" },
         { id: TAB.Billing, label: "Plan y facturación" },
       ]
     : [
@@ -259,6 +271,9 @@ export function SettingsView() {
         <BrandSection restaurant={data.restaurante} editable={editRestaurant} save={save} />
       ) : null}
       {current === TAB.Links ? <QrLinks /> : null}
+      {current === TAB.Sounds ? (
+        <SoundsSection data={data} editable={editRestaurant} save={save} patch={patch} />
+      ) : null}
       {current === TAB.Billing ? <BillingSection editable={editRestaurant} /> : null}
       {current === TAB.Branches ? (
         <>
@@ -571,6 +586,77 @@ function parseEmails(text: string): string[] | undefined {
     .filter((item) => item.length > 0);
   const valid = items.every((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
   return valid && items.length <= 10 ? [...new Set(items)] : undefined;
+}
+
+function SoundsSection({ data, editable, save, patch }: SectionProps) {
+  const [sounds, setSounds] = useState<BoardSounds>(
+    data.restaurante.sonidos ?? DEFAULT_BOARD_SOUNDS,
+  );
+  const chime = useChime();
+
+  const form = useSubmit(async () => save(patch({ sonidos: sounds }), "Sonidos guardados"));
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  async function resetDefaults() {
+    setResetting(true);
+    const error = await save(patch({ sonidos: null }), "Sonidos por defecto restaurados");
+    if (!error) setSounds(DEFAULT_BOARD_SOUNDS);
+    setResetError(error);
+    setResetting(false);
+  }
+
+  return (
+    <form onSubmit={form.submit} noValidate className="k-settings-stack">
+      <Section
+        title="Sonidos del tablero"
+        lead="Elige qué suena cuando llega un pedido o cambia de estado. Lo oyen todos los dispositivos con el tablero abierto."
+        help={SETTINGS_HELP.sonidos}
+      >
+        <ul className="k-sound-list">
+          {BOARD_SOUND_EVENTS.map((event) => (
+            <li key={event} className="k-sound-row">
+              <span className="k-sound-name">
+                <strong>{EVENT_LABEL[event]}</strong>
+                <span className="k-small k-muted">{EVENT_HINT[event]}</span>
+              </span>
+              <select
+                className="k-input"
+                aria-label={`Sonido de «${EVENT_LABEL[event]}»`}
+                value={sounds[event]}
+                disabled={!editable}
+                onChange={(e) => setSounds({ ...sounds, [event]: e.target.value as BoardSound })}
+              >
+                {BOARD_SOUNDS.map((sound) => (
+                  <option key={sound} value={sound}>
+                    {SOUND_LABEL[sound]}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="k-btn k-btn-secondary k-btn-sm"
+                disabled={sounds[event] === "ninguno"}
+                onClick={() => chime.preview(sounds[event])}
+              >
+                Probar
+              </button>
+            </li>
+          ))}
+        </ul>
+        {editable ? (
+          <button
+            type="button"
+            className="k-link k-small"
+            disabled={resetting}
+            onClick={() => void resetDefaults()}
+          >
+            Volver a los sonidos por defecto
+          </button>
+        ) : null}
+      </Section>
+      <SaveBar busy={form.busy} editable={editable} error={form.error ?? resetError} />
+    </form>
+  );
 }
 
 function NoticesSection({ data, editable, save, patch }: SectionProps) {

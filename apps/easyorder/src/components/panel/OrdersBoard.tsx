@@ -1,5 +1,6 @@
 "use client";
 
+import { type BoardSounds, DEFAULT_BOARD_SOUNDS } from "@konnecttia/domain";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { describePanelError } from "@/lib/panel/api";
@@ -23,6 +24,7 @@ import {
   STATUS_LABEL,
   sortLaneOrders,
 } from "@/lib/panel/orders";
+import { soundToPlay, statusChanges } from "@/lib/panel/sounds";
 import { type StreamState, subscribeBoard } from "@/lib/panel/stream";
 import type { PanelBranch, PanelOrder } from "@/lib/panel/types";
 import { BusyModeControl, BusyModeHelp } from "./BusyModeControl";
@@ -68,6 +70,10 @@ export function OrdersBoard() {
   const [view, setView] = useState<BoardView>("tablero");
   const [sort, setSort] = useState<BoardSort>("antiguos");
   const seen = useRef<Set<number> | null>(null);
+  const seenStatus = useRef<Map<number, string> | null>(null);
+  /** Cambios de estado que hizo esta misma persona: no suenan. */
+  const ownChanges = useRef(new Map<number, string>());
+  const soundsRef = useRef<BoardSounds>(DEFAULT_BOARD_SOUNDS);
   const dialog = useRef<HTMLDialogElement>(null);
 
   const permissions = {
@@ -146,8 +152,11 @@ export function OrdersBoard() {
     setOffline(false);
     const list = result.data.pedidos;
     const arrivals = newArrivals(seen.current, list);
+    const changes = statusChanges(seenStatus.current, list, ownChanges.current);
+    ownChanges.current.clear();
+    const sound = soundToPlay(arrivals.length > 0, changes, soundsRef.current);
+    if (sound) playChime(sound);
     if (arrivals.length > 0) {
-      playChime();
       // Comanda automática de los pedidos nuevos (una por pedido, en orden de llegada).
       if (printRef.current.alLlegar) {
         for (const order of [...arrivals].reverse()) print(order);
@@ -164,6 +173,7 @@ export function OrdersBoard() {
       );
     }
     seen.current = new Set(list.map((order) => order.id));
+    seenStatus.current = new Map(list.map((order) => [order.id, order.estado]));
     setOrders(list);
     setLastSync(new Date());
   }, [api, slug, branchId, router, playChime, print]);
@@ -171,6 +181,7 @@ export function OrdersBoard() {
   // Al cambiar de local se vuelve a empezar: los pedidos ya visibles no suenan otra vez.
   useEffect(() => {
     seen.current = null;
+    seenStatus.current = null;
     setOrders(null);
     void load();
   }, [load]);
@@ -201,6 +212,21 @@ export function OrdersBoard() {
       stop();
     };
   }, [api, slug, load]);
+
+  // Sonidos por estado del restaurante: se refrescan con el resto del tablero.
+  useEffect(() => {
+    let alive = true;
+    const loadSounds = async () => {
+      const result = await api.boardSounds(slug);
+      if (alive && result.ok) soundsRef.current = result.data.sonidos;
+    };
+    void loadSounds();
+    const timer = setInterval(() => void loadSounds(), 60_000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [api, slug]);
 
   useEffect(() => {
     void loadBranches();
@@ -249,6 +275,8 @@ export function OrdersBoard() {
       return next;
     });
     if (result.ok) {
+      if (action.kind === "status") ownChanges.current.set(order.id, action.to);
+      if (action.kind === "cancel") ownChanges.current.set(order.id, "cancelado");
       if (
         action.kind === "status" &&
         action.to === "confirmado" &&

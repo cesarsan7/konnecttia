@@ -1,3 +1,4 @@
+import type { BoardSounds } from "@konnecttia/domain";
 import type { DeliveryPhotoMode } from "./delivery-photo";
 
 /** Respuestas de GET /panel/:slug/ajustes (apps/api/src/routes/panel-settings.ts). */
@@ -49,6 +50,8 @@ export type RestaurantSettings = {
   readonly modo_ocupado_duracion_minutos: number | null;
   /** Foto de entrega del repartidor (reparto_foto_entrega). */
   readonly reparto_foto_entrega: DeliveryPhotoMode;
+  /** Sonido de cada evento del tablero (pieza de sonidos por estado). */
+  readonly sonidos?: BoardSounds;
   readonly privacidad_url: string | null;
   readonly privacidad_version: string | null;
   readonly avisos_local_activo: boolean;
