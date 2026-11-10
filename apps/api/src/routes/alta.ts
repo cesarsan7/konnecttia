@@ -2,6 +2,8 @@ import {
   COUNTRIES,
   checkRestaurantSlug,
   isValidTimeZone,
+  LEGAL_VERSION,
+  SIGNUP_LEGAL_DOCUMENTS,
   TRIAL_STATE,
   trialEnd,
 } from "@konnecttia/domain";
@@ -54,6 +56,8 @@ const signupSchema = z.object({
   /** Nombre de quien da el alta (se guarda en su membresía). */
   miembro_nombre: z.string().trim().max(MEMBER_NAME_MAX).optional(),
   captcha_token: z.string().max(TURNSTILE_MAX_TOKEN_LENGTH).optional(),
+  /** Acepta los términos y el contrato de encargado de tratamiento (documentos legales). */
+  acepta_legal: z.literal(true),
 });
 
 type Ctx = Context<AppEnv>;
@@ -171,6 +175,14 @@ export function altaRoutes(deps: AppDeps) {
           nombre: input.miembro_nombre || null,
           apodo: null,
         });
+        for (const documento of SIGNUP_LEGAL_DOCUMENTS) {
+          await tx`
+            INSERT INTO public.aceptacion_legal
+              (restaurante_id, user_id, email, documento, version, aceptado_at)
+            VALUES (${restaurant.id}, ${user.userId}::uuid, ${user.email}, ${documento},
+                    ${LEGAL_VERSION[documento]}, ${now}::timestamptz)
+          `;
+        }
         // Los límites son copias de la configuración de hoy: cambiarla después no altera esta prueba.
         await tx`
           INSERT INTO public.restaurante_prueba
@@ -209,6 +221,9 @@ export function altaRoutes(deps: AppDeps) {
         estado: state,
         zona_horaria: input.zona_horaria,
         pais: input.pais ?? null,
+        legal: SIGNUP_LEGAL_DOCUMENTS.map(
+          (documento) => `${documento}@${LEGAL_VERSION[documento]}`,
+        ),
         local: input.local.nombre,
         recogida: input.recogida,
         reparto: input.reparto,

@@ -5,6 +5,7 @@ export * from "./country";
 export * from "./delivery";
 export * from "./eta";
 export * from "./incident";
+export * from "./legal";
 export * from "./menu";
 export * from "./menu-import";
 export * from "./money";

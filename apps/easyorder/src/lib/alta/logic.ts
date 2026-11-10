@@ -22,6 +22,8 @@ export type SignupForm = {
   readonly recogida: boolean;
   readonly reparto: boolean;
   readonly miembroNombre: string;
+  /** Ha aceptado los términos y el contrato de encargado de tratamiento. */
+  readonly aceptaLegal: boolean;
 };
 
 export type SignupErrors = Partial<Record<keyof SignupForm | "servicio", string>>;
@@ -37,6 +39,7 @@ export const EMPTY_SIGNUP: SignupForm = {
   recogida: true,
   reparto: false,
   miembroNombre: "",
+  aceptaLegal: false,
 };
 
 const MEMBER_NAME_MAX = 80;
@@ -84,6 +87,9 @@ export function validateStep(step: SignupStep, form: SignupForm): SignupErrors {
   if (step === SIGNUP_STEP.Service && !form.recogida && !form.reparto) {
     errors.servicio = "Elige al menos una forma de servicio: recogida o reparto.";
   }
+  if (step === SIGNUP_STEP.Service && !form.aceptaLegal) {
+    errors.aceptaLegal = "Para crear tu restaurante tienes que aceptar los términos y el contrato.";
+  }
   return errors;
 }
 
@@ -107,6 +113,7 @@ export function toSignupBody(form: SignupForm, captchaToken: string | null): Sig
     },
     recogida: form.recogida,
     reparto: form.reparto,
+    acepta_legal: true,
     ...(miembro ? { miembro_nombre: miembro } : {}),
     ...(captchaToken ? { captcha_token: captchaToken } : {}),
   };

@@ -42,6 +42,7 @@ const signup = (overrides: Record<string, unknown> = {}) => ({
   recogida: true,
   reparto: true,
   miembro_nombre: "Ana Prueba",
+  acepta_legal: true,
   ...overrides,
 });
 
@@ -390,6 +391,27 @@ describe.skipIf(!TEST_DATABASE_URL)("alta autoservicio con prueba", () => {
       `;
       expect(audit?.actor_id).toBe(USERS.altaUno.userId);
       expect(audit?.detalle).toMatchObject({ slug: "mi-bar", plan: "prueba", estado: "activa" });
+    });
+
+    it("sin aceptar los documentos legales no se crea nada; al aceptar queda registrado", async () => {
+      const without = await call(
+        "altaDos",
+        "POST",
+        "/alta",
+        signup({ slug: "sin-legal", acepta_legal: false }),
+      );
+      expect(without.status).toBe(400);
+      expect(without.body.field).toBe("acepta_legal");
+      expect(
+        (await ctx.sql`SELECT 1 FROM public.restaurante WHERE slug = 'sin-legal'`).length,
+      ).toBe(0);
+
+      const rows = await ctx.sql<{ documento: string; version: string; email: string }[]>`
+        SELECT a.documento, a.version, a.email
+        FROM   public.aceptacion_legal a JOIN public.restaurante r ON r.id = a.restaurante_id
+        WHERE  r.slug = 'mi-bar' ORDER BY a.documento`;
+      expect(rows.map((row) => row.documento)).toEqual(["encargado", "terminos"]);
+      expect(rows.every((row) => row.version.length > 0 && row.email.includes("@"))).toBe(true);
     });
 
     it("una prueba por usuario: la segunda da 409 already_has_trial", async () => {

@@ -26,6 +26,7 @@ const filled: SignupForm = {
   recogida: true,
   reparto: false,
   miembroNombre: " Ana ",
+  aceptaLegal: true,
 };
 
 describe("asistente de alta: validación por paso", () => {
@@ -62,6 +63,11 @@ describe("asistente de alta: validación por paso", () => {
     expect(none.servicio).toBeTruthy();
   });
 
+  it("paso 3: hay que aceptar los documentos legales", () => {
+    const unchecked = validateStep(SIGNUP_STEP.Service, { ...filled, aceptaLegal: false });
+    expect(unchecked.aceptaLegal).toBeTruthy();
+  });
+
   it("un formulario vacío falla en los pasos 1 y 2", () => {
     expect(hasErrors(validateStep(SIGNUP_STEP.Restaurant, EMPTY_SIGNUP))).toBe(true);
     expect(hasErrors(validateStep(SIGNUP_STEP.Branch, EMPTY_SIGNUP))).toBe(true);
@@ -79,6 +85,7 @@ describe("asistente de alta: cuerpo y textos", () => {
       recogida: true,
       reparto: false,
       miembro_nombre: "Ana",
+      acepta_legal: true,
     });
     expect(toSignupBody({ ...filled, miembroNombre: "" }, "tok").captcha_token).toBe("tok");
     expect("miembro_nombre" in toSignupBody({ ...filled, miembroNombre: "" }, null)).toBe(false);
