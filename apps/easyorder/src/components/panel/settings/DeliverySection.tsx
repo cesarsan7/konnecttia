@@ -10,6 +10,8 @@ import {
   type ZoneBranch,
   zoneErrorMessage,
 } from "@/lib/panel/settings";
+import { SETTINGS_HELP } from "@/lib/settings-help";
+import { HelpNote } from "../../HelpNote";
 import { Toggle } from "../menu/Editors";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
@@ -77,6 +79,7 @@ export function DeliverySection({
                   Si una dirección entra en varias zonas, se usa la más concreta; «toda la ciudad»
                   va la última.
                 </p>
+                <HelpNote items={SETTINGS_HELP.zonas} />
               </div>
               {editable ? (
                 <button

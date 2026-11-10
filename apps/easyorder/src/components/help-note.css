@@ -1,0 +1,42 @@
+.k-helpnote {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 4px 0 10px;
+}
+
+.k-helpnote summary {
+  cursor: pointer;
+  color: var(--teal-text);
+  font-weight: 700;
+  width: fit-content;
+}
+
+.k-helpnote dl {
+  margin: 10px 0 0;
+  display: grid;
+  gap: 12px;
+}
+
+.k-helpnote-item {
+  border-left: 3px solid var(--line, #d8dee4);
+  padding-left: 12px;
+}
+
+.k-helpnote dt {
+  font-weight: 700;
+  color: var(--text, inherit);
+}
+
+.k-helpnote dd {
+  margin: 4px 0 0;
+  display: grid;
+  gap: 3px;
+}
+
+.k-helpnote dd p {
+  margin: 0;
+}
+
+.k-helpnote-care {
+  color: var(--warn-text, inherit);
+}

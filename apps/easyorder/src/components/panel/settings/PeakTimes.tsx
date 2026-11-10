@@ -2,6 +2,8 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { type PeakTime, SERVICE_LABEL, zoneErrorMessage } from "@/lib/panel/settings";
+import { SETTINGS_HELP } from "@/lib/settings-help";
+import { HelpNote } from "../../HelpNote";
 import { usePanel } from "../PanelProvider";
 import { useAccess } from "../PanelShell";
 
@@ -87,6 +89,7 @@ export function PeakTimes({
           viernes de 20:00 a 22:00, +15 min). Para un aumento puntual usa el modo ocupado del
           tablero.
         </p>
+        <HelpNote items={SETTINGS_HELP.horasPunta} />
       </header>
       {peaks === null ? (
         <div className="k-skeleton" aria-busy="true" />
