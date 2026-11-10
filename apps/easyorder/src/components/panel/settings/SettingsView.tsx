@@ -34,6 +34,7 @@ import { BusyModeHelp } from "../BusyModeControl";
 import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { BillingSection } from "./BillingSection";
 import { BrandSection } from "./BrandSection";
 import { DeliveryPhotoSetting } from "./DeliveryPhotoSetting";
 import { DeliverySection } from "./DeliverySection";
@@ -49,6 +50,7 @@ const TAB = {
   Branches: "locales",
   Brand: "marca",
   Links: "enlaces",
+  Billing: "plan",
 } as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
 
@@ -168,6 +170,7 @@ export function SettingsView() {
         { id: TAB.Branches, label: data.locales.length > 1 ? "Locales" : "Local" },
         { id: TAB.Brand, label: "Marca" },
         { id: TAB.Links, label: "Enlaces y QR" },
+        { id: TAB.Billing, label: "Plan y facturación" },
       ]
     : [
         { id: TAB.Branches, label: "Mis locales" },
@@ -252,6 +255,7 @@ export function SettingsView() {
         <BrandSection restaurant={data.restaurante} editable={editRestaurant} save={save} />
       ) : null}
       {current === TAB.Links ? <QrLinks /> : null}
+      {current === TAB.Billing ? <BillingSection editable={editRestaurant} /> : null}
       {current === TAB.Branches ? (
         <>
           {data.locales.map((branch) => (

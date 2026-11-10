@@ -58,6 +58,14 @@ const envSchema = z
       .enum(["true", "false"])
       .default("false")
       .transform((value) => value === "true"),
+    /**
+     * Cobro de la suscripción (Stripe Billing). Todo opcional: sin STRIPE_SECRET_KEY el plan se
+     * sigue asignando a mano. Los ids de precio son de los productos creados en Stripe.
+     */
+    STRIPE_SECRET_KEY: z.string().min(10).optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().min(10).optional(),
+    STRIPE_PRICE_BASICO: z.string().min(3).optional(),
+    STRIPE_PRICE_PREMIUM: z.string().min(3).optional(),
     /** Carpeta con las migraciones `NNNN_*.sql` (en la imagen: `/app/migrations`). */
     MIGRATIONS_DIR: z.string().min(1).default("../../packages/db/migrations"),
   })
@@ -68,6 +76,13 @@ const envSchema = z
         code: "custom",
         path: ["WHATSAPP_PHONE_NUMBER_ID"],
         message: "WHATSAPP_ACCESS_TOKEN y WHATSAPP_PHONE_NUMBER_ID van juntas",
+      });
+    }
+    if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["STRIPE_WEBHOOK_SECRET"],
+        message: "obligatorio si hay STRIPE_SECRET_KEY (sin él no se confirman los pagos)",
       });
     }
     const canSend = whatsapp.every(Boolean) || env.ANTIFRAUD_CODE_SIMULATE;

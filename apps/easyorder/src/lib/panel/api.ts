@@ -2,6 +2,7 @@ import type { SignupBody, SignupResult } from "../alta/types";
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type { ActivityPeople, DriverActivity, OrderTrace, WaiterActivity } from "./activity";
+import type { Billing } from "./billing";
 import type { CustomerDetail, CustomerList } from "./customers";
 import type { DeliveryPhotoMode, OrderDeliveryPhotos } from "./delivery-photo";
 import type { Delivery, Driver } from "./drivers";
@@ -89,6 +90,10 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     /** Zonas de reparto: `path` relativo a /reparto/zonas. */
     zoneChange: (slug: string, method: "POST" | "PUT" | "DELETE", path: string, body?: unknown) =>
       send(slug, `/reparto/zonas${path}`, method, body),
+    billing: (slug: string) => request<Billing>(panel(slug, "/facturacion")),
+    billingPay: (slug: string, plan: string) =>
+      send<{ url: string }>(slug, "/facturacion/pago", "POST", { plan }),
+    billingPortal: (slug: string) => send<{ url: string }>(slug, "/facturacion/portal", "POST", {}),
     peaks: (slug: string) => request<{ franjas: PeakTime[] }>(panel(slug, "/ajustes/franjas")),
     team: (slug: string) => request<Team>(panel(slug, "/equipo")),
     /** Equipo: `path` relativo a /equipo (por ejemplo «/invitaciones»). */

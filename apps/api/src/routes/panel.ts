@@ -15,6 +15,7 @@ import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 import { loadPlatformConfig, loadTrial } from "../repositories/trial";
 import { registerActivityRoutes } from "./panel-activity";
+import { registerBillingRoutes } from "./panel-billing";
 import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerDriverRoutes } from "./panel-drivers";
@@ -91,6 +92,7 @@ export function panelRoutes(deps: AppDeps) {
   registerWaiterRoutes(app, deps);
   registerActivityRoutes(app, deps);
   registerTableRoutes(app, deps);
+  registerBillingRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");
