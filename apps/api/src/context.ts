@@ -24,6 +24,8 @@ export type PlatformUser = {
 /** Almacén de imágenes (fotos de la carta). Devuelve la URL pública del archivo guardado. */
 export type ImageStorage = {
   readonly upload: (path: string, bytes: Uint8Array, contentType: string) => Promise<string>;
+  /** Borra todo lo que cuelga de una carpeta (al borrar un restaurante); devuelve cuántos archivos. */
+  readonly removeFolder?: (prefix: string) => Promise<number>;
 };
 
 /**
@@ -35,6 +37,8 @@ export type ProofStorage = {
   readonly signedUrl: (path: string, expiresInSeconds: number) => Promise<string>;
   /** Borrado de mejor esfuerzo (subida que no llegó a registrarse). */
   readonly remove: (path: string) => Promise<void>;
+  /** Borra todo lo que cuelga de una carpeta (al borrar un restaurante); devuelve cuántos archivos. */
+  readonly removeFolder?: (prefix: string) => Promise<number>;
 };
 
 /** Envío de emails (Resend); vive en `@konnecttia/notifications`, compartido con el worker. */

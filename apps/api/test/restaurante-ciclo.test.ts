@@ -275,7 +275,12 @@ describe.skipIf(!TEST_DATABASE_URL)("borrar y clonar restaurantes desde /interno
         confirmar: "bar-borrable",
       });
       expect(result.status).toBe(200);
-      expect(result.body).toMatchObject({ id, eliminado: true, pedidos: 2 });
+      expect(result.body).toMatchObject({
+        id,
+        eliminado: true,
+        pedidos: 2,
+        archivos: { carta: "sin_almacen" },
+      });
 
       const [left] = await ctx.sql<{ n: number }[]>`
         SELECT (SELECT count(*)::int FROM public.restaurante WHERE id = ${id})
@@ -298,6 +303,57 @@ describe.skipIf(!TEST_DATABASE_URL)("borrar y clonar restaurantes desde /interno
         WHERE accion = 'plataforma.restaurante.crear' AND detalle->>'slug' = 'bar-borrable'`;
       expect(created).toHaveLength(1);
       expect(created[0]?.restaurante_id).toBeNull();
+    });
+
+    it("borra también los archivos de Storage del restaurante y anota el resultado", async () => {
+      const created = await call(
+        "platformAdmin",
+        "POST",
+        "/plataforma/restaurantes",
+        newRestaurant({
+          nombre: "Bar Con Archivos",
+          slug: "bar-con-archivos",
+          local: { nombre: "Archivos Centro" },
+          propietario_email: "dueno@archivos.test",
+        }),
+      );
+      const fid = created.body.id as number;
+      const asked: string[] = [];
+      const app = ctx.appWith({
+        imageStorage: {
+          upload: async () => "x",
+          removeFolder: async (prefix) => {
+            asked.push(`carta:${prefix}`);
+            return 3;
+          },
+        },
+        proofStorage: {
+          upload: async () => {},
+          signedUrl: async () => "x",
+          remove: async () => {},
+          removeFolder: async (prefix) => {
+            asked.push(`privado:${prefix}`);
+            if (prefix.startsWith("entregas")) throw new Error("fallo simulado");
+            return 2;
+          },
+        },
+      });
+      const response = await app.request(`/plataforma/restaurantes/${fid}`, {
+        method: "DELETE",
+        headers: { ...auth("platformAdmin"), "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmar: "bar-con-archivos" }),
+      });
+      const body = (await response.json()) as Json;
+      expect(response.status).toBe(200);
+      expect(asked.sort()).toEqual(
+        [`carta:${fid}`, `privado:${fid}`, `privado:entregas/${fid}`].sort(),
+      );
+      // Un fallo en una parte no deshace el borrado ni impide las demás.
+      expect(body.archivos).toEqual({ carta: 3, justificantes: 2, fotos_entrega: "error" });
+      const audit = await ctx.sql`
+        SELECT detalle FROM public.auditoria
+        WHERE accion = 'plataforma.restaurante.borrar' AND recurso_id = ${String(fid)}`;
+      expect(audit[0]?.detalle).toMatchObject({ archivos: body.archivos });
     });
 
     it("la auditoría sigue siendo inmutable: no se edita ni se borra", async () => {

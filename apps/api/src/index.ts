@@ -33,6 +33,33 @@ const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
   auth: { persistSession: false },
 });
 
+type Bucket = ReturnType<ReturnType<typeof createClient>["storage"]["from"]>;
+
+/** Borra todos los archivos bajo `prefix` (recorre subcarpetas); devuelve cuántos. */
+async function removeFolder(bucket: Bucket, prefix: string): Promise<number> {
+  const PAGE = 100;
+  const files: string[] = [];
+  const pending = [prefix];
+  while (pending.length > 0) {
+    const folder = pending.pop() ?? "";
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await bucket.list(folder, { limit: PAGE, offset });
+      if (error) throw new Error(`No se pudo listar ${folder}: ${error.message}`);
+      for (const entry of data ?? []) {
+        // Las carpetas vienen sin `id`; los archivos, con él.
+        if (entry.id) files.push(`${folder}/${entry.name}`);
+        else pending.push(`${folder}/${entry.name}`);
+      }
+      if ((data?.length ?? 0) < PAGE) break;
+    }
+  }
+  for (let i = 0; i < files.length; i += PAGE) {
+    const { error } = await bucket.remove(files.slice(i, i + PAGE));
+    if (error) throw new Error(`No se pudieron borrar archivos de ${prefix}: ${error.message}`);
+  }
+  return files.length;
+}
+
 /** Fotos de la carta en Supabase Storage (solo si hay clave de servicio). */
 function imageStorage(): ImageStorage | null {
   if (!env.SUPABASE_SERVICE_ROLE_KEY) return null;
@@ -50,6 +77,7 @@ function imageStorage(): ImageStorage | null {
       if (error) throw new Error(`No se pudo guardar la foto: ${error.message}`);
       return bucket.getPublicUrl(path).data.publicUrl;
     },
+    removeFolder: (prefix) => removeFolder(bucket, prefix),
   };
 }
 
@@ -73,6 +101,7 @@ function proofStorage(): ProofStorage | null {
     remove: async (path) => {
       await bucket.remove([path]);
     },
+    removeFolder: (prefix) => removeFolder(bucket, prefix),
   };
 }
 
