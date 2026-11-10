@@ -66,6 +66,14 @@ const envSchema = z
     STRIPE_WEBHOOK_SECRET: z.string().min(10).optional(),
     STRIPE_PRICE_BASICO: z.string().min(3).optional(),
     STRIPE_PRICE_PREMIUM: z.string().min(3).optional(),
+    /**
+     * Avisos push del tablero (Web Push). Generar el par con `npx web-push generate-vapid-keys`.
+     * Sin ambas claves el tablero no ofrece activar avisos.
+     */
+    VAPID_PUBLIC_KEY: z.string().min(40).optional(),
+    VAPID_PRIVATE_KEY: z.string().min(20).optional(),
+    /** Contacto que identifica a Konnecttia ante el servicio push: `mailto:` o https. */
+    VAPID_SUBJECT: z.string().min(8).default("mailto:soporte@konnecttia.com"),
     /** Carpeta con las migraciones `NNNN_*.sql` (en la imagen: `/app/migrations`). */
     MIGRATIONS_DIR: z.string().min(1).default("../../packages/db/migrations"),
   })
@@ -83,6 +91,13 @@ const envSchema = z
         code: "custom",
         path: ["STRIPE_WEBHOOK_SECRET"],
         message: "obligatorio si hay STRIPE_SECRET_KEY (sin él no se confirman los pagos)",
+      });
+    }
+    if (Boolean(env.VAPID_PUBLIC_KEY) !== Boolean(env.VAPID_PRIVATE_KEY)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["VAPID_PRIVATE_KEY"],
+        message: "VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY van juntas",
       });
     }
     const canSend = whatsapp.every(Boolean) || env.ANTIFRAUD_CODE_SIMULATE;

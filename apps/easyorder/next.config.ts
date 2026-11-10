@@ -20,7 +20,17 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ["@konnecttia/domain"],
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      // El service worker no se cachea: una versión nueva debe llegar al abrir la app.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "text/javascript; charset=utf-8" },
+        ],
+      },
+    ];
   },
 };
 

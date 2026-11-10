@@ -25,6 +25,7 @@ import { registerOnboardingRoutes } from "./panel-onboarding";
 import { registerManualOrderRoutes } from "./panel-orders";
 import { registerOrderListRoutes } from "./panel-orders-list";
 import { registerProofRoutes } from "./panel-proofs";
+import { registerPushRoutes } from "./panel-push";
 import { registerRoleRoutes } from "./panel-roles";
 import { registerSettingsRoutes } from "./panel-settings";
 import { registerStreamRoutes } from "./panel-stream";
@@ -93,6 +94,7 @@ export function panelRoutes(deps: AppDeps) {
   registerActivityRoutes(app, deps);
   registerTableRoutes(app, deps);
   registerBillingRoutes(app, deps);
+  registerPushRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");
