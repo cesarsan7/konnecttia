@@ -286,6 +286,29 @@ staging corre con `AUTO_MIGRATE=false` y el usuario `konnecttia_app`, sin permis
 | AE · País del restaurante y prefijo telefónico con bandera             | #99     | 0030       | Fusionado                                       |
 | AF · Borrar un restaurante y crear uno a partir de otro (`/interno`)   | #100    | 0031       | Fusionado                                       |
 
+### Estado del 10/11
+
+Fusionado en `main` hasta el PR #114; el #115 sigue abierto. Las migraciones 0032 a 0036 hay que
+confirmarlas en staging (se aplican con `infra/scripts/migrate-easypanel.sh` como `postgres`).
+Antes de desplegar `main` hace falta el #113: sin él, el build de la API falla.
+
+| Pieza                                                                       | PR               | Migración | Estado                                                           |
+| --------------------------------------------------------------------------- | ---------------- | --------- | ---------------------------------------------------------------- |
+| Migraciones automáticas sin `CREATE` en `public` (`konnecttia_app`)         | #102             | —         | Fusionado                                                        |
+| Pedido manual con el prefijo del país del restaurante                       | #103             | —         | Fusionado                                                        |
+| Borrar los archivos de Storage al borrar un restaurante                     | #104             | —         | Fusionado                                                        |
+| Ayuda contextual en Ajustes, `/interno`, Equipo, Mesas, alérgenos y comanda | #105, #106, #111 | —         | Fusionado; falta revisión humana del tono y los ejemplos         |
+| B · Activar los avisos por email (local y cliente) desde Ajustes            | #107             | —         | Fusionado                                                        |
+| Borradores legales y aceptación versionada en el alta                       | #108             | 0032      | Fusionado; textos en borrador, los debe revisar un abogado       |
+| Cobro de la suscripción con Stripe Billing                                  | #109             | 0033      | Fusionado; apagado hasta poner las claves y el webhook de Stripe |
+| D · App instalable (PWA) y avisos push de pedido nuevo                      | #110, #113       | 0034      | Fusionado; apagado hasta generar las claves `VAPID_*`            |
+| Sonido por estado del pedido (Ajustes → Sonidos)                            | #112             | 0035      | Fusionado                                                        |
+| El propietario tiene todos los permisos (podía invitar solo a propietarios) | #114             | 0036      | Fusionado; aplicar en staging y recargar Equipo                  |
+| Equipo de Konnecttia desde `/interno` y cuentas huérfanas                   | #115             | —         | Abierto; necesita `SUPABASE_SERVICE_ROLE_KEY` en la API          |
+
+Pendiente de este bloque: push al cliente en el seguimiento, avisos push filtrados por local y
+sonidos distintos por dispositivo (todo después del MVP).
+
 ## Requerimientos del promotor (6/11), aterrizados
 
 A–F están fusionados (#37–#43). Orden propuesto: H → I → J (rápidas) → O + P → Q + R → L → K
@@ -520,7 +543,7 @@ U y V están hechas; el resto solo está planificado y se implementa cuando el p
 - Tabla nueva `pais` y `restaurante.pais_code` (0030). El checkout ofrece un selector de prefijo
   con bandera que parte del país del restaurante y sigue siendo editable. El país se elige en el
   alta, en `/interno` y en Ajustes → General. En Windows la bandera puede verse como letras.
-- Pendiente: el pedido manual del panel todavía asume +34.
+- El pedido manual del panel parte del mismo país (hecho en #103).
 
 ### AF · Borrar y clonar restaurantes (hecho en #100)
 
@@ -528,7 +551,7 @@ U y V están hechas; el resto solo está planificado y se implementa cuando el p
   /plataforma/restaurantes/:id`) y crear uno a partir de otro (`clonar_de`: carta, horario,
   zonas de reparto y ajustes; nunca datos bancarios, logo, equipo, pedidos ni clientes).
 - La migración 0031 permite desvincular la auditoría (único cambio permitido a sus filas).
-- Pendiente: el borrado no elimina los archivos de Storage (logo, fotos, justificantes).
+- El borrado también elimina los archivos de Storage (logo, fotos, justificantes y fotos de entrega), con mejor esfuerzo (hecho en #104).
 
 ## Documentación comercial
 
