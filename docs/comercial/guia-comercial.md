@@ -66,6 +66,7 @@ Estado a 9 de noviembre: **Disponible** = construido y probado en el entorno de 
 | Pedidos web    | Teléfono con prefijo del país   | El cliente elige el prefijo con la bandera; por defecto, el país del restaurante                                                                                     | Básico      | En pruebas   |
 | Ajustes        | Marca del local                 | Logo, color de marca, eslogan y redes sociales en la parte superior de la carta                                                                                      | Básico      | En pruebas   |
 | Ajustes        | Enlaces y QR                    | Enlace de la carta y código QR para compartir; los accesos del panel se muestran según los permisos del rol                                                          | Básico      | En pruebas   |
+| Ajustes        | Ayuda en cada ajuste            | Cada parámetro explica para qué sirve, cómo funciona y con un ejemplo, para configurar el restaurante sin ayuda                                                      | Básico      | En pruebas   |
 
 Para la demo, enseña solo lo que está **Disponible**. Lo de **Próximamente** se puede mencionar como hoja de ruta, sin prometer fechas. Lo que está **En pruebas** se puede enseñar avisando de que aún se está validando.
 
