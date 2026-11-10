@@ -1,4 +1,4 @@
-import webpush from "web-push";
+import { sendNotification } from "web-push";
 
 /**
  * Envío de Web Push con claves VAPID. Las claves vienen del entorno, nunca de archivos. Un envío
@@ -40,7 +40,7 @@ export function createPushSender(keys: {
     publicKey: keys.publicKey,
     send: async (target, payload) => {
       try {
-        await webpush.sendNotification(
+        await sendNotification(
           { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
           JSON.stringify(payload),
           { TTL: 60 * 60, urgency: "high", vapidDetails: details.vapidDetails },
