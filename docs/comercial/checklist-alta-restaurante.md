@@ -114,7 +114,7 @@ Es lo que más tiempo lleva. Vale cualquier formato: la carta en PDF, fotos de l
 
 **Avisos y datos**
 
-- [ ] **Emails para avisos** de pedidos nuevos (uno o varios), si quieren recibirlos por correo
+- [ ] **Emails para avisos** de pedidos nuevos (uno o varios), si quieren recibirlos por correo, y si quieren que el cliente reciba también un email cuando su pedido se acepta, está listo, va en camino o se cancela
 - [ ] **Política de privacidad propia** (enlace), si la tienen; si no, usamos nuestra plantilla
 - [ ] ¿Quieren **limitar los pedidos por teléfono** (pedidos a la vez y por hora) para evitar pedidos falsos?
 
