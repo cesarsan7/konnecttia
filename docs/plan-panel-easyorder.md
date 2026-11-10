@@ -530,6 +530,59 @@ U y V están hechas; el resto solo está planificado y se implementa cuando el p
 - La migración 0031 permite desvincular la auditoría (único cambio permitido a sus filas).
 - Pendiente: el borrado no elimina los archivos de Storage (logo, fotos, justificantes).
 
+## Brechas detectadas y cómo cerrarlas (revisión del 9/11, noche)
+
+Revisión de lo que falta para pasar de «funciona en staging» a «se puede vender y operar con
+varios clientes». Ordenadas por prioridad; ninguna toca el flujo de La Isla.
+
+### Prioridad 1: antes de cobrar al primer cliente
+
+| Brecha                                                                 | Riesgo si no se cierra                                                                           | Cómo cerrarla                                                                                                                                                              | Fase |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| **Cobro de la suscripción** (hoy el plan se asigna a mano en /interno) | No hay ingresos recurrentes ni corte por impago                                                  | Stripe Billing: checkout del plan, webhooks que activan/suspenden, facturas de Konnecttia. Tabla de suscripción propuesta aparte                                           | MVP  |
+| **Producción separada y backups** (ADR 0008)                           | Una migración o un fallo en staging toca datos reales; pérdida de datos sin restauración probada | Entorno de producción propio, backup diario de PostgreSQL con restauración probada, migraciones con `--check` previo y plan de reversa                                     | MVP  |
+| **Monitorización y alertas**                                           | Nos enteramos de una caída por el cliente                                                        | Aviso de caída (uptime), errores de la API y del worker, cola de emails/WhatsApp, espacio en disco; alerta al promotor                                                     | MVP  |
+| **Legal y RGPD**                                                       | Sanciones; clientes que exigen contrato                                                          | Contrato de encargado de tratamiento por restaurante, términos del servicio, política de cookies, registro de actividades, plazos de conservación. Revisión por un abogado | MVP  |
+| **Aislamiento entre restaurantes demostrado**                          | Un fallo de permisos expone datos de otro local                                                  | Batería de pruebas «cruzadas» (un usuario del restaurante A contra rutas del B) en CI y revisión de seguridad externa antes del lanzamiento                                | MVP  |
+| **Doble factor en /interno y para dueños**                             | Una cuenta robada da acceso a todos los restaurantes                                             | Activar el segundo factor de Supabase Auth para el equipo de Konnecttia y recomendarlo a los dueños                                                                        | MVP  |
+| **WhatsApp de Meta listo** (dependencia del promotor)                  | Sin número verificado ni plantilla aprobada no hay código ni avisos                              | Alta de WhatsApp Business, plantilla de autenticación aprobada, confirmar precios de Meta                                                                                  | MVP  |
+
+### Prioridad 2: para que el cliente lo use cada día sin fricción
+
+| Brecha                                                                                           | Cómo cerrarla                                                                                                              | Fase                     |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| **Aviso al cliente del estado del pedido** («listo», «en camino»): hoy «Próximamente»            | WhatsApp/SMS/email con consentimiento, reutilizando el worker y las plantillas                                             | MVP                      |
+| **Pago online con tarjeta** (el cobro es manual: efectivo, datáfono, Bizum, transferencia)       | Stripe Connect por restaurante; el pedido solo se confirma con el pago hecho                                               | MVP-tardío               |
+| **Tablero en segundo plano**: el sonido y el aviso dependen de tener la pestaña abierta          | PWA instalable con notificaciones push y pantalla siempre encendida; impresión automática más fiable (agente de impresión) | MVP                      |
+| **Reembolsos y cancelaciones tras el cobro**                                                     | Estado «reembolsado» con motivo, visible en cobros y estadísticas                                                          | MVP                      |
+| **Cierre de caja y exportes contables**                                                          | Resumen diario por método de pago y exportación a Excel/CSV                                                                | MVP                      |
+| **Facturación y tickets fiscales**                                                               | Averiguar con un asesor si el software debe cumplir Verifactu/TicketBAI según el tipo de cliente antes de ofrecer facturas | Post-MVP (investigar ya) |
+| **Primeros pasos guiados** (hay recorrido por sección, falta la lista «qué te falta para abrir») | Checklist en el panel: carta, horario, cobro, zona, logo, enlace compartido; se marca solo                                 | MVP                      |
+| **Pedidos programados** (planificado como Premium)                                               | Elegir hora de recogida/entrega con capacidad por franja                                                                   | Post-MVP                 |
+
+### Prioridad 3: calidad y crecimiento
+
+| Brecha                                                                                              | Cómo cerrarla                                                                                                   | Fase     |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------- |
+| **Pruebas de extremo a extremo** de los flujos críticos (pedir, cobrar, entregar) y revisión visual | Playwright en CI contra staging; capturas de las pantallas clave                                                | MVP      |
+| **Capacidad y rendimiento**                                                                         | Prueba de carga del checkout y del tablero en hora punta                                                        | MVP      |
+| **Analítica de producto**                                                                           | Embudo visitas → carrito → pedido por local; fuente del pedido (QR, enlace, Instagram)                          | Post-MVP |
+| **Carta visible en buscadores**                                                                     | SEO básico y vista previa al compartir (Open Graph), ficha de Google con enlace de pedido                       | Post-MVP |
+| **Varios idiomas en la carta** (planificado Premium)                                                | Traducciones por producto; idioma según el navegador                                                            | Post-MVP |
+| **Promociones y fidelización**                                                                      | Cupones y descuentos, con consentimiento de marketing ya separado                                               | Post-MVP |
+| **Dominio propio por restaurante**                                                                  | CNAME hacia la carta y certificado automático                                                                   | Post-MVP |
+| **Soporte y comunicación**                                                                          | Canal de soporte desde el panel, registro de novedades y página de estado                                       | Post-MVP |
+| **Salud del negocio en /interno**                                                                   | Lista de restaurantes sin pedidos, pruebas por vencer y uso de WhatsApp frente al tope                          | Post-MVP |
+| **n8n multi-tenant** (huecos ya registrados: datos de La Isla escritos a mano, historial de chat)   | Cerrar la lista de «n8n pendiente» como propuestas en `integrations/n8n/cambios/` sin tocar el flujo productivo | MVP      |
+
+### Lo que recomiendo hacer primero
+
+1. Producción + backups + monitorización (sin esto, cualquier cliente de pago es un riesgo).
+2. Cobro de la suscripción (Stripe Billing) y contrato/RGPD en paralelo.
+3. Pruebas cruzadas entre restaurantes y segundo factor.
+4. PWA con notificaciones del tablero y avisos al cliente.
+5. Después, pago online con tarjeta.
+
 ## Documentación comercial
 
 - `docs/comercial/guia-comercial.md` y `docs/comercial/checklist-alta-restaurante.md` son la copia
