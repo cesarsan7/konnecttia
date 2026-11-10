@@ -624,3 +624,15 @@ a {
   flex: 1 1 8rem;
   min-width: 0;
 }
+
+.k-legal {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+  line-height: 1.55;
+}
+
+.k-legal h2 {
+  margin-top: 28px;
+  font-size: 1.1rem;
+}

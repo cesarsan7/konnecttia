@@ -580,6 +580,29 @@ function Wizard({
             </span>
           </label>
           {errors.servicio ? <small className="k-alta-error">{errors.servicio}</small> : null}
+          <label className="k-alta-check">
+            <input
+              type="checkbox"
+              checked={form.aceptaLegal}
+              onChange={(event) => set("aceptaLegal", event.target.checked)}
+            />
+            <span>
+              Acepto los{" "}
+              <a href="/legal/terminos" target="_blank" rel="noreferrer">
+                términos del servicio
+              </a>{" "}
+              y el{" "}
+              <a href="/legal/encargado" target="_blank" rel="noreferrer">
+                contrato de encargado de tratamiento
+              </a>
+              . Más información en la{" "}
+              <a href="/legal/cookies" target="_blank" rel="noreferrer">
+                política de cookies
+              </a>
+              .
+            </span>
+          </label>
+          {errors.aceptaLegal ? <small className="k-alta-error">{errors.aceptaLegal}</small> : null}
           <p className="k-muted k-small">
             Empezarás cobrando en efectivo y con tarjeta; el resto de métodos los activas luego en
             Ajustes.

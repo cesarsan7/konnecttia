@@ -27,6 +27,7 @@ export type SignupBody = {
   readonly recogida: boolean;
   readonly reparto: boolean;
   readonly miembro_nombre?: string;
+  readonly acepta_legal: true;
   readonly captcha_token?: string;
 };
 
