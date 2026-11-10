@@ -1,8 +1,10 @@
 "use client";
 
 import "./manual-order.css";
+import { countryOrDefault } from "@konnecttia/domain";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ItemSheet } from "@/components/ItemSheet";
+import { PhoneField } from "@/components/PhoneField";
 import {
   addLine,
   buildLine,
@@ -63,6 +65,10 @@ export function ManualOrder({
   const [channel, setChannel] = useState<Channel>(table ? CHANNEL.Counter : CHANNEL.Phone);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
+  // Prefijo: por defecto el país del restaurante (llega con la carta); se puede cambiar.
+  const [phoneCountry, setPhoneCountry] = useState<string | null>(null);
+  const restaurantCountry = menu?.restaurante.pais;
+  const phonePrefix = countryOrDefault(phoneCountry ?? restaurantCountry).prefijo;
   const [fulfillment, setFulfillment] = useState<Fulfillment>(table ? "mesa" : "retiro");
   const [tablePlan, setTablePlan] = useState<TablePlan | null>(null);
   const [tableId, setTableId] = useState<number | null>(table?.id ?? null);
@@ -122,7 +128,7 @@ export function ManualOrder({
   }, [publicApi, slug, branchId, limited]);
 
   // Al escribir un teléfono válido, se buscan sus últimos pedidos para poder repetirlos.
-  const lookupPhone = normalizePhone(telefono);
+  const lookupPhone = normalizePhone(telefono, phonePrefix);
   useEffect(() => {
     setPrevious(null);
     if (!lookupPhone) return;
@@ -214,7 +220,7 @@ export function ManualOrder({
     if (lines.length === 0) return setError("Añade al menos un producto.");
     if (dineIn && !tableId) return setError("Elige la mesa.");
     if (!dineIn && !nombre.trim()) return setError("Indica el nombre del cliente.");
-    const phone = telefono.trim() ? normalizePhone(telefono) : null;
+    const phone = telefono.trim() ? normalizePhone(telefono, phonePrefix) : null;
     if ((!dineIn || telefono.trim()) && !phone) {
       return setError("Teléfono no válido. Ejemplo: 612 345 678.");
     }
@@ -417,18 +423,13 @@ export function ManualOrder({
               </div>
             )}
             <div className="k-form-grid">
-              <label className="k-field">
-                <span>
-                  Teléfono{dineIn ? <span className="k-muted k-optional"> (opcional)</span> : null}
-                </span>
-                <input
-                  value={telefono}
-                  inputMode="tel"
-                  autoComplete="off"
-                  onChange={(e) => setTelefono(e.target.value)}
-                  placeholder="612 345 678"
-                />
-              </label>
+              <PhoneField
+                label={dineIn ? "Teléfono (opcional)" : "Teléfono"}
+                country={countryOrDefault(phoneCountry ?? restaurantCountry).code}
+                onCountryChange={setPhoneCountry}
+                value={telefono}
+                onChange={setTelefono}
+              />
               <label className="k-field">
                 <span>
                   Nombre{dineIn ? <span className="k-muted k-optional"> (opcional)</span> : null}
