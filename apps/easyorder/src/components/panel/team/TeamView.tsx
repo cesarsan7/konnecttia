@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { MODULE_HELP } from "@/lib/module-help";
 import { describePanelError } from "@/lib/panel/api";
 import {
   branchesLabel,
@@ -14,6 +15,7 @@ import {
   type TeamMember,
   teamErrorMessage,
 } from "@/lib/panel/team";
+import { HelpNote } from "../../HelpNote";
 import { Icon } from "../Icon";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
@@ -153,6 +155,7 @@ export function TeamView() {
           </h2>
           <span className="k-muted k-small">{team.miembros.length}</span>
         </header>
+        <HelpNote items={MODULE_HELP.miembros} summary="¿Cómo funcionan los miembros?" />
         <ul className="k-items">
           {team.miembros.map((member) => (
             <li key={member.id} className="k-item k-member">
@@ -222,6 +225,7 @@ export function TeamView() {
               Invitaciones pendientes
             </h2>
           </header>
+          <HelpNote items={MODULE_HELP.invitaciones} summary="¿Cómo funcionan las invitaciones?" />
           {team.invitaciones.length === 0 ? (
             <p className="k-cat-empty k-muted k-small">
               No hay invitaciones pendientes. Cada enlace sirve una vez y caduca a los{" "}

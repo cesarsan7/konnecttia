@@ -2,8 +2,10 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { euros } from "@/lib/format";
+import { MODULE_HELP } from "@/lib/module-help";
 import { personLabel, type TeamMember } from "@/lib/panel/team";
 import type { Waiter, WaiterList } from "@/lib/panel/waiters";
+import { HelpNote } from "../../HelpNote";
 import { Modal } from "../menu/Modal";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
@@ -98,6 +100,7 @@ export function WaitersDialog(props: {
           Al tomar un pedido en mesa se elige quién atiende. Si enlazas un mesero con su usuario del
           panel, sus pedidos se le asignan solos. Pedidos e importe de hoy, para repartir propinas.
         </p>
+        <HelpNote items={MODULE_HELP.meseros} summary="¿Qué significa cada campo?" />
         {error ? (
           <p className="k-alert" role="alert">
             {error}

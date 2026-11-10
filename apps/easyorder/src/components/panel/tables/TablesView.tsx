@@ -1,5 +1,7 @@
 "use client";
 
+import { MODULE_HELP } from "@/lib/module-help";
+import { HelpNote } from "../../HelpNote";
 import "./tables-times.css";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { euros } from "@/lib/format";
@@ -484,6 +486,7 @@ function AlertsDialog(props: {
         <p className="k-muted k-small">
           La mesa se marca en el plano cuando se pasa de estos minutos. Vacío: sin aviso.
         </p>
+        <HelpNote items={MODULE_HELP.avisosMesa} summary="¿Qué significa cada aviso?" />
         {error ? <p className="k-alert">{error}</p> : null}
         <div className="k-form-grid">
           <label className="k-field">
@@ -871,6 +874,7 @@ function TableDialog(props: {
     <Modal title={table ? `Editar ${table.nombre}` : "Nueva mesa"} onClose={props.onClose}>
       <form onSubmit={save} noValidate>
         {error ? <p className="k-alert">{error}</p> : null}
+        <HelpNote items={MODULE_HELP.mesas} summary="¿Qué significa cada campo?" />
         <div className="k-form-grid">
           <label className="k-field">
             <span>Número</span>

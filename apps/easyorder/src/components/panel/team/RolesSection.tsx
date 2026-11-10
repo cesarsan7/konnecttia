@@ -1,5 +1,7 @@
 "use client";
 
+import { MODULE_HELP } from "@/lib/module-help";
+import { HelpNote } from "../../HelpNote";
 import "./roles.css";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { describePanelError } from "@/lib/panel/api";
@@ -61,6 +63,7 @@ export function RolesSection({ onChanged }: { readonly onChanged: (message: stri
           </button>
         ) : null}
       </header>
+      <HelpNote items={MODULE_HELP.roles} summary="¿Qué es un rol y cómo se personaliza?" />
       {error ? <p className="k-alert">{error}</p> : null}
       {!data && !error ? <div className="k-skeleton" aria-busy="true" /> : null}
       {data ? (

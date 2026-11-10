@@ -1,6 +1,8 @@
 "use client";
 
+import { MODULE_HELP } from "@/lib/module-help";
 import { ALLERGEN_LABEL, ALLERGENS, type Allergen } from "@/lib/panel/menu";
+import { HelpNote } from "../../HelpNote";
 
 /**
  * Alérgenos: «no informados» (null) es distinto de «no contiene ninguno» ([]). La web nunca dice
@@ -20,6 +22,7 @@ export function AllergenPicker({
   return (
     <fieldset className="k-allergens">
       <legend className="k-field-label">Alérgenos</legend>
+      <HelpNote items={MODULE_HELP.alergenos} summary="¿Cómo se declaran los alérgenos?" />
       <div
         className="k-segment k-segment-sm"
         role="radiogroup"
