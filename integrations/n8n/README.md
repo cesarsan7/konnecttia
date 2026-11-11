@@ -9,6 +9,7 @@ repositorio es público).
 | `scripts/renderizar.py`                                 | Genera la copia para importar: sustituye los marcadores `__NOMBRE__` con `.env.<entorno>` y crea `dist/n8n-<entorno>.tar.gz`                             |
 | `scripts/*_v2.py`, `scripts/director_solo_entrantes.py` | Cambios ya aplicados a `flows/staging/` (historial; se niegan a aplicarse dos veces)                                                                     |
 | `.env.example`                                          | Marcadores que existen y qué valor llevan. Copiar a `.env.staging` (ignorado por git)                                                                    |
+| `diseno/`                                               | Diseños pendientes de construir (p. ej. [adaptador de canal con Kapso](diseno/adaptador-canal-kapso.md))                                                 |
 
 Desde el 7/11/2026 el agente de staging se cambia **aquí**, con un PR en `konnecttia`, junto a la
 API y las migraciones de las que depende. La demo comercial de La Isla (producción) sigue en el
