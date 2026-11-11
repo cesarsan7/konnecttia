@@ -29,6 +29,7 @@ import { registerPushRoutes } from "./panel-push";
 import { registerRoleRoutes } from "./panel-roles";
 import { registerSettingsRoutes } from "./panel-settings";
 import { registerStreamRoutes } from "./panel-stream";
+import { registerSupportLogRoutes } from "./panel-support-log";
 import { registerTableRoutes } from "./panel-tables";
 import { registerTeamRoutes } from "./panel-team";
 import { registerWaiterRoutes } from "./panel-waiters";
@@ -95,6 +96,7 @@ export function panelRoutes(deps: AppDeps) {
   registerTableRoutes(app, deps);
   registerBillingRoutes(app, deps);
   registerPushRoutes(app, deps);
+  registerSupportLogRoutes(app, deps);
 
   app.get("/:slug/orders", requirePermission(deps, PERMISSION.OrdersView), async (c) => {
     const restaurant = c.get("restaurant");

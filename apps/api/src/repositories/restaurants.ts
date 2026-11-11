@@ -75,6 +75,8 @@ export const CONFIG_KEY = {
   NoticeCustomerStatuses: "avisos_email_cliente_estados",
   /** Sonidos del tablero por evento (JSON). Sin clave: solo suena el pedido nuevo. */
   BoardSounds: "sonidos_tablero",
+  /** Konnecttia deja que el restaurante vea el registro de accesos de soporte. Sin clave: no. */
+  SupportLogVisible: "soporte_registro_visible",
   /** URL de la política de privacidad del restaurante (checkout web). */
   PrivacyUrl: "privacidad_url",
   /** Texto que identifica la versión vigente de esa política. */

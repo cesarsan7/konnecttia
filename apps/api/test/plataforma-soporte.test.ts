@@ -103,4 +103,36 @@ describe.skipIf(!TEST_DATABASE_URL)("soporte de solo lectura del equipo de Konne
       .request("/panel/prueba-a/orders", { headers: auth("platformAdmin") });
     expect(late.status).toBe(403);
   });
+
+  it("el registro: Konnecttia lo ve siempre y el restaurante solo si se habilita", async () => {
+    const registro = await call("platformSupport", "GET", "/plataforma/restaurantes/101/registro");
+    expect(registro.status).toBe(200);
+    expect(registro.body.visible_al_restaurante).toBe(false);
+    expect(registro.body.accesos[0]).toMatchObject({
+      email: USERS.platformAdmin.email,
+      motivo: "Revisar la configuración de pagos",
+    });
+
+    const hidden = await call("ownerA", "GET", "/panel/prueba-a/soporte/registro");
+    expect(hidden.body).toEqual({ habilitado: false, accesos: [] });
+
+    const path = "/plataforma/restaurantes/101/registro-soporte";
+    expect((await call("platformSupport", "PUT", path, { visible: true })).status).toBe(403);
+    expect((await call("platformAdmin", "PUT", path, { visible: "si" })).status).toBe(400);
+    expect((await call("platformAdmin", "PUT", path, { visible: true })).status).toBe(200);
+
+    const shown = await call("ownerA", "GET", "/panel/prueba-a/soporte/registro");
+    expect(shown.body.habilitado).toBe(true);
+    expect(shown.body.accesos.length).toBe(2);
+    expect((await call("viewerA", "GET", "/panel/prueba-a/soporte/registro")).status).toBe(403);
+    expect((await call("ownerB", "GET", "/panel/prueba-a/soporte/registro")).status).toBe(403);
+
+    const changes = await call("platformSupport", "GET", "/plataforma/restaurantes/101/registro");
+    expect(changes.body.visible_al_restaurante).toBe(true);
+    expect(changes.body.cambios[0].accion).toBe("plataforma.soporte.registro_visible");
+    expect((await call("platformAdmin", "PUT", path, { visible: false })).status).toBe(200);
+    expect((await call("ownerA", "GET", "/panel/prueba-a/soporte/registro")).body.habilitado).toBe(
+      false,
+    );
+  });
 });

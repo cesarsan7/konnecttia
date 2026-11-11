@@ -1,0 +1,11 @@
+.k-slog {
+  display: grid;
+  gap: 12px;
+}
+
+.k-slog-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}

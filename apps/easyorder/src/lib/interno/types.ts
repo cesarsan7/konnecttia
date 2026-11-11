@@ -1,5 +1,27 @@
 /** Respuestas de la API del panel interno (apps/api/src/routes/plataforma.ts). */
 
+/** Un acceso de soporte a un restaurante (entrada, motivo y, si salió, la salida). */
+export type SupportAccess = {
+  readonly id: number;
+  readonly entrada: string;
+  readonly email: string | null;
+  readonly rol: string | null;
+  readonly motivo: string;
+  readonly expira_en: string | null;
+  readonly salida: string | null;
+};
+export type SupportLogInfo = {
+  readonly visible_al_restaurante: boolean;
+  readonly accesos: readonly SupportAccess[];
+  readonly cambios: readonly {
+    readonly id: number;
+    readonly fecha: string;
+    readonly accion: string;
+    readonly email: string | null;
+    readonly detalle: Record<string, unknown>;
+  }[];
+};
+
 /** Equipo de Konnecttia (GET /plataforma/equipo). */
 export type PlatformMemberRow = {
   readonly user_id: string;
