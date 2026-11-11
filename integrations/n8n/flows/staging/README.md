@@ -1,140 +1,172 @@
-# Flujos de n8n para staging
+# Flujos de n8n para staging (VPS de la UE)
 
-Flujos del agente de WhatsApp para el entorno de **staging** de Konnecttia. Nacieron como copia de
-los flujos de producción de La Isla, que siguen en el repositorio privado `cesarsan7/easyorder`
-(`docs/n8n/la isla/`, generada con su `scripts/n8n/preparar_staging.py`). Desde el 7/11/2026 los
-cambios del agente se hacen aquí, con su PR en `konnecttia`. Diferencias con producción:
+Flujos del agente de WhatsApp para el entorno de **staging** de Konnecttia, en el VPS de la UE
+(Düsseldorf, EasyPanel, proyecto `staging`). Nacieron como copia de los flujos de producción de
+La Isla, que siguen en el repositorio privado `cesarsan7/easyorder` (`docs/n8n/la isla/`) y no se
+tocan desde aquí. Diferencias con producción:
 
 - Inactivos al importar.
 - **Sin URLs en git** (este repositorio es público): Chatwoot, su número de cuenta y Supabase van
   como marcadores (`__CHATWOOT_URL__`, `__CHATWOOT_CUENTA__`, `__SUPABASE_FUNCIONES_URL__`). La
-  copia para importar se genera con `scripts/renderizar.py` y los valores de `.env.staging` (paso 3).
+  copia para importar se genera con `scripts/renderizar.py` y los valores de `.env.staging` (paso 4).
 - Credenciales con nombre `staging …` y sin id: nunca se enlazan con las de la demo.
 - Se conservan los ids de los flujos: así las llamadas entre subflujos siguen funcionando.
 
-> Regla: nada de staging puede conocer la URL ni la contraseña de la base de datos de la demo
-> (`n8nlearning_postgres`, base `restaurante_mvp`).
+> Regla: nada de staging puede conocer la URL ni la contraseña de la base de la demo de La Isla
+> (VPS antiguo, base `restaurante_mvp`).
 
-## 0. Antes de nada: apagar los flujos antiguos de `n8nlearning`
+## 0. Qué hay en el proyecto `staging`
 
-Usan las mismas rutas de webhook (`chatwootnew`, `notificacion-estado-pedido`) y probablemente
-una credencial que apunta a la base de la demo. Un *Cron Expirar Pedidos* antiguo activo estaría
-tocando pedidos reales.
+Los servicios se ven entre sí por la red interna `easypanel-staging` con el nombre
+`staging_<servicio>` (formato de EasyPanel `<proyecto>_<servicio>`).
+
+| Servicio de EasyPanel | Host interno                | Uso para el agente                                       |
+| --------------------- | --------------------------- | -------------------------------------------------------- |
+| `postgres-staging`    | `staging_postgres-staging`  | Base `restaurante_staging` (puerto 5432)                  |
+| `konnecttia-api`      | `staging_konnecttia-api`    | API, puerto **3001** (`/health`); Despacho cotiza aquí    |
+| `konnecttia-worker`   | —                           | Avisos por email; no interviene en el agente             |
+| `n8n`                 | `staging_n8n`               | Se crea en el paso 1                                     |
+| `redis`               | `staging_redis`             | Se crea en el paso 1 (buffer de mensajes del Director)   |
+| Canal de WhatsApp     | —                           | Pendiente de decidir: Chatwoot o Kapso (paso 5)          |
+
+Comprobar que n8n verá la API (debe responder `{"ok":true}`):
 
 ```bash
-N8N=$(docker ps -q -f label=com.docker.swarm.service.name=n8nlearning_n8n)
-docker exec "$N8N" n8n export:workflow --all --output=/home/node/.n8n/backup-flujos-antiguos.json
+docker run --rm --network easypanel-staging curlimages/curl:8.10.1 -s http://staging_konnecttia-api:3001/health
 ```
 
-Después, en la interfaz de n8n de `n8nlearning`: desactivar **todos** los flujos.
+## 1. Crear n8n y Redis en EasyPanel
 
-## 1. Base de datos de staging
+1. Proyecto `staging` → **+ Service → Redis**, nombre `redis`. Sin puerto expuesto. Anotar la
+   contraseña que muestra EasyPanel (va solo en la credencial de n8n del paso 3).
+2. Proyecto `staging` → **+ Service → Templates → n8n**, nombre `n8n`. Dominio público de n8n de
+   staging (lo necesita el canal de WhatsApp para enviar los webhooks), puerto 5678.
+3. Desplegar y crear la cuenta de administrador de n8n desde su URL.
 
-1. EasyPanel → `n8nlearning` → **+ Service → Postgres**. Nombre `postgres-dev`, base
-   `easyorder_dev`, misma versión mayor que `postgres` (17). Producción se renombrará a `easyorder_prd` en la migración a la UE. Sin puerto expuesto.
-2. Copiar los datos de la demo (solo lectura sobre producción):
+## 2. Base de datos: rol de n8n y configuración del restaurante
 
-   ```bash
-   PROD=$(docker ps -q -f label=com.docker.swarm.service.name=n8nlearning_postgres)
-   STG=$(docker ps -q -f label=com.docker.swarm.service.name=n8nlearning_postgres-dev)
-   docker exec "$PROD" pg_dump -U postgres -Fc restaurante_mvp > /root/restaurante_mvp.dump
-   docker exec -i "$STG" pg_restore -U postgres -d easyorder_dev --no-owner --no-acl < /root/restaurante_mvp.dump
-   rm /root/restaurante_mvp.dump
-   ```
+n8n entra con un rol propio, no con `postgres` ni con el de la API, para poder auditarlo y
+revocarlo por separado. La contraseña se escribe por teclado y no queda en el historial.
 
-3. **Neutralizar** lo que podría llegar a clientes reales o a la demo (en `easyorder_dev`):
+```bash
+C=$(docker ps --format '{{.Names}}' | grep -i 'staging.*postgres' | head -n1); echo "$C"
+docker exec -i "$C" psql -U postgres -d restaurante_staging -v ON_ERROR_STOP=1 <<'SQL'
+CREATE ROLE n8n_agente LOGIN;
+GRANT CONNECT ON DATABASE restaurante_staging TO n8n_agente;
+GRANT USAGE ON SCHEMA public TO n8n_agente;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO n8n_agente;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO n8n_agente;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO n8n_agente;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO n8n_agente;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO n8n_agente;
+SQL
+docker exec -it "$C" psql -U postgres -d restaurante_staging -c '\password n8n_agente'
+```
 
-   ```sql
-   -- Conversaciones de Chatwoot de producción: en staging no existen o son de otra persona.
-   UPDATE public.pedidos SET chatwoot_conversation_id = NULL;
-   -- URLs que apuntan a producción (avisos, webhooks): revisar y cambiar a las de staging.
-   SELECT restaurante_id, config_key, config_value
-   FROM public.restaurante_config
-   WHERE config_value ILIKE '%http%';
-   -- p. ej.:
-   -- UPDATE public.restaurante_config
-   --    SET config_value = '<URL de n8n de staging>/webhook/notificacion-estado-pedido'
-   --  WHERE config_key = 'chatwoot_webhook_prod';
-   ```
+Configuración que leen los flujos (por restaurante, en `restaurante_config`):
 
-## 2. Credenciales en el n8n de staging
+| Clave                  | Valor en staging                      | Si falta                                              |
+| ---------------------- | ------------------------------------- | ----------------------------------------------------- |
+| `api_konnecttia_url`   | `http://staging_konnecttia-api:3001`  | Despacho no puede cotizar y deriva a una persona      |
+| `cart_expiry_minutes`  | `30` (regla de negocio)               | Los flujos usan 60: el carrito caduca tarde           |
+| `cart_warning_minutes` | `5`                                   | El aviso de carrito sale a destiempo                  |
 
-Crear en *Credentials* con estos nombres **exactos**:
+```bash
+C=$(docker ps --format '{{.Names}}' | grep -i 'staging.*postgres' | head -n1); echo "$C"
+docker exec -i "$C" psql -U postgres -d restaurante_staging -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
+SELECT id, 'api_konnecttia_url', 'http://staging_konnecttia-api:3001' FROM public.restaurante
+ON CONFLICT (config_key, restaurante_id) DO UPDATE SET config_value = EXCLUDED.config_value;
+INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
+SELECT r.id, v.k, v.v FROM public.restaurante r
+CROSS JOIN (VALUES ('cart_expiry_minutes', '30'), ('cart_warning_minutes', '5')) AS v(k, v)
+ON CONFLICT (config_key, restaurante_id) DO NOTHING;
+SELECT restaurante_id, config_key, config_value FROM public.restaurante_config
+WHERE config_key IN ('api_konnecttia_url', 'cart_expiry_minutes', 'cart_warning_minutes')
+ORDER BY restaurante_id, config_key;
+SQL
+```
 
-| Nombre                              | Tipo        | Valor                                                                 |
-| ----------------------------------- | ----------- | --------------------------------------------------------------------- |
-| `staging postgres`                  | Postgres    | Host `n8nlearning_postgres-dev`, base `easyorder_dev`       |
-| `staging chatwoot`                  | Header Auth | Name `api_access_token`, Value: token de usuario del Chatwoot de staging |
-| `staging OpenAI`                    | OpenAI      | Mejor una clave aparte, para separar costes                           |
-| `staging redis`                     | Redis       | Host `n8nlearning_redis`                                              |
+## 3. Credenciales en el n8n de staging
 
-## 3. Importar los flujos (conservando los ids)
+Crear en _Credentials_ con estos nombres **exactos**:
+
+| Nombre             | Tipo        | Valor                                                                          |
+| ------------------ | ----------- | ------------------------------------------------------------------------------ |
+| `staging postgres` | Postgres    | Host `staging_postgres-staging`, puerto 5432, base `restaurante_staging`, usuario `n8n_agente` |
+| `staging redis`    | Redis       | Host `staging_redis`, puerto 6379, contraseña del servicio `redis`              |
+| `staging OpenAI`   | OpenAI      | Mejor una clave aparte, para separar costes                                    |
+| `staging chatwoot` | Header Auth | Solo si el canal es Chatwoot: Name `api_access_token`, token **de usuario** (no de bot) |
+
+## 4. Generar la copia e importar (conservando los ids)
 
 La importación desde la interfaz crea ids nuevos y rompe las llamadas entre subflujos; por eso se
-usa la línea de comandos de n8n dentro del contenedor:
+usa la línea de comandos de n8n dentro del contenedor.
 
-Primero se genera la copia con las URLs reales (desde tu PC, en la raíz del repositorio):
+En tu PC, en la raíz del repositorio:
 
 ```bash
 cp integrations/n8n/.env.example integrations/n8n/.env.staging   # la primera vez; rellenar valores
 python3 integrations/n8n/scripts/renderizar.py                     # -> integrations/n8n/dist/n8n-staging.tar.gz
-scp integrations/n8n/dist/n8n-staging.tar.gz root@<ip-del-vps>:/root/
+scp integrations/n8n/dist/n8n-staging.tar.gz root@<servidor-ue>:/root/
 ```
 
 `.env.staging` y `dist/` no se suben a git. Nunca importar los JSON de `flows/staging/` directamente:
 llevan los marcadores y las llamadas a Chatwoot fallarían.
 
+En el servidor de la UE:
+
 ```bash
-VOL=$(ls -d /etc/easypanel/projects/n8nlearning/n8n/volumes/*/ | head -1)
+VOL=$(ls -d /etc/easypanel/projects/staging/n8n/volumes/*/ | head -1); echo "$VOL"
 mkdir -p "$VOL/staging-import" && tar -xzf /root/n8n-staging.tar.gz -C "$VOL/staging-import"
 ls "$VOL/staging-import"   # deben aparecer 12 ficheros .json
-N8N=$(docker ps -q -f label=com.docker.swarm.service.name=n8nlearning_n8n)
+N8N=$(docker ps -q -f label=com.docker.swarm.service.name=staging_n8n); echo "$N8N"
 docker exec "$N8N" n8n import:workflow --separate --input=/home/node/.n8n/staging-import
 ```
+
+Si `VOL` sale vacío, mirar el nombre real de la carpeta con
+`ls /etc/easypanel/projects/staging/n8n/volumes/` (la plantilla de EasyPanel puede montar el
+volumen con otro nombre); la carpeta montada en `/home/node/.n8n` es la buena.
 
 Abrir cada flujo y comprobar que cada nodo tiene su credencial `staging …` seleccionada (si alguno
 aparece sin credencial, elegirla a mano). Luego activar: primero los subflujos, después
 `[MVP] Pizzeria`, `[MVP] Notificacion Estado Pedido` y, al final, `[MVP] Cron Expirar Pedidos`.
 
-## 4. Chatwoot de staging
+## 5. Canal de WhatsApp
 
-Bandeja de WhatsApp con el número de pruebas; webhook a `<URL de n8n de staging>/webhook/chatwootnew`.
+Pendiente de decidir (ADR 0005 y 0008): **Chatwoot** (los flujos actuales están hechos para él) o
+**Kapso** (exige un adaptador de canal en el Director y los nodos que envían mensajes).
 
-## 5. Despacho v2: cotización con la API de Konnecttia
+Con Chatwoot: bandeja de WhatsApp con el número de pruebas, webhook de la bandeja a
+`<URL de n8n de staging>/webhook/chatwootnew` y, en la base,
+`chatwoot_webhook_prod = <URL de n8n de staging>/webhook/notificacion-estado-pedido` para el
+restaurante de pruebas. Errores conocidos al dar de alta un cliente: token de usuario y no de
+bot, `conversation_id` como texto, atributos `bot` y `p_restaurante_id` del contacto.
+
+## 6. Despacho v2: cotización con la API de Konnecttia
 
 Generado con `scripts/despacho_v2.py` (el script explica cada cambio; la v1 queda en el
 historial de git). Despacho ya no calcula zona, tarifa, mínimo ni tiempo con SQL propio: llama a
 `POST <api>/public/<slug>/cotizacion`, que aplica las mismas reglas que la web (zonas por radio,
 código postal o toda la ciudad, tarifa por km, envío gratis, local que reparte, hora punta,
-modo ocupado y cola). Sin tiempos fijos en el código y con consultas parametrizadas.
+modo ocupado y cola). Sin tiempos fijos en el código y con consultas parametrizadas. Necesita
+`api_konnecttia_url` (paso 2).
 
-Requisitos en la base de staging (`easyorder_dev`):
+Pruebas por WhatsApp con Siempre Juntos (en la UE: `restaurante_id = 1`; reparte solo
+«Siempre Juntos 2», una zona activa; pago en efectivo o tarjeta). Comprobar antes los datos de la
+zona en el panel, porque la tarifa y el mínimo pueden no coincidir con los del staging antiguo:
 
-```sql
--- URL de la API vista desde n8n (misma red interna de EasyPanel)
-INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
-SELECT id, 'api_konnecttia_url', 'http://n8nlearning_konnecttia-api:3001' FROM public.restaurante
-ON CONFLICT (config_key, restaurante_id) DO UPDATE SET config_value = EXCLUDED.config_value;
-```
+| Mensaje                                       | Esperado                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------- |
+| «para recoger»                                | Pregunta en qué local: Siempre Juntos 2 o Siempre Juntos 1 (si están abiertos) |
+| «en el de Huelva»                             | Recogida en Siempre Juntos 1; el pedido guarda `sucursal_id`               |
+| «a domicilio, Calle Real 10» (sin ubicación)  | Pide compartir la ubicación (la zona es por radio)                        |
+| Ubicación dentro de la zona, pedido < mínimo  | Mantiene reparto e indica cuánto falta para el mínimo                      |
+| Ubicación dentro de la zona, pedido ≥ mínimo  | Envío y tiempo de la zona (+ modo ocupado si está activo)                  |
+| Ubicación fuera de la zona                    | «Fuera de nuestra zona de reparto», ofrece otra dirección o recogida       |
+| Modo ocupado +20 en el tablero y repetir      | El tiempo que da el agente sube 20 min (dura 60 min: probar enseguida)     |
 
-Sin esa clave, Despacho no puede cotizar y deriva a una persona (Respuesta Error Sistema).
-
-Importar `[MVP] Despacho.json` y `[MVP] Pizzeria.json` como en el paso 3 (mismos ids: se
-sobrescriben). Comprobar que el nodo nuevo **Datos Restaurante** tiene la credencial
-`staging postgres`.
-
-Pruebas por WhatsApp (Siempre Juntos):
-
-| Mensaje | Esperado |
-| --- | --- |
-| «para recoger» | Pregunta en qué local: Siempre Juntos 2 o Siempre Juntos 1 (si los dos están abiertos) |
-| «en el de Huelva» | Recogida en Siempre Juntos 1, con su tiempo; el pedido guarda `sucursal_id` |
-| «a domicilio, Calle Real 10» (sin ubicación) | Pide compartir la ubicación (la zona es por radio) |
-| Ubicación dentro de 3 km, pedido < 25 € | Mantiene reparto e indica cuánto falta para el mínimo |
-| Ubicación dentro de 3 km, pedido ≥ 25 € | Envío 2 €, tiempo de la zona (+ modo ocupado si está activo) |
-| Modo ocupado +20 en el panel y repetir | El tiempo que da el agente sube 20 min |
-
-## 6. Director: solo mensajes del cliente
+## 7. Director: solo mensajes del cliente
 
 `scripts/director_solo_entrantes.py` añade el nodo **¿Mensaje del cliente?** detrás del
 Webhook. Chatwoot avisa también de los mensajes salientes (las respuestas del agente) y de las
@@ -142,12 +174,20 @@ notas privadas; sin teléfono de cliente, esas ejecuciones fallaban en «Nuevo u
 
 ## Cambios sobre la copia de producción
 
-- **Apertura (6/11/2026):** antes de buscar o crear el pedido, el nodo *Verificar Puede Pedir*
+- **Apertura (6/11/2026):** antes de buscar o crear el pedido, el nodo _Verificar Puede Pedir_
   llama a `fn_restaurante_acepta_pedidos` (prueba gratuita vencida o pendiente, migración 0023) y
   a `fn_telefono_bloqueado` (teléfonos bloqueados por el restaurante, migración 0021). Si no
-  puede pedir, *Respuesta No Acepta Pedidos* devuelve al agente un mensaje neutro
+  puede pedir, _Respuesta No Acepta Pedidos_ devuelve al agente un mensaje neutro
   («Ahora mismo no podemos tomar tu pedido por aquí…») sin crear ni tocar pedidos. Los pedidos
   que vienen de la web (`¿Es Ref Web?`) no pasan por este control: la web ya lo aplica.
+- **Despacho (7/11/2026):** respuesta propia para `fuera_de_cobertura`, `local_no_disponible` y
+  cualquier motivo nuevo de la cotización, sin volver a pedir la dirección.
+
+## Staging antiguo (`n8nlearning`, VPS de EE. UU.)
+
+Sustituido por el de la UE. Sus flujos usan las mismas rutas de webhook pero en otro host, así que
+no chocan; conviene desactivarlos para que su _Cron Expirar Pedidos_ no siga corriendo sobre
+`easyorder_dev`.
 
 ## Cómo hacer un cambio en el agente
 
@@ -156,4 +196,4 @@ notas privadas; sin teléfono de cliente, esas ejecuciones fallaban en «Nuevo u
 2. `python3 integrations/n8n/scripts/renderizar.py --comprobar`: no puede quedar ninguna URL
    escrita a mano (toda URL de entorno va como marcador `__NOMBRE__` y en `.env.example`).
 3. Si el cambio necesita una migración o un endpoint, va en el mismo PR o encadenado al suyo.
-4. Tras fusionar: generar el `.tar.gz`, importar (paso 3) y probar por el WhatsApp de pruebas.
+4. Tras fusionar: generar el `.tar.gz`, importar (paso 4) y probar por el WhatsApp de pruebas.

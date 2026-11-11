@@ -3,12 +3,12 @@
 Flujos de n8n del agente de WhatsApp, versionados **sin secretos ni URLs privadas** (este
 repositorio es público).
 
-| Ruta                                                    | Qué es                                                                                                                                 |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `flows/staging/`                                        | Flujos del entorno de staging (n8n de `n8nlearning`, base `easyorder_dev`). Guía: [`flows/staging/README.md`](flows/staging/README.md) |
-| `scripts/renderizar.py`                                 | Genera la copia para importar: sustituye los marcadores `__NOMBRE__` con `.env.<entorno>` y crea `dist/n8n-<entorno>.tar.gz`           |
-| `scripts/*_v2.py`, `scripts/director_solo_entrantes.py` | Cambios ya aplicados a `flows/staging/` (historial; se niegan a aplicarse dos veces)                                                   |
-| `.env.example`                                          | Marcadores que existen y qué valor llevan. Copiar a `.env.staging` (ignorado por git)                                                  |
+| Ruta                                                    | Qué es                                                                                                                                                   |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `flows/staging/`                                        | Flujos del entorno de staging (VPS de la UE, proyecto `staging`, base `restaurante_staging`). Guía: [`flows/staging/README.md`](flows/staging/README.md) |
+| `scripts/renderizar.py`                                 | Genera la copia para importar: sustituye los marcadores `__NOMBRE__` con `.env.<entorno>` y crea `dist/n8n-<entorno>.tar.gz`                             |
+| `scripts/*_v2.py`, `scripts/director_solo_entrantes.py` | Cambios ya aplicados a `flows/staging/` (historial; se niegan a aplicarse dos veces)                                                                     |
+| `.env.example`                                          | Marcadores que existen y qué valor llevan. Copiar a `.env.staging` (ignorado por git)                                                                    |
 
 Desde el 7/11/2026 el agente de staging se cambia **aquí**, con un PR en `konnecttia`, junto a la
 API y las migraciones de las que depende. La demo comercial de La Isla (producción) sigue en el
