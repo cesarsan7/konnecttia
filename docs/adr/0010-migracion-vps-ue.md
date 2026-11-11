@@ -2,6 +2,9 @@
 
 - Estado: aceptada (2026-11-06)
 - Desarrolla: ADR 0006 (alojamiento en la UE) y ADR 0008 (entornos)
+- 2026-11-11: el promotor confirma `*.staging.konnecttia.com` para staging (hoy en
+  `*.eu.konnecttia.com`; el cambio lo hace la sesión de la VPS). Chatwoot ya no se despliega: el
+  canal de WhatsApp es Kapso ([ADR 0012](0012-agente-whatsapp-multirestaurante.md)).
 
 ## Decisión
 
