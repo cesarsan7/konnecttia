@@ -18,6 +18,7 @@ import type {
   RoleBody,
   RolesInfo,
   SignupSettings,
+  SupportLogInfo,
   TemplatesInfo,
   TrialAction,
   TrialConverted,
@@ -96,6 +97,9 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
       }),
     leaveSupport: (id: number) =>
       request<{ ok: boolean }>(`/restaurantes/${id}/soporte`, { method: "DELETE" }),
+    supportLog: (id: number) => request<SupportLogInfo>(`/restaurantes/${id}/registro`),
+    setSupportLogVisible: (id: number, visible: boolean) =>
+      put<{ visible_al_restaurante: boolean }>(`/restaurantes/${id}/registro-soporte`, { visible }),
     team: () => request<PlatformTeam>("/equipo"),
     addTeamMember: (email: string, rol: "admin" | "soporte") =>
       request<{ user_id: string }>("/equipo", {

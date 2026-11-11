@@ -1,6 +1,7 @@
 import type { BoardSounds } from "@konnecttia/domain";
 import type { SignupBody, SignupResult } from "../alta/types";
 import type { ApiResult } from "../api";
+import type { SupportAccess } from "../interno/types";
 import type { ApiErrorBody } from "../types";
 import type { ActivityPeople, DriverActivity, OrderTrace, WaiterActivity } from "./activity";
 import type { Billing } from "./billing";
@@ -103,6 +104,10 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
     pushUnsubscribe: (slug: string, endpoint: string) =>
       send<{ ok: boolean }>(slug, "/push", "DELETE", { endpoint }),
     peaks: (slug: string) => request<{ franjas: PeakTime[] }>(panel(slug, "/ajustes/franjas")),
+    supportLog: (slug: string) =>
+      request<{ habilitado: boolean; accesos: readonly SupportAccess[] }>(
+        panel(slug, "/soporte/registro"),
+      ),
     team: (slug: string) => request<Team>(panel(slug, "/equipo")),
     /** Equipo: `path` relativo a /equipo (por ejemplo «/invitaciones»). */
     teamChange: <T = { id: number }>(

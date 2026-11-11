@@ -70,3 +70,54 @@ export async function loadSupportAccess(sql: Sql, restauranteId: number): Promis
     rolePermissions: [SUPPORT_PERMISSIONS],
   });
 }
+
+export type SupportLogEntry = {
+  readonly id: number;
+  readonly entrada: string;
+  readonly email: string | null;
+  readonly rol: string | null;
+  readonly motivo: string;
+  readonly expira_en: string | null;
+  /** Cuándo pulsó «Salir»; null si se dejó caducar. */
+  readonly salida: string | null;
+};
+
+/** Accesos de soporte a un restaurante, del más reciente al más antiguo. */
+export async function listSupportLog(
+  sql: Sql,
+  restauranteId: number,
+  limit = 50,
+): Promise<SupportLogEntry[]> {
+  const rows = await sql<
+    {
+      id: number;
+      entrada: Date;
+      email: string | null;
+      rol: string | null;
+      motivo: string | null;
+      expira_en: string | null;
+      salida: Date | null;
+    }[]
+  >`
+    SELECT e.id::int AS id, e.created_at AS entrada, e.detalle->>'email' AS email,
+           e.detalle->>'rol' AS rol, e.detalle->>'motivo' AS motivo,
+           e.detalle->>'expira_en' AS expira_en,
+           (SELECT min(l.created_at) FROM public.auditoria l
+            WHERE  l.restaurante_id = e.restaurante_id AND l.actor_id = e.actor_id
+              AND  l.accion = ${SUPPORT_ACTION.Leave} AND l.resultado = 'ok' AND l.id > e.id) AS salida
+    FROM   public.auditoria e
+    WHERE  e.restaurante_id = ${restauranteId} AND e.accion = ${SUPPORT_ACTION.Enter}
+      AND  e.resultado = 'ok'
+    ORDER  BY e.id DESC
+    LIMIT  ${limit}
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    entrada: row.entrada.toISOString(),
+    email: row.email,
+    rol: row.rol,
+    motivo: row.motivo ?? "",
+    expira_en: row.expira_en,
+    salida: row.salida ? row.salida.toISOString() : null,
+  }));
+}

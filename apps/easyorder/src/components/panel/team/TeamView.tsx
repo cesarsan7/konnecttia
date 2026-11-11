@@ -22,6 +22,7 @@ import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
 import { ProfileDialog } from "../ProfileDialog";
 import { RolesSection } from "./RolesSection";
+import { SupportLogSection } from "./SupportLogSection";
 import "./team-names.css";
 
 type Load =
@@ -284,6 +285,8 @@ export function TeamView() {
           void load();
         }}
       />
+
+      <SupportLogSection />
 
       {inviting ? (
         <InviteDialog

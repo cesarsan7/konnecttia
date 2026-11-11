@@ -12,6 +12,7 @@ import { PaymentMethodsSection } from "./PaymentMethodsSection";
 import { PlanModulesSection } from "./PlanModulesSection";
 import { RolesSection } from "./RolesSection";
 import { SupportEntry } from "./SupportEntry";
+import { SupportLogSection } from "./SupportLogSection";
 import "./restaurant-detail.css";
 
 type Load =
@@ -163,6 +164,7 @@ export function RestaurantDetail({ id }: { readonly id: number }) {
           </>
         ) : null}
       </section>
+      <SupportLogSection id={restaurant.id} />
       <LifecycleSection detail={detail} />
     </div>
   );
