@@ -1,6 +1,7 @@
 # ADR 0008 — Entornos: producción, staging y local
 
-- Estado: aceptada (2026-11-03)
+- Estado: aceptada (2026-11-03). Desde el [ADR 0012](0012-agente-whatsapp-multirestaurante.md)
+  (2026-11-11), el canal de WhatsApp es Kapso y no Chatwoot.
 
 ## Contexto
 

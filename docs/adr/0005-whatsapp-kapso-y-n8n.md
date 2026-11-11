@@ -1,6 +1,7 @@
 # ADR 0005 — WhatsApp: Kapso para la conexión, n8n como cerebro
 
-- Estado: aceptada (2026-11-02), pendiente de prueba técnica
+- Estado: aceptada (2026-11-02), pendiente de prueba técnica. Desarrollada y en parte sustituida por
+  el [ADR 0012](0012-agente-whatsapp-multirestaurante.md) (2026-11-11): Kapso es el único canal, sin Chatwoot.
 
 ## Decisión
 
