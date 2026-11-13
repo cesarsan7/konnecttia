@@ -277,3 +277,90 @@ BEGIN
 
   DELETE FROM public.verificacion_codigo WHERE restaurante_id = 9001;
 END $$;
+
+-- Canal de WhatsApp (0038): cada restaurante solo ve y toca lo suyo.
+DO $$
+DECLARE
+  v_suc_b bigint;
+  v_canal_a bigint;
+  v_canal_b bigint;
+  v_n int;
+BEGIN
+  INSERT INTO public.sucursal (restaurante_id, nombre, slug) VALUES (9002, 'Local B', 'wa-test-b') RETURNING id INTO v_suc_b;
+  INSERT INTO public.canal_whatsapp (restaurante_id, proveedor, phone_number_id, numero_e164, modo_conexion, estado)
+  VALUES (9001, 'kapso', 'pn-test-a', '+34600000011', 'sandbox', 'activo') RETURNING id INTO v_canal_a;
+  INSERT INTO public.canal_whatsapp (restaurante_id, sucursal_id, proveedor, phone_number_id, numero_e164, modo_conexion, estado)
+  VALUES (9002, v_suc_b, 'kapso', 'pn-test-b', '+34600000012', 'sandbox', 'activo') RETURNING id INTO v_canal_b;
+
+  -- El agente resuelve el restaurante por el número que recibe el mensaje.
+  IF (SELECT restaurante_id FROM public.canal_whatsapp WHERE proveedor = 'kapso' AND phone_number_id = 'pn-test-a' AND estado = 'activo') <> 9001 THEN
+    RAISE EXCEPTION 'FALLO: el número del restaurante A no resuelve al A';
+  END IF;
+
+  -- Un canal no puede apuntar al local de otro restaurante.
+  BEGIN
+    INSERT INTO public.canal_whatsapp (restaurante_id, sucursal_id, proveedor, phone_number_id, numero_e164, modo_conexion)
+    VALUES (9001, v_suc_b, 'kapso', 'pn-test-x', '+34600000013', 'sandbox');
+    RAISE EXCEPTION 'FALLO: un canal apunta al local de otro restaurante';
+  EXCEPTION WHEN foreign_key_violation THEN NULL;
+  END;
+
+  -- El mismo número no puede estar en dos restaurantes.
+  BEGIN
+    INSERT INTO public.canal_whatsapp (restaurante_id, proveedor, phone_number_id, numero_e164, modo_conexion)
+    VALUES (9002, 'kapso', 'pn-test-a', '+34600000014', 'sandbox');
+    RAISE EXCEPTION 'FALLO: un mismo phone_number_id en dos restaurantes';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+
+  -- Una conversación no puede declararse de otro restaurante que el de su canal.
+  BEGIN
+    INSERT INTO public.whatsapp_conversacion (canal_id, restaurante_id, telefono) VALUES (v_canal_a, 9002, '34600000001');
+    RAISE EXCEPTION 'FALLO: conversación de otro restaurante que su canal';
+  EXCEPTION WHEN foreign_key_violation THEN NULL;
+  END;
+
+  -- El mismo cliente puede hablar con dos números y cada conversación tiene su pausa.
+  INSERT INTO public.whatsapp_conversacion (canal_id, restaurante_id, telefono, pausado_hasta, pausado_por)
+  VALUES (v_canal_a, 9001, '34600000001', now() + interval '1 hour', 'personal'),
+         (v_canal_b, 9002, '34600000001', NULL, NULL);
+  SELECT count(*) INTO v_n FROM public.whatsapp_conversacion WHERE restaurante_id = 9001;
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'FALLO: el restaurante A ve % conversaciones, esperada 1', v_n;
+  END IF;
+  IF (SELECT pausado_hasta FROM public.whatsapp_conversacion WHERE canal_id = v_canal_b AND telefono = '34600000001') IS NOT NULL THEN
+    RAISE EXCEPTION 'FALLO: la pausa de un número se aplicó a otro';
+  END IF;
+
+  -- Borrar el restaurante borra sus canales y conversaciones, no los de otro.
+  DELETE FROM public.canal_whatsapp WHERE id = v_canal_b;
+  IF NOT EXISTS (SELECT 1 FROM public.whatsapp_conversacion WHERE canal_id = v_canal_a) THEN
+    RAISE EXCEPTION 'FALLO: al borrar el canal B se perdió la conversación del A';
+  END IF;
+
+  -- Idempotencia: la misma entrega no se registra dos veces.
+  INSERT INTO public.whatsapp_evento (clave) VALUES ('evt-test-1');
+  BEGIN
+    INSERT INTO public.whatsapp_evento (clave) VALUES ('evt-test-1');
+    RAISE EXCEPTION 'FALLO: evento repetido aceptado';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+
+  -- Las claves del agente están documentadas y bot_activo ya no es la vigente.
+  SELECT count(*) INTO v_n FROM public.config_clave WHERE clave LIKE 'agente\_%' AND estado = 'activa';
+  IF v_n <> 7 THEN
+    RAISE EXCEPTION 'FALLO: % claves agente_* documentadas, esperadas 7', v_n;
+  END IF;
+
+  -- Permisos de los roles, si existen en esta base.
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'n8n_agente') THEN
+    IF NOT has_table_privilege('n8n_agente', 'public.whatsapp_evento', 'DELETE')
+       OR has_table_privilege('n8n_agente', 'public.canal_whatsapp', 'INSERT') THEN
+      RAISE EXCEPTION 'FALLO: permisos de n8n_agente sobre las tablas de WhatsApp';
+    END IF;
+  END IF;
+
+  DELETE FROM public.whatsapp_evento WHERE clave = 'evt-test-1';
+  DELETE FROM public.canal_whatsapp WHERE restaurante_id IN (9001, 9002);
+  DELETE FROM public.sucursal WHERE id = v_suc_b;
+END $$;
