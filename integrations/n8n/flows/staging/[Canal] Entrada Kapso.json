@@ -1,0 +1,484 @@
+{
+  "name": "[Canal] Entrada Kapso",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kapso-entrada",
+        "responseMode": "onReceived",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "a1a6f270-58ab-5968-99a7-73cfac90c13b",
+      "name": "Webhook Kapso",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "bf8792d2-dd2f-5d40-a950-99df2bb93ad7"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Kapso firma el cuerpo crudo con HMAC-SHA256 (hex) en X-Webhook-Signature.\n// El secreto va en la variable de entorno KAPSO_WEBHOOK_SECRET del servicio n8n (no en el flujo).\nconst crypto = require('crypto');\nconst entrada = $input.first();\nconst cabeceras = entrada.json.headers || {};\nconst cab = (n) => cabeceras[n] ?? cabeceras[n.toLowerCase()];\nconst secreto = $env.KAPSO_WEBHOOK_SECRET;\nif (!secreto) throw new Error('Falta KAPSO_WEBHOOK_SECRET en el entorno de n8n');\n\nconst crudo = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst firma = String(cab('x-webhook-signature') || '').replace(/^sha256=/, '');\nconst esperada = crypto.createHmac('sha256', secreto).update(crudo).digest('hex');\nlet valida = false;\ntry {\n  const a = Buffer.from(firma, 'hex');\n  const b = Buffer.from(esperada, 'hex');\n  valida = a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);\n} catch (e) {\n  valida = false;\n}\nif (!valida) return []; // firma inválida: se descarta (queda la ejecución sin salida)\n\nlet cuerpo;\ntry {\n  cuerpo = JSON.parse(crudo.toString('utf8'));\n} catch (e) {\n  return [];\n}\n// Sin X-Idempotency-Key se usa el hash del cuerpo como clave de la entrega.\nconst clave = String(cab('x-idempotency-key') || crypto.createHash('sha256').update(crudo).digest('hex')).slice(0, 128);\nreturn [{ json: { clave, evento: cab('x-webhook-event') || '', lote: cab('x-webhook-batch') === 'true', cuerpo } }];\n"
+      },
+      "id": "89c07c4b-a92b-5f61-8b82-5368b6b13e27",
+      "name": "Verificar firma",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.whatsapp_evento (clave) VALUES ($1)\nON CONFLICT (clave) DO NOTHING\nRETURNING clave;",
+        "options": {
+          "queryReplacement": "={{ [ $json.clave ] }}"
+        }
+      },
+      "id": "c045b0d3-932b-55e7-9698-378093224a5c",
+      "name": "Evento nuevo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging_postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Desempaqueta la entrega (lote o evento suelto), clasifica y agrupa por conversación.\n// Formato v2 de Kapso: { message, conversation, phone_number_id } por evento. Los nombres de\n// campos marcados «confirmar» se comprueban con el sandbox (ver el diseño, sección 9).\nconst { cuerpo, evento } = $('Verificar firma').first().json;\nconst lista = Array.isArray(cuerpo)\n  ? cuerpo\n  : Array.isArray(cuerpo && cuerpo.data)\n    ? cuerpo.data\n    : [(cuerpo && cuerpo.data) || cuerpo];\n\nconst soloDigitos = (v) => String(v || '').replace(/\\D/g, '');\nconst e164 = (v) => (soloDigitos(v) ? '+' + soloDigitos(v) : null);\n\nfunction textoDe(m) {\n  const t = m.type;\n  if (t === 'text') return (m.text && m.text.body) || (typeof m.text === 'string' ? m.text : '') || '';\n  if (t === 'audio') return (m.kapso && m.kapso.transcript && m.kapso.transcript.text) || '';\n  if (t === 'image' || t === 'video' || t === 'document') return (m[t] && m[t].caption) || '';\n  if (t === 'button') return (m.button && m.button.text) || '';\n  if (t === 'interactive') {\n    const i = m.interactive || {};\n    return (i.button_reply && i.button_reply.title) || (i.list_reply && i.list_reply.title) || '';\n  }\n  return '';\n}\n\nconst grupos = new Map();\nconst personal = new Map();\nfor (const e of lista) {\n  const m = e.message || {};\n  const conv = e.conversation || {};\n  const phoneNumberId = String(e.phone_number_id || conv.phone_number_id || '');\n  if (!phoneNumberId) continue;\n  const tipoEvento = e.event || evento;\n  const origen = (m.kapso && m.kapso.origin) || '';\n\n  if (tipoEvento === 'whatsapp.message.sent') {\n    if (origen !== 'business_app') continue; // respuestas propias y otros orígenes: se ignoran\n    const tel = e164(m.to || conv.phone_number);\n    if (tel) personal.set(phoneNumberId + '|' + tel, { tipo: 'personal', phone_number_id: phoneNumberId, telefono: tel });\n    continue;\n  }\n  if (tipoEvento !== 'whatsapp.message.received') continue;\n\n  const tel = e164(m.from || conv.phone_number);\n  if (!tel) continue; // sin teléfono (solo BSUID): por ahora no se atiende\n  const clave = phoneNumberId + '|' + tel;\n  if (!grupos.has(clave)) {\n    grupos.set(clave, {\n      tipo: 'cliente',\n      phone_number_id: phoneNumberId,\n      conversacion_id: conv.id || null,\n      cliente: { telefono: tel, bsuid: m.user_id || null, nombre: conv.contact_name || (e.contact && e.contact.name) || null },\n      textos: [],\n      ubicacion: null,\n      adjuntos: [],\n      respuesta_interactiva: null,\n      mensaje_ids: [],\n      recibido_at: null,\n    });\n  }\n  const g = grupos.get(clave);\n  const txt = textoDe(m).trim();\n  if (txt) g.textos.push(txt);\n  if (m.id) g.mensaje_ids.push(m.id);\n  if (m.timestamp && !g.recibido_at) g.recibido_at = new Date(Number(m.timestamp) * 1000).toISOString();\n  if (m.type === 'location' && m.location) {\n    g.ubicacion = { lat: m.location.latitude, lng: m.location.longitude, direccion: m.location.address || m.location.name || null };\n  }\n  if (['audio', 'image', 'video', 'document'].includes(m.type)) {\n    const medio = m[m.type] || {};\n    g.adjuntos.push({\n      tipo: m.type,\n      url: medio.link || (m.kapso && m.kapso.media_url) || null, // confirmar\n      transcripcion: (m.kapso && m.kapso.transcript && m.kapso.transcript.text) || null,\n      mime: medio.mime_type || null,\n      id: medio.id || null,\n    });\n  }\n  if (m.type === 'interactive' && m.interactive) {\n    const r = m.interactive.button_reply || m.interactive.list_reply;\n    if (r) g.respuesta_interactiva = { id: r.id, titulo: r.title };\n  }\n}\n\nconst salida = [];\nfor (const g of grupos.values()) {\n  salida.push({ json: { ...g, texto: g.textos.join('\\n'), textos: undefined, recibido_at: g.recibido_at || new Date().toISOString() } });\n}\nfor (const p of personal.values()) salida.push({ json: p });\nreturn salida;\n"
+      },
+      "id": "b57f5d92-8ccf-5717-b437-19ca73f74014",
+      "name": "Desempaquetar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id AS canal_id,\n       c.restaurante_id,\n       c.sucursal_id,\n       r.nombre AS restaurante_nombre,\n       EXISTS (SELECT 1 FROM public.restaurante_modulo m\n                WHERE m.restaurante_id = c.restaurante_id\n                  AND m.modulo_code = 'whatsapp.agent' AND m.estado = 'activo') AS modulo_activo,\n       COALESCE((SELECT config_value FROM public.restaurante_config\n                  WHERE restaurante_id = c.restaurante_id AND config_key = 'agente_activo'), 'false') AS agente_activo,\n       COALESCE((SELECT config_value FROM public.restaurante_config\n                  WHERE restaurante_id = c.restaurante_id AND config_key = 'agente_pausa_minutos'), '0') AS pausa_minutos\nFROM public.canal_whatsapp c\nJOIN public.restaurante r ON r.id = c.restaurante_id\nWHERE c.proveedor = 'kapso' AND c.phone_number_id = $1 AND c.estado = 'activo'\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.phone_number_id ] }}"
+        }
+      },
+      "id": "d315702e-2e34-5434-b013-0124e48f8231",
+      "name": "Resolver canal",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging_postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Une el mensaje con el canal resuelto y decide si el agente atiende a este restaurante.\nconst d = $('Desempaquetar').item.json;\nconst c = $json;\nconst activo = c.modulo_activo === true && String(c.agente_activo).trim().toLowerCase() === 'true';\nreturn { json: { ...d, ...c, pausa_minutos: Math.max(0, parseInt(c.pausa_minutos, 10) || 0), agente_ok: activo, es_personal: d.tipo === 'personal' } };\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "d287adc3-5ee0-5980-a0d4-8cef40d092fe",
+      "name": "Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5c8ed9f7-423d-5c23-bcd2-13e778abf4a2",
+              "leftValue": "={{ $json.agente_ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "58598e82-70d4-5192-b29d-073ae8fdfec8",
+      "name": "¿Agente activo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "49f4d179-27bb-5dd2-8550-ba59f5c44e27",
+              "leftValue": "={{ $json.es_personal }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a05d803d-4361-5257-acc2-96e85fe3c714",
+      "name": "¿Escribió el personal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.whatsapp_conversacion (canal_id, restaurante_id, telefono, pausado_hasta, pausado_por)\nSELECT $1::bigint, $2::int, $3, now() + make_interval(mins => $4::int), 'personal'\nWHERE $4::int > 0\nON CONFLICT (canal_id, telefono) DO UPDATE\n  SET pausado_hasta = EXCLUDED.pausado_hasta, pausado_por = 'personal', updated_at = now();",
+        "options": {
+          "queryReplacement": "={{ [ $json.canal_id, $json.restaurante_id, $json.telefono, $json.pausa_minutos ] }}"
+        }
+      },
+      "id": "860551bf-996a-574a-9332-7637054f5287",
+      "name": "Pausar agente",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1920,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging_postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.whatsapp_conversacion (canal_id, restaurante_id, telefono, ultimo_entrante_at)\nVALUES ($1::bigint, $2::int, $3, now())\nON CONFLICT (canal_id, telefono) DO UPDATE SET ultimo_entrante_at = now(), updated_at = now()\nRETURNING (pausado_hasta IS NOT NULL AND pausado_hasta > now()) AS pausada;",
+        "options": {
+          "queryReplacement": "={{ [ $json.canal_id, $json.restaurante_id, $json.cliente.telefono ] }}"
+        }
+      },
+      "id": "04115d5f-1bf0-553e-9b43-c2408d8f56d4",
+      "name": "Registrar entrante",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1920,
+        160
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging_postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "bac8231a-0fbf-5d38-835a-3023690efc60",
+              "leftValue": "={{ $json.pausada === false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1ba4566-798a-576b-a989-d96d538d011c",
+      "name": "¿Conversación sin pausa?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2160,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Contrato MensajeEntrante (diseño, sección 2): lo único que ven el Director y los subflujos.\nconst p = $('Preparar').item.json;\nreturn {\n  json: {\n    restaurante_id: p.restaurante_id,\n    sucursal_id: p.sucursal_id,\n    canal_id: p.canal_id,\n    proveedor: 'kapso',\n    phone_number_id: p.phone_number_id,\n    conversacion_id: p.conversacion_id,\n    restaurante_nombre: p.restaurante_nombre,\n    cliente: p.cliente,\n    texto: p.texto,\n    ubicacion: p.ubicacion,\n    adjuntos: p.adjuntos,\n    respuesta_interactiva: p.respuesta_interactiva,\n    mensaje_ids: p.mensaje_ids,\n    recibido_at: p.recibido_at,\n  },\n};\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "8816a274-e598-504b-9ad8-ed441c191df0",
+      "name": "MensajeEntrante",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "whatsAppMessage",
+        "operation": "markAsRead",
+        "phoneNumberId": "={{ $json.phone_number_id }}",
+        "messageId": "={{ $json.mensaje_ids[$json.mensaje_ids.length - 1] }}",
+        "typingIndicator": true
+      },
+      "id": "95286349-9829-5289-a99f-d83c32baa8cd",
+      "name": "Marcar leído",
+      "type": "@kapso/n8n-nodes-kapso.kapso",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        160
+      ],
+      "credentials": {
+        "kapsoApi": {
+          "name": "staging_kapso"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PR A: respuesta de identidad para probar el canal. El PR B la sustituye por el Director.\nconst m = $('MensajeEntrante').item.json;\nconst recibido = (m.texto || '(sin texto)').slice(0, 200);\nreturn {\n  json: {\n    restaurante_id: m.restaurante_id,\n    canal_id: m.canal_id,\n    destinatario: m.cliente.telefono,\n    tipo: 'texto',\n    texto: `Soy el agente de pedidos del restaurante ${m.restaurante_nombre}. Recibí tu mensaje: «${recibido}». (Prueba del canal: el agente completo se conecta en el siguiente paso.)`,\n  },\n};\n",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "3c9ceddc-cc9f-55c8-a5f4-9743e6968aad",
+      "name": "Respuesta de prueba",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "CnEnviarMensaje1",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/CnEnviarMensaje1",
+          "cachedResultName": "[Canal] Enviar mensaje"
+        },
+        "options": {}
+      },
+      "id": "155c5978-4d5c-55de-bfb4-66ab21902f5e",
+      "name": "Enviar mensaje",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3120,
+        160
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Kapso": {
+      "main": [
+        [
+          {
+            "node": "Verificar firma",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar firma": {
+      "main": [
+        [
+          {
+            "node": "Evento nuevo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evento nuevo": {
+      "main": [
+        [
+          {
+            "node": "Desempaquetar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Desempaquetar": {
+      "main": [
+        [
+          {
+            "node": "Resolver canal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver canal": {
+      "main": [
+        [
+          {
+            "node": "Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar": {
+      "main": [
+        [
+          {
+            "node": "¿Agente activo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Agente activo?": {
+      "main": [
+        [
+          {
+            "node": "¿Escribió el personal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Escribió el personal?": {
+      "main": [
+        [
+          {
+            "node": "Pausar agente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar entrante": {
+      "main": [
+        [
+          {
+            "node": "¿Conversación sin pausa?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Conversación sin pausa?": {
+      "main": [
+        [
+          {
+            "node": "MensajeEntrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MensajeEntrante": {
+      "main": [
+        [
+          {
+            "node": "Marcar leído",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar leído": {
+      "main": [
+        [
+          {
+            "node": "Respuesta de prueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta de prueba": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "CnEntradaKapso01",
+  "tags": []
+}

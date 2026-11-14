@@ -1,0 +1,207 @@
+{
+  "name": "[Canal] Enviar mensaje",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c7dcf100-4922-5edc-9e15-98b2b73ed26a",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id AS canal_id,\n       c.phone_number_id,\n       (SELECT w.ultimo_entrante_at FROM public.whatsapp_conversacion w\n         WHERE w.canal_id = c.id AND w.telefono = $2) AS ultimo_entrante_at\nFROM public.canal_whatsapp c\nWHERE c.restaurante_id = $1::int AND c.proveedor = 'kapso' AND c.estado = 'activo'\n  AND ($3::bigint IS NULL OR c.id = $3::bigint)\nORDER BY (c.sucursal_id IS NOT NULL), c.id\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.restaurante_id, $json.destinatario, $json.canal_id || null ] }}"
+        }
+      },
+      "id": "0179c97b-0009-5e56-beec-9bcf567a328c",
+      "name": "Canal de salida",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "name": "staging_postgres"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Entrada (subflujo): restaurante_id, canal_id (opcional), destinatario, tipo, texto,\n// botones[], lista{}, plantilla{}. Salida: el cuerpo para la API de mensajes (formato Cloud API).\nconst m = $('Entrada').first().json;\nconst canal = $input.first().json;\nconst para = String(m.destinatario || '').replace(/\\D/g, '');\nconst tipo = m.tipo || 'texto';\nconst texto = String(m.texto || '').trim();\nconst base = { restaurante_id: m.restaurante_id, destinatario: para ? '+' + para : null };\nconst no = (motivo) => [{ json: { ...base, enviar: false, motivo } }];\n\nif (!canal.phone_number_id) return no('sin_canal');\nif (!para) return no('sin_destinatario');\nif (tipo !== 'plantilla' && !texto) return no('mensaje_vacio');\n\n// Ventana de 24 h: solo se puede escribir libremente si el cliente escribió hace menos de 24 h.\nconst ventana = canal.ultimo_entrante_at && Date.now() - new Date(canal.ultimo_entrante_at).getTime() < 24 * 3600 * 1000;\nif (tipo !== 'plantilla' && !ventana) return no('fuera_de_ventana');\n\nconst numerado = (lineas) => texto + '\\n\\n' + lineas.map((l, i) => `${i + 1}. ${l}`).join('\\n');\nlet cuerpo;\n\nif (tipo === 'botones') {\n  const b = (Array.isArray(m.botones) ? m.botones : []).filter((x) => x && x.id && x.titulo);\n  const cabe = b.length >= 1 && b.length <= 3 && b.every((x) => String(x.titulo).length <= 20) && texto.length <= 1024;\n  cuerpo = cabe\n    ? { type: 'interactive', interactive: { type: 'button', body: { text: texto }, action: { buttons: b.map((x) => ({ type: 'reply', reply: { id: String(x.id).slice(0, 256), title: String(x.titulo) } })) } } }\n    : { type: 'text', text: { body: numerado(b.map((x) => x.titulo)).slice(0, 4096) } };\n} else if (tipo === 'lista') {\n  const secciones = ((m.lista && m.lista.secciones) || []).filter((s) => s && Array.isArray(s.filas) && s.filas.length);\n  const filas = secciones.flatMap((s) => s.filas).filter((f) => f && f.id && f.titulo);\n  const boton = String((m.lista && m.lista.boton) || 'Ver opciones');\n  const cabe = filas.length >= 1 && filas.length <= 10 && filas.every((f) => String(f.titulo).length <= 24) && boton.length <= 20 && texto.length <= 1024;\n  cuerpo = cabe\n    ? {\n        type: 'interactive',\n        interactive: {\n          type: 'list',\n          body: { text: texto },\n          action: {\n            button: boton,\n            sections: secciones.map((s) => ({\n              title: String(s.titulo || '').slice(0, 24) || undefined,\n              rows: s.filas.map((f) => ({ id: String(f.id).slice(0, 200), title: String(f.titulo), description: f.descripcion ? String(f.descripcion).slice(0, 72) : undefined })),\n            })),\n          },\n        },\n      }\n    : { type: 'text', text: { body: numerado(filas.map((f) => f.titulo + (f.descripcion ? ' · ' + f.descripcion : ''))).slice(0, 4096) } };\n} else if (tipo === 'pedir_ubicacion') {\n  cuerpo = { type: 'interactive', interactive: { type: 'location_request_message', body: { text: texto.slice(0, 1024) }, action: { name: 'send_location' } } };\n} else if (tipo === 'plantilla') {\n  const p = m.plantilla || {};\n  if (!p.nombre) return no('plantilla_sin_nombre');\n  const valores = Object.values(p.parametros || {});\n  cuerpo = {\n    type: 'template',\n    template: {\n      name: p.nombre,\n      language: { code: p.idioma || 'es' },\n      components: valores.length ? [{ type: 'body', parameters: valores.map((v) => ({ type: 'text', text: String(v) })) }] : [],\n    },\n  };\n} else {\n  cuerpo = { type: 'text', text: { body: texto.slice(0, 4096) } };\n}\n\nconst payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: para, ...cuerpo };\nreturn [{ json: { ...base, enviar: true, phone_number_id: canal.phone_number_id, payload_json: JSON.stringify(payload) } }];\n"
+      },
+      "id": "de513479-2d03-55d8-9303-1f861eea8921",
+      "name": "Construir payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fbe6ee26-2af1-5ebb-86a3-f53b55f56c20",
+              "leftValue": "={{ $json.enviar }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9d83497d-1981-54d5-b68b-93b45111ab8f",
+      "name": "¿Se puede enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "whatsAppMessage",
+        "operation": "sendRaw",
+        "phoneNumberId": "={{ $json.phone_number_id }}",
+        "payloadJson": "={{ $json.payload_json }}"
+      },
+      "id": "347330f4-e776-5458-ada8-67e020a8f880",
+      "name": "Enviar a Kapso",
+      "type": "@kapso/n8n-nodes-kapso.kapso",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -120
+      ],
+      "credentials": {
+        "kapsoApi": {
+          "name": "staging_kapso"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resultado para quien llamó al subflujo.\nconst previo = $('Construir payload').first().json;\nconst r = $input.first().json;\nconst fallo = Boolean(r.error);\nreturn [{ json: { enviado: !fallo, motivo: fallo ? 'error_kapso' : null, destinatario: previo.destinatario, message_id: (r.messages && r.messages[0] && r.messages[0].id) || null } }];\n"
+      },
+      "id": "ef8161f3-15ea-5292-8305-89f5d6aa1908",
+      "name": "Resultado del envío",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// No se envió (sin canal, fuera de la ventana de 24 h, mensaje vacío…): se informa a quien llamó.\nconst previo = $input.first().json;\nreturn [{ json: { enviado: false, motivo: previo.motivo, destinatario: previo.destinatario } }];\n"
+      },
+      "id": "9652a8fe-5c6f-5620-b098-95c110b13a14",
+      "name": "Resultado sin envío",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Canal de salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Canal de salida": {
+      "main": [
+        [
+          {
+            "node": "Construir payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir payload": {
+      "main": [
+        [
+          {
+            "node": "¿Se puede enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Se puede enviar?": {
+      "main": [
+        [
+          {
+            "node": "Enviar a Kapso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resultado sin envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar a Kapso": {
+      "main": [
+        [
+          {
+            "node": "Resultado del envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "CnEnviarMensaje1",
+  "tags": []
+}

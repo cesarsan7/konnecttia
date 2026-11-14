@@ -45,7 +45,7 @@ Kapso ──POST──▶ n8n /webhook/kapso-entrada
 
 - **Formato y suscripción:** webhook de Kapso en formato propio (v2), por número, con los eventos
   `whatsapp.message.received` y `whatsapp.message.sent`. Mismo URL de n8n y mismo secreto para
-  todos los números (el secreto va en una credencial de n8n, no en el flujo).
+  todos los números (el secreto va en la variable `KAPSO_WEBHOOK_SECRET` del servicio n8n, no en el flujo).
 - **Agrupar mensajes:** se usa el **buffer de Kapso** (por conversación, ventana configurable,
   5 s por defecto) en lugar de Redis. Llega siempre como lote (`batch: true`, `data[]`, ordenado
   por secuencia): los textos se unen en orden, la última ubicación manda y se guardan todos los

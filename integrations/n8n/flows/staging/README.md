@@ -35,13 +35,20 @@ Comprobar que n8n verá la API (debe responder `{"ok":true}`):
 docker run --rm --network easypanel-staging curlimages/curl:8.10.1 -s http://staging_konnecttia-api:3001/health
 ```
 
-## 1. Crear n8n y Redis en EasyPanel
+## 1. n8n en EasyPanel (hecho el 13/11/2026)
 
-1. Proyecto `staging` → **+ Service → Redis**, nombre `redis`. Sin puerto expuesto. Anotar la
-   contraseña que muestra EasyPanel (va solo en la credencial de n8n del paso 3).
-2. Proyecto `staging` → **+ Service → Templates → n8n**, nombre `n8n`. Dominio público de n8n de
-   staging (lo necesita el canal de WhatsApp para enviar los webhooks), puerto 5678.
-3. Desplegar y crear la cuenta de administrador de n8n desde su URL.
+n8n está en `https://n8n.staging.konnecttia.com` (host interno `staging_n8n`, puerto 5678). **No hace
+falta Redis** (el buffer de mensajes lo hace Kapso, ADR 0012) **ni Chatwoot**. Variables del servicio
+(en EasyPanel, nunca en el repositorio): las de la plantilla más
+
+- `N8N_ENCRYPTION_KEY`: definirla **antes del primer Deploy** (si n8n arranca sin ella genera una
+  propia en el volumen y luego da «Mismatching encryption keys»);
+- `NODE_FUNCTION_ALLOW_BUILTIN=crypto`: firma de los webhooks de Kapso;
+- `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` y `KAPSO_WEBHOOK_SECRET=<secreto del webhook de Kapso>`: el
+  flujo «[Canal] Entrada Kapso» lee el secreto con `$env` (n8n lo bloquea por defecto). Alternativa
+  si no se quiere abrir `$env`: guardar el secreto en una credencial y verificar con un nodo propio.
+
+Nodo de comunidad `@kapso/n8n-nodes-kapso` instalado desde _Settings → Community nodes_.
 
 ## 2. Base de datos: rol de n8n y configuración del restaurante
 
@@ -89,14 +96,17 @@ SQL
 
 ## 3. Credenciales en el n8n de staging
 
-Crear en _Credentials_ con estos nombres **exactos**:
+Crear en _Credentials_ con estos nombres **exactos** (los flujos nuevos los usan tal cual):
 
 | Nombre             | Tipo        | Valor                                                                          |
 | ------------------ | ----------- | ------------------------------------------------------------------------------ |
-| `staging postgres` | Postgres    | Host `staging_postgres-staging`, puerto 5432, base `restaurante_staging`, usuario `n8n_agente` |
-| `staging redis`    | Redis       | Host `staging_redis`, puerto 6379, contraseña del servicio `redis`              |
-| `staging OpenAI`   | OpenAI      | Mejor una clave aparte, para separar costes                                    |
-| `staging chatwoot` | Header Auth | Solo si el canal es Chatwoot: Name `api_access_token`, token **de usuario** (no de bot) |
+| `staging_postgres` | Postgres    | Host `staging_postgres-staging`, puerto 5432, base `restaurante_staging`, usuario `n8n_agente` |
+| `staging_kapso`    | Kapso API   | Clave de la API de Kapso (la lleva la cabecera `X-API-Key`); base `https://api.kapso.ai`   |
+| `staging_openai`   | OpenAI      | Mejor una clave aparte, para separar costes                                    |
+
+Los flujos copiados de La Isla todavía usan los nombres antiguos (`staging postgres`,
+`staging OpenAI`, `staging redis`, `staging chatwoot`): el PR que conecta el Director al canal
+los pasa a esta convención. Hasta entonces, elegir la credencial a mano en esos nodos.
 
 ## 4. Generar la copia e importar (conservando los ids)
 
@@ -132,16 +142,23 @@ Abrir cada flujo y comprobar que cada nodo tiene su credencial `staging …` sel
 aparece sin credencial, elegirla a mano). Luego activar: primero los subflujos, después
 `[MVP] Pizzeria`, `[MVP] Notificacion Estado Pedido` y, al final, `[MVP] Cron Expirar Pedidos`.
 
-## 5. Canal de WhatsApp
+## 5. Canal de WhatsApp: Kapso
 
-Pendiente de decidir (ADR 0005 y 0008): **Chatwoot** (los flujos actuales están hechos para él) o
-**Kapso** (exige un adaptador de canal en el Director y los nodos que envían mensajes).
+Diseño: [`../../diseno/adaptador-canal-kapso.md`](../../diseno/adaptador-canal-kapso.md). Flujos
+`[Canal] Entrada Kapso` y `[Canal] Enviar mensaje` (generados por `scripts/canal_kapso.py`).
 
-Con Chatwoot: bandeja de WhatsApp con el número de pruebas, webhook de la bandeja a
-`<URL de n8n de staging>/webhook/chatwootnew` y, en la base,
-`chatwoot_webhook_prod = <URL de n8n de staging>/webhook/notificacion-estado-pedido` para el
-restaurante de pruebas. Errores conocidos al dar de alta un cliente: token de usuario y no de
-bot, `conversation_id` como texto, atributos `bot` y `p_restaurante_id` del contacto.
+1. Publicar los flujos: `python3 integrations/n8n/scripts/publicar.py "[Canal] Enviar mensaje" "[Canal] Entrada Kapso"`
+   (necesita `N8N_URL` y `N8N_API_KEY`; los ids de las credenciales van en `.env.staging` como
+   `CRED_staging_postgres=<id>` y `CRED_staging_kapso=<id>`, ver `.env.example`). Sin ids, abrir cada
+   flujo y elegir la credencial en los nodos que la piden.
+2. Activar `[Canal] Entrada Kapso`. Su URL de producción es `<URL de n8n>/webhook/kapso-entrada`.
+3. En Kapso, en el número (sandbox o real) → _Webhooks_ → nuevo webhook de tipo Kapso, formato v2, eventos
+   `whatsapp.message.received` y `whatsapp.message.sent`, con esa URL. Copiar el secreto a la variable
+   `KAPSO_WEBHOOK_SECRET` del servicio n8n y redesplegar.
+4. En la base, el número en `canal_whatsapp` y los módulos `whatsapp.channel` / `whatsapp.agent` del
+   restaurante, más `agente_activo = true` (ver el diseño, sección 6).
+5. Escribir al número: el flujo responde «Soy el agente de pedidos del restaurante …» (respuesta de
+   prueba del canal; el Director se conecta en el siguiente PR).
 
 ## 6. Despacho v2: cotización con la API de Konnecttia
 

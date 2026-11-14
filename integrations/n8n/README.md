@@ -8,6 +8,8 @@ repositorio es público).
 | `flows/staging/`                                        | Flujos del entorno de staging (VPS de la UE, proyecto `staging`, base `restaurante_staging`). Guía: [`flows/staging/README.md`](flows/staging/README.md) |
 | `scripts/renderizar.py`                                 | Genera la copia para importar: sustituye los marcadores `__NOMBRE__` con `.env.<entorno>` y crea `dist/n8n-<entorno>.tar.gz`                             |
 | `scripts/*_v2.py`, `scripts/director_solo_entrantes.py` | Cambios ya aplicados a `flows/staging/` (historial; se niegan a aplicarse dos veces)                                                                     |
+| `scripts/canal_kapso.py`                                | Genera «[Canal] Entrada Kapso» y «[Canal] Enviar mensaje» (adaptador de canal, ADR 0012)                                                                 |
+| `scripts/publicar.py`                                   | Publica los flujos en n8n por su API: crea o actualiza, reescribe los ids entre flujos y enlaza credenciales                                             |
 | `.env.example`                                          | Marcadores que existen y qué valor llevan. Copiar a `.env.staging` (ignorado por git)                                                                    |
 | `diseno/`                                               | Diseños pendientes de construir (p. ej. [adaptador de canal con Kapso](diseno/adaptador-canal-kapso.md))                                                 |
 
