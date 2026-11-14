@@ -1,6 +1,7 @@
 # Diseño: adaptador de canal con Kapso y tabla `canal_whatsapp`
 
-- Estado: propuesta (2026-11-11), para revisión del promotor antes de construir.
+- Estado: **aprobada (2026-11-13)**. Propuesta del 11/11, fusionada en el PR #121; ajustes de la
+  revisión (sección 5) en el PR siguiente. Ya se puede construir.
 - Desarrolla: [ADR 0012](../../../docs/adr/0012-agente-whatsapp-multirestaurante.md), puntos 1 a 4 y 8.
 - Fuente de Kapso: documentación oficial (docs.kapso.ai, consultada el 11/11/2026). Lo marcado
   «por confirmar» no está documentado y se comprueba con el sandbox.
@@ -153,7 +154,7 @@ identidad» arma el mensaje de sistema a partir de la base; nada de texto por cl
 CREATE TABLE public.canal_whatsapp (
   id               bigserial    PRIMARY KEY,
   restaurante_id   int4         NOT NULL REFERENCES public.restaurante (id) ON DELETE CASCADE,
-  sucursal_id      int4         NULL REFERENCES public.sucursal (id) ON DELETE SET NULL,
+  sucursal_id      bigint       NULL,                  -- sucursal.id es bigint
   proveedor        varchar(20)  NOT NULL CHECK (proveedor IN ('kapso')),
   phone_number_id  varchar(64)  NOT NULL,
   numero_e164      varchar(20)  NOT NULL CHECK (numero_e164 ~ '^\+[1-9][0-9]{6,14}$'),
@@ -163,21 +164,30 @@ CREATE TABLE public.canal_whatsapp (
                    CHECK (estado IN ('pendiente', 'activo', 'pausado', 'desconectado')),
   created_at       timestamptz  NOT NULL DEFAULT now(),
   updated_at       timestamptz  NOT NULL DEFAULT now(),
-  CONSTRAINT canal_whatsapp_numero_uk UNIQUE (proveedor, phone_number_id)
+  CONSTRAINT canal_whatsapp_numero_uk UNIQUE (proveedor, phone_number_id),
+  CONSTRAINT canal_whatsapp_id_restaurante_key UNIQUE (id, restaurante_id),
+  -- El local debe ser del mismo restaurante (usa sucursal_id_restaurante_key de la 0003).
+  CONSTRAINT canal_whatsapp_sucursal_fk FOREIGN KEY (sucursal_id, restaurante_id)
+    REFERENCES public.sucursal (id, restaurante_id)
 );
 CREATE INDEX idx_canal_whatsapp_restaurante ON public.canal_whatsapp (restaurante_id) WHERE estado = 'activo';
 
 -- Estado de cada conversación para el agente (pausa por atención humana, ventana de 24 h).
+-- Una conversación es de un cliente con un número del restaurante: clave (canal_id, telefono).
 CREATE TABLE public.whatsapp_conversacion (
-  restaurante_id       int4        NOT NULL REFERENCES public.restaurante (id) ON DELETE CASCADE,
+  canal_id             bigint      NOT NULL,
+  restaurante_id       int4        NOT NULL,
   telefono             text        NOT NULL,
-  canal_id             bigint      NOT NULL REFERENCES public.canal_whatsapp (id) ON DELETE CASCADE,
   pausado_hasta        timestamptz NULL,
   pausado_por          varchar(20) NULL CHECK (pausado_por IN ('personal', 'derivar_humano', 'panel')),
   ultimo_entrante_at   timestamptz NULL,
   updated_at           timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (restaurante_id, telefono)
+  PRIMARY KEY (canal_id, telefono),
+  -- El restaurante de la conversación es siempre el del canal.
+  CONSTRAINT whatsapp_conversacion_canal_fk FOREIGN KEY (canal_id, restaurante_id)
+    REFERENCES public.canal_whatsapp (id, restaurante_id) ON DELETE CASCADE
 );
+CREATE INDEX idx_whatsapp_conversacion_restaurante ON public.whatsapp_conversacion (restaurante_id, telefono);
 
 -- Entregas ya procesadas (idempotencia de los webhooks). Se purga a los 7 días.
 CREATE TABLE public.whatsapp_evento (
@@ -188,9 +198,22 @@ CREATE TABLE public.whatsapp_evento (
 
 - Varios números por restaurante: uno general (`sucursal_id` nulo) o uno por local (Siempre
   Juntos podría tener uno para cada local; el local queda preseleccionado para recoger).
-- Permisos: `konnecttia_app` lee y escribe `canal_whatsapp` (lo gestiona `/interno`) y lee
-  `whatsapp_conversacion` (vista futura de conversaciones); `n8n_agente` lee `canal_whatsapp` y
-  escribe `whatsapp_conversacion` y `whatsapp_evento`.
+- **Decisión (13/11): una conversación por cliente y número, no por restaurante.** Si un cliente
+  escribe a los dos números de un restaurante (uno por local), cada conversación tiene su propia
+  pausa y su propia ventana de 24 h, y `canal_id` nunca cambia de valor. El agente ya conoce el
+  restaurante por el canal; el local queda preseleccionado según el número.
+- **Permisos explícitos** (la 0038 no depende de los permisos por defecto del README del
+  staging, que se dieron una sola vez al crear el rol). Cada `GRANT` va protegido con una
+  comprobación de que el rol existe, para que la migración también corra en bases de prueba:
+
+  | Rol              | `canal_whatsapp`                                          | `whatsapp_conversacion`  | `whatsapp_evento`        |
+  | ---------------- | --------------------------------------------------------- | ------------------------ | ------------------------ |
+  | `konnecttia_app` | `SELECT, INSERT, UPDATE, DELETE` (lo gestiona `/interno`) | `SELECT` (vista futura)  | —                        |
+  | `n8n_agente`     | `SELECT`                                                  | `SELECT, INSERT, UPDATE` | `SELECT, INSERT, DELETE` |
+
+  Más `USAGE, SELECT` en las secuencias que corresponda. `DELETE` en `whatsapp_evento` es para la
+  **purga de 7 días** del Cron (`DELETE … WHERE recibido_at < now() - interval '7 days'`); el
+  agente no borra conversaciones.
 - Prueba de aislamiento (regla de `AGENTS.md`): el restaurante A no ve los canales ni las
   conversaciones del B.
 - Más adelante (aislamiento, punto 5 del plan del agente): `n8n_chat_histories` con clave de
@@ -222,7 +245,7 @@ CREATE TABLE public.whatsapp_evento (
 
 | PR  | Sesión    | Contenido                                                                                                                                         |
 | --- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | EasyOrder | Migración 0038 (tablas de arriba + claves `agente_*` en `config_clave`) y permisos                                                                |
+| 1   | Agente    | Migración 0038 (tablas de arriba + claves `agente_*` en `config_clave`) y permisos                                                                |
 | 2   | Agente    | «[Canal] Entrada Kapso», «[Canal] Enviar mensaje», Director sin Chatwoot ni Redis, «Construir identidad»; script de publicación por la API de n8n |
 | 3   | Agente    | Notificación Estado Pedido, Cron Expirar Pedidos y Derivar Humano por el adaptador; fuera «noti lovable»                                          |
 | 4   | EasyOrder | Ajustes → Agente de WhatsApp y canal manual en `/interno`                                                                                         |
