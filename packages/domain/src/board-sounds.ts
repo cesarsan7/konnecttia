@@ -15,7 +15,7 @@ export const BOARD_SOUND = {
 export type BoardSound = (typeof BOARD_SOUND)[keyof typeof BOARD_SOUND];
 export const BOARD_SOUNDS: readonly BoardSound[] = Object.values(BOARD_SOUND);
 
-/** Eventos con sonido: el pedido nuevo y los estados que el tablero ve cambiar. */
+/** Eventos con sonido: el pedido nuevo, los estados que el tablero ve cambiar y las incidencias. */
 export const BOARD_SOUND_EVENTS = [
   "nuevo",
   "confirmado",
@@ -24,6 +24,9 @@ export const BOARD_SOUND_EVENTS = [
   "en_camino",
   "entregado",
   "cancelado",
+  // Avisos del agente y del cliente, no estados de pedido: suenan al subir el contador de Incidencias.
+  "incidencia",
+  "derivacion",
 ] as const;
 export type BoardSoundEvent = (typeof BOARD_SOUND_EVENTS)[number];
 
@@ -38,6 +41,8 @@ export const DEFAULT_BOARD_SOUNDS: BoardSounds = {
   en_camino: BOARD_SOUND.None,
   entregado: BOARD_SOUND.None,
   cancelado: BOARD_SOUND.None,
+  incidencia: BOARD_SOUND.Alert,
+  derivacion: BOARD_SOUND.Alert,
 };
 
 export const isBoardSound = (value: unknown): value is BoardSound =>

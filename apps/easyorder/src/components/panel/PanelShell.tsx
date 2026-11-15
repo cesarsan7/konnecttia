@@ -5,9 +5,11 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { helpPath } from "@/lib/ayuda/slugs";
 import type { ProfileSaved } from "@/lib/panel/api";
+import { useIncidentTotal } from "@/lib/panel/incident-counts";
 import type { PanelAccess } from "@/lib/panel/types";
 import { EasyOrderLockup } from "./Brand";
 import { Icon, type IconName } from "./Icon";
+import { IncidentAlerts } from "./IncidentAlerts";
 import { rememberRestaurant } from "./LoginScreen";
 import { usePanel } from "./PanelProvider";
 import { ProfileDialog } from "./ProfileDialog";
@@ -286,6 +288,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
                 >
                   <Icon name={item.icon} />
                   <span>{item.label}</span>
+                  <NavBadge href={item.href} base={base} />
                   {locked ? <span className="k-soon">Premium</span> : null}
                 </Link>
               );
@@ -320,6 +323,9 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
           </div>
         </aside>
         <main id="contenido" className="k-main">
+          {can(PERMISSION.OrdersView) || can(PERMISSION.AgentHandoffsView) ? (
+            <IncidentAlerts slug={slug} />
+          ) : null}
           <PanelGuide slug={slug} access={access} />
           {access.soporte ? <SupportBanner support={access.soporte} /> : null}
           <TrialBanner trial={access.prueba} />
@@ -340,6 +346,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
                 >
                   <Icon name={item.icon} />
                   <span>{item.label}</span>
+                  <NavBadge href={item.href} base={base} />
                 </Link>
               );
             })}
@@ -430,6 +437,18 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
  * Quién está en el panel: «apodo o nombre · rol». Los miembros antiguos, sin nombre, ven su email
  * y el aviso «Añade tu nombre».
  */
+/** Número de incidencias y derivaciones abiertas, junto al nombre del apartado. */
+function NavBadge({ href, base }: { href: string; base: string }) {
+  const total = useIncidentTotal();
+  if (href !== `${base}/incidencias` || total === 0) return null;
+  return (
+    <span className="k-nav-badge" role="status">
+      {total > 99 ? "99+" : total}
+      <span className="k-sr-only"> abiertas</span>
+    </span>
+  );
+}
+
 function UserLine(props: { readonly access: PanelAccess; readonly onEditName: () => void }) {
   const { usuario, roles } = props.access;
   const role = roles.map((item) => item.nombre).join(", ");

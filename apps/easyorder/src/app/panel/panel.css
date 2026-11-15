@@ -344,6 +344,22 @@
   font: 800 0.75rem / 1.4 var(--f-body);
 }
 
+/* Número de incidencias abiertas junto a «Incidencias». */
+.k-nav-badge {
+  display: inline-block;
+  margin-left: auto;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #c0392b;
+  color: #fff;
+  font: 800 0.75rem / 1.5 var(--f-body);
+  text-align: center;
+}
+.k-tab .k-nav-badge {
+  margin-left: 4px;
+}
+
 /* Acceso ---------------------------------------------------------------------- */
 .k-login {
   min-height: 100dvh;

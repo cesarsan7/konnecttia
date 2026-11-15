@@ -69,6 +69,20 @@ describe.skipIf(!TEST_DATABASE_URL)("derivaciones del agente en el panel", () =>
     await ctx?.close();
   });
 
+  it("resumen del menú: cuenta solo las abiertas del propio restaurante y según el permiso", async () => {
+    const owner = await panel("ownerA", "GET", "/panel/prueba-a/incidencias/resumen");
+    expect(owner.status).toBe(200);
+    // Una derivación del agente (la de Chatwoot no cuenta); incidencias de clientes, un número.
+    expect(owner.body.derivaciones).toBe(1);
+    expect(typeof owner.body.incidencias).toBe("number");
+    // Quien solo ve pedidos no recibe la cifra de derivaciones.
+    const viewer = await panel("viewerA", "GET", "/panel/prueba-a/incidencias/resumen");
+    expect(viewer.status).toBe(200);
+    expect(viewer.body.derivaciones).toBe(0);
+    const other = await panel("ownerB", "GET", "/panel/prueba-b/incidencias/resumen");
+    expect(other.body.derivaciones).toBe(1);
+  });
+
   it("lista solo las derivaciones del agente del propio restaurante", async () => {
     const { status, body } = await panel("ownerA", "GET", "/panel/prueba-a/derivaciones");
     expect(status).toBe(200);

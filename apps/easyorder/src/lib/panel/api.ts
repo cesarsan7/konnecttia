@@ -175,6 +175,9 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
           })}`,
         ),
       ),
+    /** Incidencias y derivaciones abiertas, para el contador del menú. */
+    incidentSummary: (slug: string) =>
+      request<{ incidencias: number; derivaciones: number }>(panel(slug, "/incidencias/resumen")),
     incidents: (slug: string, estado: string, pagina: number) =>
       request<IncidentList>(
         panel(slug, `/incidencias?${new URLSearchParams({ estado, pagina: String(pagina) })}`),
