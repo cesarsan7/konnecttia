@@ -617,6 +617,9 @@ export function agenteRoutes(deps: AppDeps) {
       return unavailable(CART_REJECT.AddressRequired);
     }
     // Reparto con dirección escrita y sin pin: se convierte en coordenadas para validar la zona.
+    if (body.tipo === FULFILLMENT.Delivery && body.direccion && !point && !deps.geocoder) {
+      console.warn("[geocodificacion] apagada: falta GEOCODING_URL en la API");
+    }
     if (body.tipo === FULFILLMENT.Delivery && body.direccion && !point && deps.geocoder) {
       const [country] = await deps.sql<{ pais_code: string | null }[]>`
         SELECT pais_code FROM public.restaurante WHERE id = ${restaurant.id}
@@ -629,10 +632,13 @@ export function agenteRoutes(deps: AppDeps) {
           countryCode: country?.pais_code ?? null,
           near,
         });
+        // Sin la dirección en el log (dato personal): solo el resultado.
+        console.info("[geocodificacion]", found ? "dirección localizada" : "sin resultado");
         if (!found) return unavailable(CART_REJECT.AddressNotFound);
         point = found.point;
-      } catch {
+      } catch (error) {
         // El servicio no responde: se sigue como antes y, si hace falta, se pide el pin.
+        console.warn("[geocodificacion] fallo:", error instanceof Error ? error.message : error);
       }
     }
     // Recogida: el local pedido, el que nombra el cliente o el del número de WhatsApp.
