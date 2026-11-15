@@ -8,7 +8,9 @@ import {
 import type { TransactionSql } from "postgres";
 import { emailPayload } from "../lib/customer-email";
 import type { Sql } from "../lib/db";
+import { clientActionAllowed } from "./client-actions";
 import { OUTBOX_EVENT } from "./orders";
+import { CONFIG_KEY } from "./restaurants";
 
 type Tx = TransactionSql<{ bigint: number }>;
 
@@ -99,7 +101,7 @@ export async function changeOrderStatus(
   });
 }
 
-export type ClientCancel = "cancelled" | "not_found" | "not_cancellable";
+export type ClientCancel = "cancelled" | "not_found" | "not_cancellable" | "disabled";
 
 /**
  * El cliente cancela su pedido desde el seguimiento (pieza O). Usa el mismo cambio de estado que el
@@ -116,6 +118,11 @@ export async function cancelTrackedOrder(sql: Sql, token: string): Promise<Clien
     WHERE  p.tracking_token = ${token}::uuid
   `;
   if (!order) return "not_found";
+  const [setting] = await sql<{ config_value: string }[]>`
+    SELECT config_value FROM public.restaurante_config
+    WHERE  restaurante_id = ${order.restaurante_id} AND config_key = ${CONFIG_KEY.ClientCancelOrders}
+  `;
+  if (!clientActionAllowed(setting?.config_value)) return "disabled";
   if (!canClientCancel({ estado: order.estado, justificantes: order.justificantes })) {
     return "not_cancellable";
   }

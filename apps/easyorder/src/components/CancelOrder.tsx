@@ -22,7 +22,7 @@ export function CancelOrder({ api, token, order, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  if (isClosed(order.estado)) return null;
+  if (isClosed(order.estado) || order.permiteCancelar === false) return null;
 
   async function cancel() {
     setBusy(true);

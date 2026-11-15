@@ -29,7 +29,7 @@ export function ReportIssue({ api, token, order, onSent }: Props) {
   const [sent, setSent] = useState(false);
 
   const openCount = order.incidenciasAbiertas ?? 0;
-  if (order.puedeReportar === undefined) return null;
+  if (order.puedeReportar === undefined || order.permiteReportar === false) return null;
   if (!order.puedeReportar && openCount === 0) return null;
 
   async function submit() {
