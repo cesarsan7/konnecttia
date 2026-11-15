@@ -3,6 +3,7 @@ import type { PlatformRole } from "@konnecttia/domain";
 import type { Mailer } from "@konnecttia/notifications";
 import type { AuthAdmin } from "./lib/auth-admin";
 import type { Sql } from "./lib/db";
+import type { Geocoder } from "./lib/geocoding";
 import type { PushSender } from "./lib/push";
 import type { StripeClient } from "./lib/stripe";
 import type { AgentChannel } from "./repositories/agent";
@@ -107,6 +108,8 @@ export type AppDeps = {
   readonly stripe?: StripeClient | null;
   /** Secreto del endpoint del webhook de Stripe; sin él, el webhook responde 503. */
   readonly stripeWebhookSecret?: string | null;
+  /** null si no hay proveedor de geocodificación: el agente pide la ubicación de WhatsApp. */
+  readonly geocoder?: Geocoder | null;
   /** Secreto que n8n envía en las rutas `/agente`; sin él, esas rutas responden 503. */
   readonly agentSecret?: string | null;
   /** Precio de Stripe de cada plan de pago (código del plan → id del precio). */

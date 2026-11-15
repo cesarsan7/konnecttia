@@ -79,6 +79,13 @@ const envSchema = z
      * rutas responden 503. Mínimo 32 caracteres; nunca se registra.
      */
     AGENTE_API_SECRET: z.string().min(32).optional(),
+    /**
+     * Geocodificación de las direcciones que escriben los clientes por WhatsApp (Nominatim u otro
+     * servicio compatible). `GEOCODING_URL` vacío: apagada, el agente pide la ubicación de WhatsApp.
+     */
+    GEOCODING_URL: z.string().url().optional(),
+    /** Identificación que exige Nominatim (nombre de la aplicación y contacto). */
+    GEOCODING_USER_AGENT: z.string().min(5).default("Konnecttia/1.0 (soporte@konnecttia.com)"),
     /** Carpeta con las migraciones `NNNN_*.sql` (en la imagen: `/app/migrations`). */
     MIGRATIONS_DIR: z.string().min(1).default("../../packages/db/migrations"),
   })
