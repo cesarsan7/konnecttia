@@ -91,6 +91,8 @@ export const CONFIG_KEY = {
   AntifraudCodeMonthlyCap: "antifraude_codigo_tope_mensual_eur",
   /** Importe del pedido (EUR) desde el que se pide código. Sin clave: 30. */
   AntifraudCodeAmountThreshold: "antifraude_codigo_importe_umbral_eur",
+  /** Minutos sin cambios tras los que caduca el carrito del agente (regla: 30). Sin clave: no caduca. */
+  CartExpiryMinutes: "cart_expiry_minutes",
   /** Agente de WhatsApp (0038): responde a los clientes. Sin clave: no responde. */
   AgentActive: "agente_activo",
   /** Nombre con el que se presenta el agente. Vacío: «agente de pedidos del restaurante …». */
