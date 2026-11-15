@@ -196,6 +196,15 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
         </ol>
       )}
 
+      {order.estado === "entregado" && order.resenaUrl && (
+        <section className="group card review-box" aria-label="Reseña">
+          <p>¿Qué tal ha ido todo? Tu opinión ayuda mucho al restaurante.</p>
+          <a className="btn" href={order.resenaUrl} target="_blank" rel="noopener noreferrer">
+            Déjanos tu reseña
+          </a>
+        </section>
+      )}
+
       {needsPaymentInfo(order) && (
         <PaymentProof api={api} token={token} order={order} onUploaded={refresh} />
       )}

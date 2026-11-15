@@ -31,6 +31,7 @@ import {
   parseMinutes,
   parsePhoneLimit,
   parsePolicyUrl,
+  parseReviewUrl,
   type RestaurantSettings,
   type Settings,
   settingsErrorMessage,
@@ -665,6 +666,7 @@ function NoticesSection({ data, editable, save, patch }: SectionProps) {
   const [emails, setEmails] = useState(r.avisos_local_emails.join(", "));
   const [customerOn, setCustomerOn] = useState(r.avisos_cliente_activo);
   const [statuses, setStatuses] = useState<string[]>([...r.avisos_cliente_estados]);
+  const [reviewUrl, setReviewUrl] = useState(r.resena_url ?? "");
   const [canCancel, setCanCancel] = useState(r.seguimiento_cancelar);
   const [canReport, setCanReport] = useState(r.seguimiento_novedades);
 
@@ -675,8 +677,12 @@ function NoticesSection({ data, editable, save, patch }: SectionProps) {
     if (localOn && list.length === 0) return "Indica al menos un email para avisar al local.";
     if (customerOn && statuses.length === 0)
       return "Elige al menos un estado para avisar al cliente.";
+    const review = parseReviewUrl(reviewUrl);
+    if (review === undefined)
+      return "El enlace de reseñas debe ser un enlace https de Google Maps (o de reseñas de Google).";
     return save(
       patch({
+        resena_url: review ?? "",
         avisos_local_activo: localOn,
         avisos_local_emails: list,
         avisos_cliente_activo: customerOn,
@@ -761,6 +767,15 @@ function NoticesSection({ data, editable, save, patch }: SectionProps) {
             label="Permitir enviar novedades (falta algo, llegó mal, retraso)"
           />
         </div>
+        <TextField
+          label="Enlace para dejar una reseña (Google Maps)"
+          value={reviewUrl}
+          onChange={setReviewUrl}
+          disabled={!editable}
+          max={300}
+          placeholder="https://maps.app.goo.gl/…"
+          hint="Se muestra como «Déjanos tu reseña» cuando el pedido está entregado. En Google Maps: tu ficha → Compartir → Copiar enlace."
+        />
       </Section>
       <SaveBar busy={form.busy} editable={editable} error={form.error} />
     </form>

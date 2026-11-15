@@ -131,3 +131,86 @@ describe.skipIf(!TEST_DATABASE_URL)("seguimiento: cancelar y novedades por resta
     });
   });
 });
+
+describe("enlace de reseñas", () => {
+  it("solo acepta enlaces https de Google Maps o de reseñas de Google", async () => {
+    const { parseReviewUrl } = await import("../src/lib/review-link");
+    for (const ok of [
+      "https://maps.app.goo.gl/abc123",
+      "https://www.google.com/maps/place/Mi+Local/@28.9,-13.5,17z",
+      "https://g.page/r/CabcDEF/review",
+      "https://search.google.com/local/writereview?placeid=ChIJxyz",
+      "https://goo.gl/maps/xyz",
+    ]) {
+      expect(parseReviewUrl(ok), ok).not.toBeNull();
+    }
+    for (const bad of [
+      "",
+      "http://maps.app.goo.gl/abc123",
+      "https://example.com/maps/abc",
+      "https://www.google.com/search?q=mi+local",
+      "https://google.com.evil.com/maps/x",
+      "https://user:pass@maps.app.goo.gl/abc",
+      "javascript:alert(1)",
+      "no es un enlace",
+    ]) {
+      expect(parseReviewUrl(bad), bad).toBeNull();
+    }
+  });
+});
+
+describe.skipIf(!TEST_DATABASE_URL)("seguimiento: botón de reseña", () => {
+  let context: TestContext;
+  beforeAll(async () => {
+    context = await setupTestApp();
+  }, 60_000);
+  afterAll(async () => {
+    if (context) {
+      await context.sql`DELETE FROM public.restaurante_config WHERE config_key = 'resena_url'`;
+      await context.close();
+    }
+  });
+
+  it("Ajustes guarda el enlace, rechaza otros y el seguimiento lo ofrece solo con el pedido entregado", async () => {
+    const patch = (body: unknown) =>
+      context.app.request("/panel/prueba-a/ajustes/restaurante", {
+        method: "PATCH",
+        headers: { ...auth("ownerA"), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    expect((await patch({ resena_url: "https://example.com/x" })).status).toBe(400);
+    expect((await patch({ resena_url: "https://maps.app.goo.gl/abc123" })).status).toBe(200);
+    const settings = (await (
+      await context.app.request("/panel/prueba-a/ajustes", { headers: auth("ownerA") })
+    ).json()) as Json;
+    expect(settings.restaurante.resena_url).toBe("https://maps.app.goo.gl/abc123");
+
+    const created = await context.app.request("/public/prueba-a/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-real-ip": "203.0.113.240",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        nombre: "Marta Pérez",
+        email: "marta@example.com",
+        telefono: "+34600009001",
+        tipo_despacho: "retiro",
+        metodo_pago: "efectivo",
+        privacidad_aceptada: true,
+        items: [{ menu_item_id: 1101, menu_variant_id: 1201, quantity: 1 }],
+      }),
+    });
+    const token = ((await created.json()) as Json).tracking_token as string;
+    const open = (await (await context.app.request(`/public/orders/${token}`)).json()) as Json;
+    expect(open.resenaUrl).toBeNull();
+    await context.sql`UPDATE public.pedidos SET estado = 'entregado' WHERE tracking_token = ${token}::uuid`;
+    const done = (await (await context.app.request(`/public/orders/${token}`)).json()) as Json;
+    expect(done.resenaUrl).toBe("https://maps.app.goo.gl/abc123");
+
+    expect((await patch({ resena_url: "" })).status).toBe(200);
+    const cleared = (await (await context.app.request(`/public/orders/${token}`)).json()) as Json;
+    expect(cleared.resenaUrl).toBeNull();
+  });
+});

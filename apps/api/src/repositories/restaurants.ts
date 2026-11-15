@@ -65,6 +65,8 @@ export const CONFIG_KEY = {
   TableStayAlert: "mesa_aviso_estancia_minutos",
   /** Justificantes de pago que el cliente puede subir por pedido. */
   ProofsMaxPerOrder: "justificantes_max_por_pedido",
+  /** Enlace de reseñas de Google del restaurante (https). Sin clave: no se ofrece. */
+  ReviewUrl: "resena_url",
   /** El cliente puede cancelar su pedido desde el seguimiento (true/false). Sin clave: sí. */
   ClientCancelOrders: "pedido_cancelacion_cliente",
   /** El cliente puede enviar novedades (incidencias) desde el seguimiento (true/false). Sin clave: sí. */

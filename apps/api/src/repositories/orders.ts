@@ -11,6 +11,7 @@ import {
 } from "@konnecttia/domain";
 import { emailPayload, maskEmail } from "../lib/customer-email";
 import { centsToEuros, eurosToCents, type Sql, UNIQUE_VIOLATION } from "../lib/db";
+import { parseReviewUrl } from "../lib/review-link";
 import { clientActionAllowed } from "./client-actions";
 import { acceptsProof, maxProofsPerOrder } from "./payment-proofs";
 import { CONFIG_KEY } from "./restaurants";
@@ -249,6 +250,8 @@ export type TrackedOrder = {
   readonly emailEditable: boolean;
   /** El cliente puede cancelar: el local aún no ha aceptado el pedido (`canClientCancel`). */
   readonly puedeCancelar: boolean;
+  /** Enlace para dejar una reseña en Google; solo con el pedido entregado y si el local lo configuró. */
+  readonly resenaUrl: string | null;
   /** El restaurante permite cancelar desde el seguimiento (`pedido_cancelacion_cliente`). */
   readonly permiteCancelar: boolean;
   /** El restaurante permite enviar novedades desde el seguimiento (`pedido_novedades_cliente`). */
@@ -338,6 +341,7 @@ export async function findOrderByTrackingToken(
       justificantes: number;
       justificantes_max: string | null;
       cfg_cancelar: string | null;
+      cfg_resena: string | null;
       cfg_reportar: string | null;
       brand_color: string | null;
       logo_url: string | null;
@@ -360,6 +364,9 @@ export async function findOrderByTrackingToken(
            (SELECT c.config_value FROM public.restaurante_config c
             WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ClientCancelOrders})
              AS cfg_cancelar,
+           (SELECT c.config_value FROM public.restaurante_config c
+            WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ReviewUrl})
+             AS cfg_resena,
            (SELECT c.config_value FROM public.restaurante_config c
             WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ClientReportIssues})
              AS cfg_reportar,
@@ -397,6 +404,7 @@ export async function findOrderByTrackingToken(
     puedeCancelar:
       clientActionAllowed(row.cfg_cancelar) &&
       canClientCancel({ estado: row.estado, justificantes: row.justificantes }),
+    resenaUrl: row.estado === "entregado" ? parseReviewUrl(row.cfg_resena) : null,
     permiteCancelar: clientActionAllowed(row.cfg_cancelar),
     permiteReportar: clientActionAllowed(row.cfg_reportar),
     contactoTelefono: row.contacto_telefono?.trim() || null,
