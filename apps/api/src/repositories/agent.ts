@@ -131,3 +131,93 @@ export async function loadAgentCustomer(
     direccionFrecuente: text(rows[0]?.direccion_frecuente ?? undefined),
   };
 }
+
+/** Motivos por los que el agente deriva una conversación a una persona. */
+export const HANDOFF_REASON = {
+  Complaint: "reclamo",
+  Cancellation: "cancelacion",
+  OrderChange: "modificacion_pedido",
+  AsksForPerson: "pide_persona",
+  SystemError: "error_sistema",
+  Other: "otro",
+} as const;
+export type HandoffReason = (typeof HANDOFF_REASON)[keyof typeof HANDOFF_REASON];
+
+/** Estado inicial de una escalación (el valor por defecto de la tabla). */
+const ESCALATION_STATE_PENDING = "pendiente";
+/** Origen guardado en el contexto de la escalación. */
+const ESCALATION_ORIGIN_AGENT = "agente_whatsapp";
+/** Quién pausa la conversación (CHECK de `whatsapp_conversacion.pausado_por`). */
+const PAUSED_BY_HANDOFF = "derivar_humano";
+
+export type HandoffResult = {
+  readonly escalacionId: number;
+  readonly pausadoHasta: Date | null;
+};
+
+/**
+ * Deriva la conversación a una persona, en una transacción: registra la escalación del
+ * restaurante y, si hay minutos de pausa, calla al agente en esa conversación.
+ *
+ * `escalaciones.tipo_escalacion` es `varchar(50)` sin CHECK, así que guarda el motivo tal cual
+ * (el comentario de la columna lista otros valores históricos del flujo n8n). El motivo también
+ * va en `contexto` junto al canal y el origen. Los ids de Chatwoot quedan nulos: estas
+ * escalaciones no nacen en Chatwoot.
+ */
+export async function recordHandoff(
+  sql: Sql,
+  input: {
+    readonly restauranteId: number;
+    readonly canalId: number;
+    readonly telefono: string;
+    readonly motivo: HandoffReason;
+    readonly resumen: string;
+    readonly pausaMinutos: number | null;
+    readonly now: Date;
+  },
+): Promise<HandoffResult> {
+  const contexto = {
+    canal_id: input.canalId,
+    origen: ESCALATION_ORIGIN_AGENT,
+    motivo: input.motivo,
+  };
+  return await sql.begin(async (tx) => {
+    const [row] = await tx<{ id: string }[]>`
+      INSERT INTO public.escalaciones
+        (restaurante_id, telefono, problema, contexto, estado, tipo_escalacion, created_at)
+      VALUES
+        (${input.restauranteId}, ${input.telefono}, ${input.resumen}, ${tx.json(contexto)},
+         ${ESCALATION_STATE_PENDING}, ${input.motivo}, ${input.now})
+      RETURNING id
+    `;
+    let pausadoHasta: Date | null = null;
+    if (input.pausaMinutos !== null && input.pausaMinutos > 0) {
+      pausadoHasta = new Date(input.now.getTime() + input.pausaMinutos * 60_000);
+      await tx`
+        INSERT INTO public.whatsapp_conversacion
+          (canal_id, restaurante_id, telefono, pausado_hasta, pausado_por, updated_at)
+        VALUES
+          (${input.canalId}, ${input.restauranteId}, ${input.telefono}, ${pausadoHasta},
+           ${PAUSED_BY_HANDOFF}, ${input.now})
+        ON CONFLICT (canal_id, telefono) DO UPDATE
+        SET pausado_hasta = EXCLUDED.pausado_hasta,
+            pausado_por   = EXCLUDED.pausado_por,
+            updated_at    = EXCLUDED.updated_at
+      `;
+    }
+    return { escalacionId: Number(row?.id), pausadoHasta };
+  });
+}
+
+/** Preguntas frecuentes de ESTE restaurante, en el orden en que las definió. */
+export async function loadFaqs(
+  sql: Sql,
+  restauranteId: number,
+): Promise<{ pregunta: string; respuesta: string }[]> {
+  return await sql<{ pregunta: string; respuesta: string }[]>`
+    SELECT pregunta, respuesta
+    FROM   public.faqs
+    WHERE  restaurante_id = ${restauranteId}
+    ORDER  BY orden ASC NULLS LAST, pregunta ASC
+  `;
+}

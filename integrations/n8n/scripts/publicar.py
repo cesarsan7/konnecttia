@@ -11,7 +11,11 @@ Qué hace, por cada archivo:
      leen de `.env.<entorno>` (líneas `CRED_<nombre>=<id>`; el id es el último tramo de la URL de
      la credencial en n8n: /home/credentials/<id>). Sin id, el nodo queda con el nombre y se elige
      a mano en la interfaz.
-  4. Nunca activa un flujo salvo que se pida con --activar.
+  4. Publica en orden de dependencias: primero los subflujos que otros llaman. n8n no deja guardar
+     un flujo activo que llama a un subflujo sin publicar.
+  5. Activa solo los subflujos puros (su único disparador es «Execute Workflow Trigger»): no
+     reciben nada de fuera, así que activarlos no tiene efectos y lo exige n8n. Cualquier otro
+     flujo (webhooks, cron) solo se activa si se pide con --activar.
 
 Nada de esto lleva claves en el repositorio: la URL de n8n (`N8N_URL`) y los ids van en
 `.env.<entorno>` (ignorado por git) o en variables de entorno; la clave de la API de n8n va en
@@ -101,6 +105,36 @@ class Api:
                 return existentes
 
 
+DISPARADOR_SUBFLUJO = "n8n-nodes-base.executeWorkflowTrigger"
+
+
+def es_subflujo_puro(flujo: dict) -> bool:
+    """Solo se dispara desde otro flujo (sin webhook, cron ni otros disparadores)."""
+    disparadores = [
+        n["type"] for n in flujo["nodes"] if n["type"].lower().endswith("trigger") or n["type"] == "n8n-nodes-base.webhook"
+    ]
+    return bool(disparadores) and all(tipo == DISPARADOR_SUBFLUJO for tipo in disparadores)
+
+
+def orden_dependencias(flujos: dict[str, dict]) -> list[str]:
+    """Nombres ordenados para que cada subflujo se publique antes que quien lo llama."""
+    ids = {nombre: flujo["id"] for nombre, flujo in flujos.items()}
+    depende = {
+        nombre: {otro for otro, ident in ids.items() if otro != nombre and ident in json.dumps(flujo)}
+        for nombre, flujo in flujos.items()
+    }
+    orden: list[str] = []
+    pendientes = dict(depende)
+    while pendientes:
+        listos = sorted(n for n, deps in pendientes.items() if not deps - set(orden))
+        if not listos:  # ciclo: se publican en el orden de siempre
+            listos = sorted(pendientes)
+        for nombre in listos:
+            orden.append(nombre)
+            pendientes.pop(nombre)
+    return orden
+
+
 def cargar_flujos(carpeta: Path, valores: dict[str, str], elegidos: list[str]) -> dict[str, dict]:
     flujos: dict[str, dict] = {}
     for archivo in sorted(carpeta.glob("*.json")):
@@ -183,18 +217,25 @@ def main() -> None:
             print(f"creado      {nombre} -> {creado['id']}")
 
     cambios = {viejo: nuevo for viejo, nuevo in ids_reales.items() if viejo != nuevo}
-    for nombre, flujo in flujos.items():
-        texto = json.dumps(flujo, ensure_ascii=False)
+    activados: set[str] = set()
+    for nombre in orden_dependencias(flujos):
+        texto = json.dumps(flujos[nombre], ensure_ascii=False)
         for viejo, nuevo in cambios.items():
             texto = texto.replace(viejo, nuevo)
         flujo = json.loads(texto)
         real = ids_reales[flujos[nombre]["id"]]
         api.llamar("PUT", f"/workflows/{real}", cuerpo_api(flujo))
         print(f"actualizado {nombre} ({real})")
+        if es_subflujo_puro(flujo):
+            api.llamar("POST", f"/workflows/{real}/activate")
+            activados.add(nombre)
+            print(f"activado    {nombre} (subflujo)")
 
     for nombre in args.activar:
         if nombre not in flujos:
             sys.exit(f"--activar: {nombre} no está entre los flujos publicados")
+        if nombre in activados:
+            continue
         api.llamar("POST", f"/workflows/{ids_reales[flujos[nombre]['id']]}/activate")
         print(f"activado    {nombre}")
 
