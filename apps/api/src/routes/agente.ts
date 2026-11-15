@@ -33,6 +33,12 @@ import {
   saveFrequentAddress,
   viewCart,
 } from "../repositories/agent-cart";
+import {
+  branchOptions,
+  fulfillmentOptions,
+  OPTION_KIND,
+  paymentOptions,
+} from "../repositories/agent-options";
 import { isPhoneBlocked } from "../repositories/antifraud";
 import {
   type BranchRecord,
@@ -814,6 +820,54 @@ export function agenteRoutes(deps: AppDeps) {
         pausado_hasta: result.pausadoHasta ? result.pausadoHasta.toISOString() : null,
       },
       201,
+    );
+  });
+
+  /**
+   * Botones y listas listos para WhatsApp: recoger o reparto, local donde recoger y forma de pago,
+   * con lo que ofrece el restaurante. `disponible = false` si no hay nada que elegir (el agente
+   * sigue en texto). n8n solo reenvía el resultado al adaptador de salida.
+   */
+  app.get("/canales/:canalId/opciones", async (c) => {
+    const restaurant = c.get("restaurant");
+    const tipo = z
+      .enum(Object.values(OPTION_KIND) as [string, ...string[]])
+      .safeParse(c.req.query("tipo"));
+    if (!tipo.success) {
+      return fail(c, 400, API_ERROR.InvalidBody, {
+        issues: [{ path: "tipo", message: "despacho, local o pago" }],
+      });
+    }
+    if (tipo.data === OPTION_KIND.Fulfillment) {
+      return c.json(
+        fulfillmentOptions({
+          pickupEnabled: restaurant.pickupEnabled,
+          deliveryEnabled: restaurant.deliveryEnabled,
+        }),
+      );
+    }
+    if (tipo.data === OPTION_KIND.Payment) {
+      return c.json(paymentOptions(restaurant.paymentMethods));
+    }
+    const [config, branches] = await Promise.all([
+      loadConfig(deps.sql, restaurant.id),
+      loadBranches(deps.sql, restaurant.id),
+    ]);
+    const active = branches.filter((branch) => branch.active);
+    const isOpen = await openChecker(
+      deps.sql,
+      restaurant,
+      active,
+      openOverride(config),
+      deps.now(),
+    );
+    const pickup = active.filter(
+      (branch) => restaurant.pickupEnabled && branch.acceptsPickup && isOpen(branch),
+    );
+    return c.json(
+      branchOptions(
+        pickup.map((branch) => ({ id: branch.id, name: branch.name, address: branch.address })),
+      ),
     );
   });
 
