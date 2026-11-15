@@ -217,7 +217,8 @@ export const quoteBodySchema = z
   });
 
 /** Motivo legible (para el agente) de cada error de despacho. */
-const QUOTE_REASON: Partial<Record<string, string>> = {
+/** Motivo legible (para el agente) de cada rechazo al resolver el despacho. */
+export const QUOTE_REASON: Partial<Record<string, string>> = {
   [API_ERROR.DeliveryZoneNotFound]: "fuera_de_cobertura",
   [API_ERROR.RestaurantClosed]: "local_cerrado",
   [API_ERROR.LocationRequired]: "ubicacion_necesaria",
