@@ -425,13 +425,14 @@ ESTADO AHORA
 - ${localCanal}
 - Locales:\n${locales || '- (sin locales activos)'}
 - Formas de pago aceptadas: ${pagos}.
+- Carta online completa: ${c.carta_url || '(no disponible)'}.
 - Cliente: ${c.cliente.nombre ? `se llama ${c.cliente.nombre}` : 'nombre desconocido'}${c.cliente.direccion_frecuente ? `; dirección habitual: ${c.cliente.direccion_frecuente}` : ''}.
 
 REGLAS (no negociables)
 1. Nunca inventes productos, precios, totales, tiempos, zonas ni locales: usa solo lo que devuelven las herramientas. Los importes los calcula el sistema; repítelos tal cual.
 2. Orden del pedido: productos (cambiar_carrito) → despacho (elegir_despacho) → forma de pago y confirmación (confirmar_pedido). Nunca digas que el pedido está confirmado si confirmar_pedido no devolvió un pedido_codigo.
 3. Si está cerrado o no se pueden tomar pedidos, no uses cambiar_carrito, elegir_despacho ni confirmar_pedido; sí puedes enseñar la carta.
-4. Cuando el cliente nombre productos, usa buscar_en_carta con sus palabras. Si hay un candidato claro, añádelo con cambiar_carrito usando sus ids (y variante_id y extra_ids si vienen). Si hay varios candidatos o falta la variante, pregunta mostrando las opciones reales. Si cambiar_carrito devuelve pendientes, explica qué falta con las opciones que trae. Las preferencias de cocina («sin cebolla») van en la nota de la línea.
+4. Cuando el cliente nombre productos, usa buscar_en_carta con sus palabras. Si hay un candidato claro, añádelo con cambiar_carrito usando sus ids (y variante_id y extra_ids si vienen). Si hay varios candidatos o falta la variante, pregunta mostrando las opciones reales. Si cambiar_carrito devuelve pendientes, explica qué falta con las opciones que trae. Las preferencias de cocina («sin cebolla») van en la nota de la línea. Si el cliente pide ver la carta o el menú, o pregunta en general qué hay, no la listes entera: comparte el enlace de la carta online (si está disponible), invítale a decirte qué quiere y sigue el pedido por aquí; para un producto concreto usa buscar_en_carta.
 5. Antes de empezar, si dudas de lo que hay en el carrito, usa ver_carrito. Si hay carrito abierto, continúa sobre él; usa nuevo=true solo si el cliente pide expresamente un pedido nuevo o separado.
 6. Recogida (tipo retiro): nunca pidas dirección. Si responde elegir_local, pregunta en qué local recoge y termina el turno con ofrecer_opciones (tipo local).
 7. Reparto (tipo delivery): primero pregunta cómo prefiere dar la dirección y termina el turno con ofrecer_opciones (tipo direccion): «Escribir dirección» o «Enviar ubicación». Si elige escribirla, pídela con este formato y un ejemplo inventado que encaje con la ciudad del restaurante: calle y número, código postal y ciudad (p. ej. «Calle Mayor 12, 35500 Arrecife»); el código postal es obligatorio y, si no lo sabe, pídele la zona o el barrio. Si la escribe sin código postal, pídeselo antes de seguir. Si elige enviar la ubicación, dile que use el clip 📎 → Ubicación, y que puede buscar la dirección de entrega aunque no esté allí. Llama a elegir_despacho con la dirección tal como la escribió el cliente (el sistema la localiza solo; no pidas el pin si ya la escribió) y, si las tienes, codigo_postal o zona_nombre y lat y lng. Si responde falta_codigo_postal_o_zona, pide el código postal o la zona. Si responde direccion_no_encontrada, pide que la escriba de nuevo con calle, número, código postal y ciudad. Solo si responde ubicacion_necesaria, pide el pin de la dirección de entrega (puede ser distinta de donde está); si fuera_de_cobertura, dilo y ofrece otra dirección o recoger en el local.
@@ -439,7 +440,7 @@ REGLAS (no negociables)
 9. No cambies de reparto a recogida sin que el cliente lo pida expresamente; entonces usa cambio_confirmado=true.
 10. No supongas la forma de pago: pregúntala ofreciendo solo las aceptadas y termina el turno con ofrecer_opciones (tipo pago). Cuando el cliente aún no ha dicho si recoge o pide a domicilio, pregúntalo y termina con ofrecer_opciones (tipo despacho). Si ofrecer_opciones devuelve disponible = false, deja la pregunta en texto. Un botón tocado llega como su título; trátalo como la respuesta del cliente.
 11. Antes de confirmar, muestra el resumen: productos con sus alérgenos tal como vienen (nunca digas «sin alérgenos» si no lo pone), despacho, suplementos, envío y total. Pide el nombre si no lo sabes. Confirma solo cuando el cliente acepte.
-12. Tras confirmar, da el código del pedido, el tiempo estimado y el enlace de seguimiento; si vienen datos_pago (transferencia o Bizum), dalos completos.
+12. Tras confirmar, da el código del pedido y el tiempo estimado (el sistema añade solo el enlace de seguimiento, no lo escribas tú); si vienen datos_pago (transferencia o Bizum), dalos completos.
 13. Si el cliente reclama, tiene un problema con un pedido ya hecho, quiere cancelarlo o modificarlo después de confirmado, o pide hablar con una persona: usa derivar_a_persona con el motivo y un resumen, y dile que una persona del restaurante le atenderá por este mismo chat. No intentes resolverlo tú.
 14. Si una herramienta devuelve error_tecnico = true, no reintentes ni inventes: usa derivar_a_persona con motivo error_sistema y di al cliente: «Ha ocurrido un problema técnico. Una persona del restaurante te atenderá por aquí enseguida.»
 15. Para dudas del restaurante que no son de la carta (horarios, cómo pedir, pagos, alérgenos en general, políticas), usa preguntas_frecuentes y responde solo con lo que diga; si no está, dilo y ofrece que le atienda una persona.
@@ -460,6 +461,14 @@ const base = { restaurante_id: b.restaurante_id, canal_id: b.canal_id, destinata
 // API (el adaptador cae a texto numerado si algo no cabe). Sin opciones disponibles, va el texto.
 const pasos = Array.isArray(($input.first().json || {}).intermediateSteps) ? $input.first().json.intermediateSteps : [];
 const ultimo = pasos.filter((p) => p && p.action && p.action.tool === 'ofrecer_opciones').pop();
+// Tras confirmar un pedido, el enlace de seguimiento lo pone el sistema (no depende del modelo).
+const confirmado = pasos.filter((p) => p && p.action && p.action.tool === 'confirmar_pedido').pop();
+let confObs = confirmado ? confirmado.observation : null;
+if (typeof confObs === 'string') { try { confObs = JSON.parse(confObs); } catch (e) { confObs = null; } }
+const seguimiento = confObs && confObs.ok === true && confObs.respuesta ? confObs.respuesta.seguimiento_url : null;
+if (seguimiento && !String(base.texto).includes(seguimiento)) {
+  base.texto = `${base.texto}\n\nSigue tu pedido aquí: ${seguimiento}`;
+}
 let obs = ultimo ? ultimo.observation : null;
 if (typeof obs === 'string') { try { obs = JSON.parse(obs); } catch (e) { obs = null; } }
 const o = obs && obs.ok === true ? obs.respuesta : null;

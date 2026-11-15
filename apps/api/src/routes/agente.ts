@@ -280,6 +280,8 @@ export function agenteRoutes(deps: AppDeps) {
 
     return c.json({
       restaurante: { id: restaurant.id, nombre: restaurant.nombre, slug: restaurant.slug },
+      // Carta pública (siempre al día): el agente la comparte en vez de listar toda la carta.
+      carta_url: deps.panelUrl ? `${deps.panelUrl.replace(/\/+$/, "")}/${restaurant.slug}` : null,
       agente: {
         activo: settings.activo,
         presentacion: agentPresentation(restaurant.nombre, settings.nombreVisible),
