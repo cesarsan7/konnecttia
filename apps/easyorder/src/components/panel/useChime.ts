@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SOUND_TONES } from "@/lib/panel/sounds";
 
 const STORAGE_KEY = "easyorder.panel.sonido";
+/** Aviso entre usos del hook en la misma página: quien activa el sonido lo activa para todos. */
+const SYNC_EVENT = "easyorder:sonido";
 
 /**
  * Aviso sonoro de pedido nuevo (dos notas, sintetizadas: sin archivos de audio). Los navegadores
@@ -34,7 +36,21 @@ export function useChime() {
     } catch {
       // Sin almacenamiento (navegación privada): solo dura esta visita.
     }
+    window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: value }));
   }, []);
+
+  // Otro uso del hook (p. ej. el tablero) activa o apaga el sonido: este se entera en el mismo clic.
+  useEffect(() => {
+    const onSync = (event: Event) => {
+      const value = (event as CustomEvent<boolean>).detail === true;
+      if (value === enabledRef.current) return;
+      if (value) ensureContext();
+      enabledRef.current = value;
+      setEnabled(value);
+    };
+    window.addEventListener(SYNC_EVENT, onSync);
+    return () => window.removeEventListener(SYNC_EVENT, onSync);
+  }, [ensureContext]);
 
   // Si ya se había activado, el sonido vuelve con el primer toque en la página.
   useEffect(() => {

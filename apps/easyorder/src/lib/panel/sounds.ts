@@ -25,6 +25,8 @@ export const EVENT_LABEL: Readonly<Record<BoardSoundEvent, string>> = {
   en_camino: "En camino",
   entregado: "Entregado",
   cancelado: "Cancelado",
+  incidencia: "Incidencia de un cliente",
+  derivacion: "Derivación del agente a una persona",
 };
 
 export const EVENT_HINT: Readonly<Record<BoardSoundEvent, string>> = {
@@ -35,6 +37,8 @@ export const EVENT_HINT: Readonly<Record<BoardSoundEvent, string>> = {
   en_camino: "Un repartidor sale con el pedido.",
   entregado: "Se entrega el pedido.",
   cancelado: "Se cancela un pedido (por el cliente o por otra persona).",
+  incidencia: "Un cliente reporta un problema con su pedido desde el enlace de seguimiento.",
+  derivacion: "El agente de WhatsApp pasa una conversación a una persona (queja o caso sensible).",
 };
 
 export type Tone = {
@@ -73,6 +77,9 @@ export const SOUND_TONES: Readonly<Record<BoardSound, readonly Tone[]>> = {
   suave: [{ freq: 440, at: 0, dur: 0.7, gain: 0.3, type: "sine" }],
 };
 
+/** Eventos con sonido que no son un estado de pedido. */
+const NOT_ORDER_STATES: ReadonlySet<string> = new Set(["nuevo", "incidencia", "derivacion"]);
+
 /**
  * Cambios de estado respecto a la carga anterior (pedidos que ya estaban y ahora están en otro
  * estado). `own` son los cambios que acaba de hacer esta misma persona: no suenan.
@@ -88,7 +95,9 @@ export function statusChanges(
     const before = previous.get(order.id);
     if (before === undefined || before === order.estado) continue;
     if (own.get(order.id) === order.estado) continue;
-    if (isBoardSoundEvent(order.estado) && order.estado !== "nuevo") events.push(order.estado);
+    if (isBoardSoundEvent(order.estado) && !NOT_ORDER_STATES.has(order.estado)) {
+      events.push(order.estado);
+    }
   }
   return events;
 }
@@ -110,3 +119,20 @@ export function soundToPlay(
 }
 
 export const SOUND_EVENTS = BOARD_SOUND_EVENTS;
+
+export type IncidentCounts = { readonly incidencias: number; readonly derivaciones: number };
+
+/**
+ * Eventos que suenan cuando suben los contadores de abiertas. Sin lectura anterior (primera carga)
+ * no suena nada: solo importa lo que llega mientras alguien tiene el panel abierto.
+ */
+export function incidentEvents(
+  previous: IncidentCounts | null,
+  next: IncidentCounts,
+): BoardSoundEvent[] {
+  if (previous === null) return [];
+  const events: BoardSoundEvent[] = [];
+  if (next.derivaciones > previous.derivaciones) events.push("derivacion");
+  if (next.incidencias > previous.incidencias) events.push("incidencia");
+  return events;
+}

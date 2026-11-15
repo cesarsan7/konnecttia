@@ -1,4 +1,4 @@
-import { ALL_BRANCHES, PERMISSION } from "@konnecttia/access";
+import { ALL_BRANCHES, authorize, PERMISSION } from "@konnecttia/access";
 import { INCIDENT_NOTE_MAX, INCIDENT_STATUS } from "@konnecttia/domain";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
@@ -68,6 +68,43 @@ export function registerIncidentRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       pagina: page,
       por_pagina: PAGE_SIZE,
     });
+  });
+
+  /**
+   * Cuántas hay abiertas (incidencias de clientes y derivaciones del agente), para el contador del
+   * menú. Cada cifra solo se calcula si la persona puede ver ese apartado; sin ninguno, 403.
+   */
+  app.get("/:slug/incidencias/resumen", async (c) => {
+    const access = c.get("access");
+    const restauranteId = c.get("restaurant").id;
+    const seeIncidents = authorize(access, PERMISSION.OrdersView).allowed;
+    const seeHandoffs = authorize(access, PERMISSION.AgentHandoffsView).allowed;
+    if (!seeIncidents && !seeHandoffs) {
+      return fail(c, 403, API_ERROR.Forbidden, { permission: PERMISSION.OrdersView });
+    }
+    let incidencias = 0;
+    let derivaciones = 0;
+    if (seeIncidents) {
+      const [row] = await sql<{ n: number }[]>`
+        SELECT count(*)::int AS n
+        FROM   public.pedido_incidencia i
+        JOIN   public.pedidos p ON p.id = i.pedido_id
+        WHERE  i.restaurante_id = ${restauranteId} AND i.estado = ${INCIDENT_STATUS.Open}
+          ${branchClause(c)}
+      `;
+      incidencias = row?.n ?? 0;
+    }
+    if (seeHandoffs) {
+      const [row] = await sql<{ n: number }[]>`
+        SELECT count(*)::int AS n
+        FROM   public.escalaciones e
+        WHERE  e.restaurante_id = ${restauranteId}
+          AND  e.contexto->>'origen' = 'agente_whatsapp'
+          AND  e.estado = 'pendiente'
+      `;
+      derivaciones = row?.n ?? 0;
+    }
+    return c.json({ incidencias, derivaciones });
   });
 
   app.patch(
