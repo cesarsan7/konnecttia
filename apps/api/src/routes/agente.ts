@@ -7,8 +7,11 @@ import { resolveAgentChannel } from "../middleware/agent";
 import {
   agentPresentation,
   agentSettings,
+  HANDOFF_REASON,
   loadAgentCustomer,
+  loadFaqs,
   loadRestaurantMessages,
+  recordHandoff,
 } from "../repositories/agent";
 import {
   activeVariants,
@@ -42,6 +45,7 @@ import { loadEtaContext } from "../repositories/eta";
 import { resolveFulfillment } from "../repositories/fulfillment";
 import { findOrderByTrackingToken, ORDER_CHANNEL } from "../repositories/orders";
 import { placeOrder } from "../repositories/place-order";
+import { notifyStaff } from "../repositories/push";
 import {
   fulfillmentEnabled,
   loadConfig,
@@ -136,6 +140,12 @@ const despachoBodySchema = z
     message: "lat y lng van juntas",
     path: ["lng"],
   });
+
+const derivarBodySchema = z.object({
+  telefono: phoneSchema,
+  motivo: z.enum(HANDOFF_REASON),
+  resumen: z.string().trim().min(1).max(1000),
+});
 
 const confirmBodySchema = z.object({
   telefono: phoneSchema,
@@ -763,6 +773,54 @@ export function agenteRoutes(deps: AppDeps) {
       },
       placed.order.created ? 201 : 200,
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Derivar a una persona y preguntas frecuentes (migración 0041).
+  // -------------------------------------------------------------------------
+
+  /**
+   * El agente pasa la conversación al personal: queda una escalación y, si el restaurante
+   * configuró `agente_pausa_derivar_minutos`, el agente se calla ese tiempo en esta conversación.
+   */
+  app.post("/canales/:canalId/conversacion/derivar", async (c) => {
+    const restaurant = c.get("restaurant");
+    const channel = c.get("agentChannel");
+    const parsed = derivarBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return invalid(c, parsed.error.issues);
+    const body = parsed.data;
+    const config = await loadConfig(deps.sql, restaurant.id);
+    const result = await recordHandoff(deps.sql, {
+      restauranteId: restaurant.id,
+      canalId: channel.id,
+      telefono: body.telefono,
+      motivo: body.motivo,
+      resumen: body.resumen,
+      pausaMinutos: agentSettings(config).pausaDerivarMinutos,
+      now: deps.now(),
+    });
+    // Aviso push al personal (mejor esfuerzo: no espera ni afecta a la escalación ya guardada).
+    if (deps.push) {
+      void notifyStaff(deps.sql, deps.push, restaurant.id, {
+        title: "Cliente pide atención",
+        body: `${body.motivo} · ${body.telefono}`,
+        url: `/panel/${restaurant.slug}`,
+        tag: `escalacion-${result.escalacionId}`,
+      });
+    }
+    return c.json(
+      {
+        escalacion_id: result.escalacionId,
+        pausado_hasta: result.pausadoHasta ? result.pausadoHasta.toISOString() : null,
+      },
+      201,
+    );
+  });
+
+  /** Preguntas frecuentes del restaurante para que el agente responda sin inventar. */
+  app.get("/canales/:canalId/preguntas", async (c) => {
+    const restaurant = c.get("restaurant");
+    return c.json({ preguntas: await loadFaqs(deps.sql, restaurant.id) });
   });
 
   return app;
