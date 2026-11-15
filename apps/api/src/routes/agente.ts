@@ -440,9 +440,10 @@ export function agenteRoutes(deps: AppDeps) {
     const removals = new Set<number>();
     const pending: Record<string, unknown>[] = [];
     let changed = false;
-    body.operaciones.forEach((operation, position) => {
-      const reject = (motivo: string, extra: Record<string, unknown> = {}) =>
+    const apply = (operation: (typeof body.operaciones)[number], position: number): void => {
+      const reject = (motivo: string, extra: Record<string, unknown> = {}): void => {
         pending.push({ operacion: position + 1, motivo, ...extra });
+      };
       const exists = (linea: number) => linea >= 1 && linea <= lines.length;
       switch (operation.op) {
         case CART_OP.Add: {
@@ -520,7 +521,8 @@ export function agenteRoutes(deps: AppDeps) {
           changed = true;
           return;
       }
-    });
+    };
+    for (const [position, operation] of body.operaciones.entries()) apply(operation, position);
     if (changed) {
       const kept = lines.filter((_, index) => !removals.has(index));
       cart = await saveCartLines(deps.sql, cart, kept, now);
