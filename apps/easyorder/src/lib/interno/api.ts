@@ -108,7 +108,8 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
       }),
     changeTeamMember: (userId: string, change: { rol?: "admin" | "soporte"; activo?: boolean }) =>
       put<{ user_id: string }>(`/equipo/${userId}`, change),
-    unusedAccounts: () => request<UnusedAccounts>("/cuentas-sin-uso"),
+    unusedAccounts: (recent = false) =>
+      request<UnusedAccounts>(`/cuentas-sin-uso${recent ? "?recientes=1" : ""}`),
     deleteAccount: (userId: string) =>
       request<{ eliminada: boolean }>(`/cuentas/${userId}`, { method: "DELETE" }),
     templates: () => request<TemplatesInfo>("/plantillas"),

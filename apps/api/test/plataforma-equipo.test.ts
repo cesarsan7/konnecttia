@@ -181,4 +181,14 @@ describe.skipIf(!TEST_DATABASE_URL)("equipo de Konnecttia desde /interno", () =>
         .status,
     ).toBe(503);
   });
+
+  it("con «recientes» también lista las cuentas sin uso de menos de unos días, nunca las que tienen uso", async () => {
+    const list = await call("platformAdmin", "GET", "/cuentas-sin-uso?recientes=1");
+    expect(list.status).toBe(200);
+    expect(list.body.dias_minimos).toBe(0);
+    const ids = list.body.cuentas.map((a: Json) => a.user_id);
+    expect(ids).toContain(accounts[3]?.id); // reciente, sin uso
+    expect(ids).not.toContain(USERS.ownerA.userId); // miembro de un restaurante
+    expect(ids).not.toContain(accounts[0]?.id); // tiene fila en el equipo
+  });
 });
