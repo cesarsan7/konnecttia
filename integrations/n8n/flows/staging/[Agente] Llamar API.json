@@ -1,0 +1,294 @@
+{
+  "name": "[Agente] Llamar API",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "canal_id"
+            },
+            {
+              "name": "telefono"
+            },
+            {
+              "name": "accion"
+            },
+            {
+              "name": "datos"
+            }
+          ]
+        }
+      },
+      "id": "e3a2e430-6bad-534c-87dc-c41289083c04",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Traduce la acción del agente a una ruta de /agente/canales/:canalId/… (la API valida todo).\nconst e = $input.first().json;\nconst canal = String(e.canal_id || '');\nconst telefono = String(e.telefono || '');\nlet datos = e.datos;\nif (typeof datos === 'string') {\n  try { datos = datos.trim() ? JSON.parse(datos) : {}; } catch { datos = {}; }\n}\nif (!datos || typeof datos !== 'object' || Array.isArray(datos)) datos = {};\n\nconst base = `__API_KONNECTTIA_URL__/agente/canales/${encodeURIComponent(canal)}`;\nconst query = (params) => {\n  const q = Object.entries(params)\n    .filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')\n    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)\n    .join('&');\n  return q ? `?${q}` : '';\n};\n// Solo los campos que la API admite en cada ruta: lo demás que invente el modelo se descarta.\nconst solo = (claves) => Object.fromEntries(claves.filter((k) => datos[k] !== undefined && datos[k] !== '' && datos[k] !== null).map((k) => [k, datos[k]]));\nconst numero = (v) => (v === undefined || v === null || v === '' || Number.isNaN(Number(v)) ? undefined : Number(v));\n\nlet metodo = 'GET';\nlet url = '';\nlet cuerpo = null;\nswitch (e.accion) {\n  case 'contexto':\n    url = `${base}/contexto${query({ telefono })}`;\n    break;\n  case 'carta':\n    url = `${base}/carta${query({ q: datos.q, categoria: datos.categoria, sucursal_id: datos.sucursal_id })}`;\n    break;\n  case 'ver_carrito':\n    url = `${base}/carrito${query({ telefono })}`;\n    break;\n  case 'cambiar_carrito': {\n    metodo = 'PUT';\n    url = `${base}/carrito`;\n    const operaciones = Array.isArray(datos.operaciones) ? datos.operaciones : [];\n    cuerpo = { telefono, nuevo: datos.nuevo === true || datos.nuevo === 'true', operaciones };\n    break;\n  }\n  case 'despacho': {\n    metodo = 'PUT';\n    url = `${base}/carrito/despacho`;\n    const d = solo(['tipo', 'sucursal_id', 'texto_local', 'direccion', 'codigo_postal', 'zona_nombre']);\n    const lat = numero(datos.lat);\n    const lng = numero(datos.lng);\n    cuerpo = {\n      telefono,\n      ...d,\n      ...(d.sucursal_id !== undefined ? { sucursal_id: numero(d.sucursal_id) } : {}),\n      ...(lat !== undefined && lng !== undefined ? { lat, lng } : {}),\n      cambio_confirmado: datos.cambio_confirmado === true || datos.cambio_confirmado === 'true',\n    };\n    break;\n  }\n  case 'confirmar':\n    metodo = 'POST';\n    url = `${base}/carrito/confirmar`;\n    cuerpo = { telefono, ...solo(['nombre', 'metodo_pago', 'notas']) };\n    break;\n  default:\n    return [{ json: { valida: false, error: 'accion_desconocida', accion: e.accion } }];\n}\nreturn [{ json: { valida: true, metodo, url, cuerpo: cuerpo ? JSON.stringify(cuerpo) : null } }];\n"
+      },
+      "id": "ccb35a4b-4951-53af-9994-647e6ef9efe4",
+      "name": "Preparar petición",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "524f54e7-5652-5313-9e0a-a787935fea6e",
+              "leftValue": "={{ $json.valida === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1241989f-55a3-529c-9d19-02581aef149d",
+      "name": "¿Acción válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c0bba7a6-6564-5727-80d8-ad49eaf0e400",
+              "leftValue": "={{ $json.cuerpo !== null }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8ab9ac96-1101-5b85-a4ad-2bd9cb787c3e",
+      "name": "¿Con cuerpo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        720,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.metodo }}",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.cuerpo }}"
+      },
+      "id": "b3290687-5cc6-58b2-b796-527d75b0ccb5",
+      "name": "API con cuerpo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        -180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging_agente_api"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.metodo }}",
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "d3822b26-ca2c-53c0-a857-fbc016d90129",
+      "name": "API consulta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        20
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging_agente_api"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Respuesta para el agente: ok, estado HTTP y el cuerpo tal cual (la API ya da motivos legibles).\nconst r = $input.first().json;\nconst estado = Number(r.statusCode || 0);\nconst cuerpo = r.body !== undefined ? r.body : r;\nconst ok = estado >= 200 && estado < 300;\nreturn [{\n  json: {\n    ok,\n    estado,\n    ...(ok ? {} : { error_tecnico: estado === 0 || estado >= 500 || estado === 401 }),\n    respuesta: cuerpo,\n  },\n}];\n"
+      },
+      "id": "d1a4a474-2f95-57a8-ac99-83ce71e5df3e",
+      "name": "Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\nreturn [{ json: { ok: false, estado: 0, error_tecnico: true, respuesta: { error: e.error, accion: e.accion } } }];\n"
+      },
+      "id": "38857bea-4b52-5351-8902-3815fff1f6ab",
+      "name": "Acción no válida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        160
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Preparar petición",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar petición": {
+      "main": [
+        [
+          {
+            "node": "¿Acción válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Acción válida?": {
+      "main": [
+        [
+          {
+            "node": "¿Con cuerpo?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acción no válida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Con cuerpo?": {
+      "main": [
+        [
+          {
+            "node": "API con cuerpo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API con cuerpo": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API consulta": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "AgLlamarApi00001",
+  "tags": []
+}
