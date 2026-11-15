@@ -91,6 +91,18 @@ export const CONFIG_KEY = {
   AntifraudCodeMonthlyCap: "antifraude_codigo_tope_mensual_eur",
   /** Importe del pedido (EUR) desde el que se pide código. Sin clave: 30. */
   AntifraudCodeAmountThreshold: "antifraude_codigo_importe_umbral_eur",
+  /** Agente de WhatsApp (0038): responde a los clientes. Sin clave: no responde. */
+  AgentActive: "agente_activo",
+  /** Nombre con el que se presenta el agente. Vacío: «agente de pedidos del restaurante …». */
+  AgentVisibleName: "agente_nombre_visible",
+  /** Tono del agente: cercano | formal. */
+  AgentTone: "agente_tono",
+  /** Lo que el agente debe saber del local (texto corto del restaurante). */
+  AgentInstructions: "agente_instrucciones",
+  /** Minutos de silencio del agente cuando escribe el personal. Sin clave o 0: sin pausa. */
+  AgentPauseMinutes: "agente_pausa_minutos",
+  /** Minutos de silencio del agente tras derivar a una persona (0039). Sin clave o 0: sin pausa. */
+  AgentHandoffPauseMinutes: "agente_pausa_derivar_minutos",
 } as const;
 
 /**
@@ -106,30 +118,18 @@ export function publicPaymentMethods(active: unknown, allowed: unknown): string[
   return list.filter((method) => allowed.includes(method));
 }
 
-export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {
-  if (!SLUG_PATTERN.test(slug) || slug.length > 100) {
-    return null;
-  }
-  const rows = await sql<
-    {
-      id: number;
-      nombre: string;
-      slug: string;
-      zona_horaria: string | null;
-      payment_methods: unknown;
-      metodos_pago_permitidos: unknown;
-      delivery_enabled: boolean;
-      pickup_enabled: boolean;
-    }[]
-  >`
-    SELECT id, nombre, slug, zona_horaria, payment_methods, metodos_pago_permitidos,
-           delivery_enabled, pickup_enabled
-    FROM   public.restaurante
-    WHERE  slug = ${slug}
-    LIMIT  1
-  `;
-  const row = rows[0];
-  if (!row) return null;
+type RestaurantRow = {
+  id: number;
+  nombre: string;
+  slug: string;
+  zona_horaria: string | null;
+  payment_methods: unknown;
+  metodos_pago_permitidos: unknown;
+  delivery_enabled: boolean;
+  pickup_enabled: boolean;
+};
+
+function toRestaurant(row: RestaurantRow): Restaurant {
   return {
     id: row.id,
     nombre: row.nombre,
@@ -139,6 +139,34 @@ export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Rest
     deliveryEnabled: row.delivery_enabled,
     pickupEnabled: row.pickup_enabled,
   };
+}
+
+export async function findRestaurantBySlug(sql: Sql, slug: string): Promise<Restaurant | null> {
+  if (!SLUG_PATTERN.test(slug) || slug.length > 100) {
+    return null;
+  }
+  const rows = await sql<RestaurantRow[]>`
+    SELECT id, nombre, slug, zona_horaria, payment_methods, metodos_pago_permitidos,
+           delivery_enabled, pickup_enabled
+    FROM   public.restaurante
+    WHERE  slug = ${slug}
+    LIMIT  1
+  `;
+  const row = rows[0];
+  return row ? toRestaurant(row) : null;
+}
+
+/** Restaurante por id. Solo para identidades ya resueltas en el servidor (canal del agente). */
+export async function findRestaurantById(sql: Sql, id: number): Promise<Restaurant | null> {
+  const rows = await sql<RestaurantRow[]>`
+    SELECT id, nombre, slug, zona_horaria, payment_methods, metodos_pago_permitidos,
+           delivery_enabled, pickup_enabled
+    FROM   public.restaurante
+    WHERE  id = ${id}
+    LIMIT  1
+  `;
+  const row = rows[0];
+  return row ? toRestaurant(row) : null;
 }
 
 export async function loadSchedule(sql: Sql, restauranteId: number): Promise<DaySchedule[]> {

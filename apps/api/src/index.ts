@@ -162,6 +162,7 @@ const app = createApp({
       : null,
   stripe: env.STRIPE_SECRET_KEY ? createStripeClient(env.STRIPE_SECRET_KEY) : null,
   stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ?? null,
+  agentSecret: env.AGENTE_API_SECRET ?? null,
   stripePrices: {
     ...(env.STRIPE_PRICE_BASICO ? { basico: env.STRIPE_PRICE_BASICO } : {}),
     ...(env.STRIPE_PRICE_PREMIUM ? { premium: env.STRIPE_PRICE_PREMIUM } : {}),
