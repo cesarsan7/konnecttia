@@ -42,6 +42,7 @@ import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import { phoneLimits } from "../repositories/antifraud";
 import { loadBranches } from "../repositories/branches";
+import { clientActionAllowed } from "../repositories/client-actions";
 import { deliveryPhotoMode } from "../repositories/delivery-photos";
 import { detectImageType } from "../repositories/menu-admin";
 import { CONFIG_KEY, loadConfig, surchargeRules } from "../repositories/restaurants";
@@ -149,6 +150,8 @@ const restaurantSchema = z
     avisos_local_activo: z.boolean(),
     avisos_local_emails: z.array(z.string().trim().toLowerCase().email().max(254)).max(10),
     avisos_cliente_activo: z.boolean(),
+    seguimiento_cancelar: z.boolean(),
+    seguimiento_novedades: z.boolean(),
     avisos_cliente_estados: z
       .array(z.enum(CUSTOMER_NOTICE_STATUSES))
       .max(CUSTOMER_NOTICE_STATUSES.length),
@@ -485,6 +488,8 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         avisos_local_activo: config.get(CONFIG_KEY.NoticeLocalActive) === "true",
         avisos_local_emails: noticeEmails(config.get(CONFIG_KEY.NoticeLocalEmails)),
         avisos_cliente_activo: config.get(CONFIG_KEY.NoticeCustomerActive) === "true",
+        seguimiento_cancelar: clientActionAllowed(config.get(CONFIG_KEY.ClientCancelOrders)),
+        seguimiento_novedades: clientActionAllowed(config.get(CONFIG_KEY.ClientReportIssues)),
         avisos_cliente_estados: noticeStatuses(config.get(CONFIG_KEY.NoticeCustomerStatuses)),
         antifraude_abiertos: phoneLimits(config).open,
         antifraude_por_hora: phoneLimits(config).perHour,
@@ -698,6 +703,18 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
               ? [...new Set(body.avisos_local_emails)].join(", ")
               : null,
             "Emails del local para los avisos de pedido nuevo (panel)",
+          ],
+          [
+            "seguimiento_cancelar",
+            CONFIG_KEY.ClientCancelOrders,
+            body.seguimiento_cancelar === undefined ? null : String(body.seguimiento_cancelar),
+            "El cliente puede cancelar su pedido desde el seguimiento (panel)",
+          ],
+          [
+            "seguimiento_novedades",
+            CONFIG_KEY.ClientReportIssues,
+            body.seguimiento_novedades === undefined ? null : String(body.seguimiento_novedades),
+            "El cliente puede enviar novedades desde el seguimiento (panel)",
           ],
           [
             "avisos_cliente_activo",

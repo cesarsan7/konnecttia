@@ -5,8 +5,10 @@ import {
   MAX_OPEN_INCIDENTS_PER_ORDER,
 } from "@konnecttia/domain";
 import type { Sql } from "../lib/db";
+import { clientActionAllowed } from "./client-actions";
+import { CONFIG_KEY } from "./restaurants";
 
-export type ReportIncident = "created" | "not_found" | "not_allowed" | "too_many";
+export type ReportIncident = "created" | "not_found" | "not_allowed" | "too_many" | "disabled";
 
 /**
  * El cliente abre una incidencia desde el enlace de seguimiento (pieza P). El token es la
@@ -24,6 +26,11 @@ export async function reportIncident(
       FOR UPDATE
     `;
     if (!order) return "not_found" as const;
+    const [setting] = await tx<{ config_value: string }[]>`
+      SELECT config_value FROM public.restaurante_config
+      WHERE  restaurante_id = ${order.restaurante_id} AND config_key = ${CONFIG_KEY.ClientReportIssues}
+    `;
+    if (!clientActionAllowed(setting?.config_value)) return "disabled" as const;
     if (!canReportIncident(order.estado)) return "not_allowed" as const;
     const [open] = await tx<{ n: number }[]>`
       SELECT count(*)::int AS n FROM public.pedido_incidencia

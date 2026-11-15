@@ -665,6 +665,8 @@ function NoticesSection({ data, editable, save, patch }: SectionProps) {
   const [emails, setEmails] = useState(r.avisos_local_emails.join(", "));
   const [customerOn, setCustomerOn] = useState(r.avisos_cliente_activo);
   const [statuses, setStatuses] = useState<string[]>([...r.avisos_cliente_estados]);
+  const [canCancel, setCanCancel] = useState(r.seguimiento_cancelar);
+  const [canReport, setCanReport] = useState(r.seguimiento_novedades);
 
   const form = useSubmit(async () => {
     const list = parseEmails(emails);
@@ -679,6 +681,8 @@ function NoticesSection({ data, editable, save, patch }: SectionProps) {
         avisos_local_emails: list,
         avisos_cliente_activo: customerOn,
         avisos_cliente_estados: statuses,
+        seguimiento_cancelar: canCancel,
+        seguimiento_novedades: canReport,
       }),
       "Avisos guardados",
     );
@@ -738,6 +742,25 @@ function NoticesSection({ data, editable, save, patch }: SectionProps) {
             </div>
           </fieldset>
         ) : null}
+      </Section>
+      <Section
+        title="Enlace de seguimiento del cliente"
+        lead="Qué puede hacer el cliente desde el enlace de su pedido. No todos los restaurantes permiten cancelar."
+      >
+        <div className="k-toggle-list">
+          <Toggle
+            checked={canCancel}
+            onChange={setCanCancel}
+            disabled={!editable}
+            label="Permitir cancelar el pedido (mientras el local no lo haya aceptado)"
+          />
+          <Toggle
+            checked={canReport}
+            onChange={setCanReport}
+            disabled={!editable}
+            label="Permitir enviar novedades (falta algo, llegó mal, retraso)"
+          />
+        </div>
       </Section>
       <SaveBar busy={form.busy} editable={editable} error={form.error} />
     </form>
