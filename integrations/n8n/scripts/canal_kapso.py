@@ -11,9 +11,8 @@ Genera los dos flujos del adaptador de canal con Kapso (diseño: diseno/adaptado
 Los flujos se escriben en flows/staging/. Se pueden regenerar: este script es la fuente de los
 dos archivos (cambia el script, no el JSON).
 
-PR A: «Entrada» termina con una respuesta de identidad de prueba («Soy el agente de pedidos del
-restaurante X…») para probar el canal de punta a punta. El PR B sustituye esa respuesta por el
-Director.
+«Entrada» entrega el MensajeEntrante a «[Agente] Director» (scripts/agente_director.py) y envía
+su respuesta con «[Canal] Enviar mensaje».
 
 Uso:  python3 integrations/n8n/scripts/canal_kapso.py
 """
@@ -28,6 +27,9 @@ ID_ENTRADA = "CnEntradaKapso01"
 ID_ENVIAR = "CnEnviarMensaje1"
 NOMBRE_ENTRADA = "[Canal] Entrada Kapso"
 NOMBRE_ENVIAR = "[Canal] Enviar mensaje"
+# Agente (scripts/agente_director.py): recibe el MensajeEntrante y devuelve qué enviar.
+ID_DIRECTOR = "AgDirector000001"
+NOMBRE_DIRECTOR = "[Agente] Director"
 
 CRED_POSTGRES = {"postgres": {"name": "staging_postgres"}}
 CRED_KAPSO = {"kapsoApi": {"name": "staging_kapso"}}
@@ -99,6 +101,16 @@ def si_booleano(nombre, expresion, posicion):
         },
         posicion,
     )
+
+
+def ref_flujo(ident, nombre):
+    return {
+        "__rl": True,
+        "value": ident,
+        "mode": "list",
+        "cachedResultUrl": f"/workflow/{ident}",
+        "cachedResultName": nombre,
+    }
 
 
 def conexiones(*aristas):
@@ -313,18 +325,8 @@ return {
 };
 """
 
-JS_RESPUESTA_PRUEBA = r"""// PR A: respuesta de identidad para probar el canal. El PR B la sustituye por el Director.
-const m = $('MensajeEntrante').item.json;
-const recibido = (m.texto || '(sin texto)').slice(0, 200);
-return {
-  json: {
-    restaurante_id: m.restaurante_id,
-    canal_id: m.canal_id,
-    destinatario: m.cliente.telefono,
-    tipo: 'texto',
-    texto: `Soy el agente de pedidos del restaurante ${m.restaurante_nombre}. Recibí tu mensaje: «${recibido}». (Prueba del canal: el agente completo se conecta en el siguiente paso.)`,
-  },
-};
+JS_PARA_DIRECTOR = r"""// El Director recibe el MensajeEntrante (no la salida de «Marcar leído»).
+return { json: $('MensajeEntrante').item.json };
 """
 
 
@@ -379,7 +381,14 @@ def flujo_entrada():
             CRED_KAPSO,
             onError="continueRegularOutput",
         ),
-        codigo("Respuesta de prueba", JS_RESPUESTA_PRUEBA, (2880, 160), por_item=True),
+        codigo("Para el Director", JS_PARA_DIRECTOR, (2880, 160), por_item=True),
+        nodo(
+            "Director",
+            "n8n-nodes-base.executeWorkflow",
+            1.3,
+            {"workflowId": ref_flujo(ID_DIRECTOR, NOMBRE_DIRECTOR), "options": {}},
+            (3120, 160),
+        ),
         nodo(
             "Enviar mensaje",
             "n8n-nodes-base.executeWorkflow",
@@ -394,7 +403,7 @@ def flujo_entrada():
                 },
                 "options": {},
             },
-            (3120, 160),
+            (3360, 160),
         ),
     ]
     aristas = [
@@ -410,8 +419,9 @@ def flujo_entrada():
         ("Registrar entrante", "¿Conversación sin pausa?"),
         ("¿Conversación sin pausa?", "MensajeEntrante", 0),
         ("MensajeEntrante", "Marcar leído"),
-        ("Marcar leído", "Respuesta de prueba"),
-        ("Respuesta de prueba", "Enviar mensaje"),
+        ("Marcar leído", "Para el Director"),
+        ("Para el Director", "Director"),
+        ("Director", "Enviar mensaje"),
     ]
     return flujo(ID_ENTRADA, NOMBRE_ENTRADA, nodos, aristas)
 

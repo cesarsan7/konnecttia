@@ -160,6 +160,35 @@ Diseño: [`../../diseno/adaptador-canal-kapso.md`](../../diseno/adaptador-canal-
 5. Escribir al número: el flujo responde «Soy el agente de pedidos del restaurante …» (respuesta de
    prueba del canal; el Director se conecta en el siguiente PR).
 
+## 5b. Agente de pedidos sobre la API (`[Agente] Director`)
+
+Diseño: [`../../diseno/agente-carta-real.md`](../../diseno/agente-carta-real.md). Flujos `[Agente] Director`
+y `[Agente] Llamar API` (generados por `scripts/agente_director.py`). «[Canal] Entrada Kapso» le pasa el
+MensajeEntrante al Director y envía su respuesta. Toda la lógica (carta, agotados, carrito, despacho,
+mínimo, formas de pago, pedido) está en la API (`/agente/canales/:canalId/…`); n8n solo conversa.
+
+1. En la API (EasyPanel, `konnecttia-api`): variable `AGENTE_API_SECRET` (hecho el 14/11).
+2. En n8n: credencial «Header Auth» `staging_agente_api` (cabecera `X-Agente-Secreto`, mismo valor) y
+   `staging_openai` (OpenAI).
+3. En `.env.staging`: `API_KONNECTTIA_URL=http://staging_konnecttia-api:3001` y los ids
+   `CRED_staging_agente_api`, `CRED_staging_openai`, `CRED_staging_postgres`, `CRED_staging_kapso`.
+4. Publicar en dos pasos. n8n no deja guardar un flujo activo («[Canal] Entrada Kapso») que llama a
+   subflujos sin publicar: primero se publican y activan los del agente («Llamar API» antes que el
+   Director, que la llama) y después la entrada.
+
+   ```bash
+   python3 integrations/n8n/scripts/publicar.py "[Agente] Llamar API" "[Agente] Director" --activar "[Agente] Llamar API" "[Agente] Director"
+   python3 integrations/n8n/scripts/publicar.py "[Canal] Entrada Kapso" "[Canal] Enviar mensaje"
+   ```
+
+   Para cambios posteriores del agente basta el primer comando.
+5. Datos del restaurante de prueba (Siempre Juntos, id 1): módulos `whatsapp.channel` y `whatsapp.agent`,
+   `agente_activo = true`, canal en `canal_whatsapp` y `cart_expiry_minutes = 30`.
+
+Los flujos `[MVP] Pizzeria`, Apertura, Despacho, Pago, Preguntas, ConsultarMenu, Contexto, Perfil Cliente y
+Pedidos Cliente quedan sin uso con Kapso (dependen de Chatwoot y de `pedidos` en curso); se retiran
+cuando B3 pase al adaptador Notificación, Cron y Derivar Humano.
+
 ## 6. Despacho v2: cotización con la API de Konnecttia
 
 Generado con `scripts/despacho_v2.py` (el script explica cada cambio; la v1 queda en el

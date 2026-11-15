@@ -89,13 +89,15 @@ un solo camino para crear pedidos.
 
 ## 6. Orden de construcción
 
-| PR   | Contenido                                                                                                                                                              | Base   |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| B2.1 | Este diseño; migración 0039 (trigger de memoria, `agente_pausa_derivar_minutos`); `/agente` con autenticación, `contexto` y `carta`; `searchMenu` en `packages/domain` | `main` |
-| B2.2 | Migración `agente_carrito`; `carrito`, `despacho` y `confirmar`                                                                                                        | B2.1   |
-| B1   | Director sin Chatwoot ni Redis, conectado al adaptador; «Construir identidad»                                                                                          | B2.2   |
-| B2.3 | Flujos finos contra `/agente` (Carta, Carrito, Despacho, Confirmar, Preguntas)                                                                                         | B1     |
-| B2.4 | Prompt nuevo, memoria `{restaurante_id}:{telefono}`, botones desde las herramientas, derivar con pausa                                                                 | B2.3   |
+| PR        | Contenido                                                                                                                                                                                                                                                                | Base      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| B2.1      | Este diseño; migración 0039 (trigger de memoria, `agente_pausa_derivar_minutos`); `/agente` con autenticación, `contexto` y `carta`; `searchMenu` en `packages/domain`                                                                                                   | `main`    |
+| B2.2      | Migración `agente_carrito`; `carrito`, `despacho` y `confirmar`                                                                                                                                                                                                          | B2.1      |
+| B1 + B2.3 | `[Agente] Director` nuevo (sin Chatwoot ni Redis, sin `restaurante_id` fijos) conectado al adaptador: «Construir identidad» desde `/agente/contexto`, memoria `{restaurante_id}:{telefono}`, herramientas carta, carrito, despacho y confirmar por `[Agente] Llamar API` | `main`    |
+| B2.4      | Derivar a una persona con pausa (`/agente/…/derivar`), preguntas frecuentes, botones y listas desde las herramientas                                                                                                                                                     | B1 + B2.3 |
+
+B1 y B2.3 van juntos (decisión del 14/11): el Director de 69 nodos y sus subflujos dependen de Chatwoot
+y de `pedidos` en curso y se habrían sustituido enteros en B2.3, así que se construye un Director nuevo.
 
 Riesgo: medio-alto (sustituye la toma de pedidos del agente), solo en staging; la demo de La Isla
 no se toca. MVP: todo, salvo el aviso de los 25 minutos del carrito del agente.

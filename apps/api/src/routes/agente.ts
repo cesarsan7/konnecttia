@@ -448,10 +448,14 @@ export function agenteRoutes(deps: AppDeps) {
       switch (operation.op) {
         case CART_OP.Add: {
           const item = catalog.get(operation.menu_item_id);
-          if (!item) return reject(CART_PENDING.ProductNotFound);
+          if (!item) {
+            reject(CART_PENDING.ProductNotFound);
+            return;
+          }
           const producto = item.name;
           if (!item.active || hidden.has(item.id)) {
-            return reject(CART_PENDING.ProductUnavailable, { producto });
+            reject(CART_PENDING.ProductUnavailable, { producto });
+            return;
           }
           const variants = activeVariants(item);
           const opciones = variants.map((variant) => ({
@@ -462,13 +466,18 @@ export function agenteRoutes(deps: AppDeps) {
           let variantId = operation.menu_variant_id;
           if (variantId === undefined) {
             if (variants.length !== 1) {
-              return reject(CART_PENDING.ChooseVariant, { producto, opciones });
+              reject(CART_PENDING.ChooseVariant, { producto, opciones });
+              return;
             }
             variantId = variants[0]?.id;
           } else if (!variants.some((variant) => variant.id === variantId)) {
-            return reject(CART_PENDING.InvalidVariant, { producto, opciones });
+            reject(CART_PENDING.InvalidVariant, { producto, opciones });
+            return;
           }
-          if (variantId === undefined) return reject(CART_PENDING.ProductUnavailable, { producto });
+          if (variantId === undefined) {
+            reject(CART_PENDING.ProductUnavailable, { producto });
+            return;
+          }
           const line: CartLine = {
             menu_item_id: item.id,
             menu_variant_id: variantId,
@@ -481,7 +490,8 @@ export function agenteRoutes(deps: AppDeps) {
           };
           const errors = lineErrors(catalog, line);
           if (errors.length > 0) {
-            return reject(errors[0]?.code ?? CART_PENDING.ProductUnavailable, { producto });
+            reject(errors[0]?.code ?? CART_PENDING.ProductUnavailable, { producto });
+            return;
           }
           const same = lines.findIndex((existing) => sameLine(existing, line));
           const current = lines[same];
@@ -489,27 +499,39 @@ export function agenteRoutes(deps: AppDeps) {
             const cantidad = Math.min(current.cantidad + line.cantidad, CART_MAX_QUANTITY);
             lines[same] = { ...current, cantidad };
           } else {
-            if (lines.length >= CART_MAX_LINES) return reject(CART_PENDING.TooManyLines);
+            if (lines.length >= CART_MAX_LINES) {
+              reject(CART_PENDING.TooManyLines);
+              return;
+            }
             lines.push(line);
           }
           changed = true;
           return;
         }
         case CART_OP.Remove:
-          if (!exists(operation.linea)) return reject(CART_PENDING.LineNotFound);
+          if (!exists(operation.linea)) {
+            reject(CART_PENDING.LineNotFound);
+            return;
+          }
           removals.add(operation.linea - 1);
           changed = true;
           return;
         case CART_OP.Quantity: {
           const current = lines[operation.linea - 1];
-          if (!current) return reject(CART_PENDING.LineNotFound);
+          if (!current) {
+            reject(CART_PENDING.LineNotFound);
+            return;
+          }
           lines[operation.linea - 1] = { ...current, cantidad: operation.cantidad };
           changed = true;
           return;
         }
         case CART_OP.Note: {
           const current = lines[operation.linea - 1];
-          if (!current) return reject(CART_PENDING.LineNotFound);
+          if (!current) {
+            reject(CART_PENDING.LineNotFound);
+            return;
+          }
           lines[operation.linea - 1] = { ...current, nota: operation.nota || null };
           changed = true;
           return;
