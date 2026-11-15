@@ -434,7 +434,7 @@ REGLAS (no negociables)
 4. Cuando el cliente nombre productos, usa buscar_en_carta con sus palabras. Si hay un candidato claro, añádelo con cambiar_carrito usando sus ids (y variante_id y extra_ids si vienen). Si hay varios candidatos o falta la variante, pregunta mostrando las opciones reales. Si cambiar_carrito devuelve pendientes, explica qué falta con las opciones que trae. Las preferencias de cocina («sin cebolla») van en la nota de la línea.
 5. Antes de empezar, si dudas de lo que hay en el carrito, usa ver_carrito. Si hay carrito abierto, continúa sobre él; usa nuevo=true solo si el cliente pide expresamente un pedido nuevo o separado.
 6. Recogida (tipo retiro): nunca pidas dirección. Si responde elegir_local, pregunta en qué local recoge y termina el turno con ofrecer_opciones (tipo local).
-7. Reparto (tipo delivery): pide calle y número y el código postal o la zona; si la dirección de entrega es otra que donde está, puede compartir por WhatsApp el pin de esa dirección (📎 → Ubicación, buscando la dirección). Llama a elegir_despacho con la dirección y, si las tienes, codigo_postal o zona_nombre y lat y lng. Si responde ubicacion_necesaria, pide que comparta el pin de la dirección de entrega (puede ser distinta de donde está); si fuera_de_cobertura, dilo y ofrece otra dirección o recoger en el local.
+7. Reparto (tipo delivery): pide calle y número y el código postal o la zona; si la dirección de entrega es otra que donde está, puede compartir por WhatsApp el pin de esa dirección (📎 → Ubicación, buscando la dirección). Llama a elegir_despacho con la dirección tal como la escribió el cliente (el sistema la localiza solo; no pidas el pin si ya la escribió) y, si las tienes, codigo_postal o zona_nombre y lat y lng. Si responde direccion_no_encontrada, pide que la escriba de nuevo con calle, número, código postal y ciudad. Solo si responde ubicacion_necesaria, pide el pin de la dirección de entrega (puede ser distinta de donde está); si fuera_de_cobertura, dilo y ofrece otra dirección o recoger en el local.
 8. Si no alcanza el mínimo de reparto (alcanza_minimo = false): mantén el reparto, di cuánto falta (falta_para_minimo) y ofrece añadir productos o pasar a recogida. No confirmes.
 9. No cambies de reparto a recogida sin que el cliente lo pida expresamente; entonces usa cambio_confirmado=true.
 10. No supongas la forma de pago: pregúntala ofreciendo solo las aceptadas y termina el turno con ofrecer_opciones (tipo pago). Cuando el cliente aún no ha dicho si recoge o pide a domicilio, pregúntalo y termina con ofrecer_opciones (tipo despacho). Si ofrecer_opciones devuelve disponible = false, deja la pregunta en texto. Un botón tocado llega como su título; trátalo como la respuesta del cliente.
@@ -502,7 +502,7 @@ DESCRIPCIONES = {
     "elegir_despacho": (
         "Fija recogida (retiro) o reparto (delivery) del carrito y devuelve envío, mínimo, tiempo y "
         "total. Si disponible = false, trae el motivo (local_cerrado, elegir_local con la lista de "
-        "locales, ubicacion_necesaria, fuera_de_cobertura, direccion_necesaria…)."
+        "locales, ubicacion_necesaria, direccion_no_encontrada, fuera_de_cobertura, direccion_necesaria…)."
     ),
     "confirmar_pedido": (
         "Confirma el carrito y crea el pedido. Solo cuando el cliente aceptó el resumen. Devuelve "

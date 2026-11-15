@@ -92,6 +92,7 @@ export const CART_REJECT = {
   FulfillmentRequired: "falta_despacho",
   PickupNeedsConfirmation: "cambio_a_recogida_sin_confirmar",
   AddressRequired: "direccion_necesaria",
+  AddressNotFound: "direccion_no_encontrada",
   LinesUnavailable: "lineas_no_disponibles",
   MinimumNotMet: "minimo_no_alcanzado",
 } as const;
@@ -610,10 +611,29 @@ export function agenteRoutes(deps: AppDeps) {
           : API_ERROR.PickupNotAvailable,
       );
     }
-    const point =
+    let point =
       body.lat !== undefined && body.lng !== undefined ? { lat: body.lat, lng: body.lng } : null;
     if (body.tipo === FULFILLMENT.Delivery && !body.direccion) {
       return unavailable(CART_REJECT.AddressRequired);
+    }
+    // Reparto con dirección escrita y sin pin: se convierte en coordenadas para validar la zona.
+    if (body.tipo === FULFILLMENT.Delivery && body.direccion && !point && deps.geocoder) {
+      const [country] = await deps.sql<{ pais_code: string | null }[]>`
+        SELECT pais_code FROM public.restaurante WHERE id = ${restaurant.id}
+      `;
+      const near =
+        ctx.branches.find((branch) => branch.active && branch.location)?.location ?? null;
+      try {
+        const found = await deps.geocoder({
+          address: body.direccion,
+          countryCode: country?.pais_code ?? null,
+          near,
+        });
+        if (!found) return unavailable(CART_REJECT.AddressNotFound);
+        point = found.point;
+      } catch {
+        // El servicio no responde: se sigue como antes y, si hace falta, se pide el pin.
+      }
     }
     // Recogida: el local pedido, el que nombra el cliente o el del número de WhatsApp.
     const branchId =

@@ -5,6 +5,7 @@ import type { ImageStorage, ProofStorage } from "./context";
 import { createAuthAdmin } from "./lib/auth-admin";
 import { createSql } from "./lib/db";
 import { loadEnv } from "./lib/env";
+import { createNominatimGeocoder } from "./lib/geocoding";
 import { createResendMailer } from "./lib/mailer";
 import { runMigrations } from "./lib/migrate";
 import { createPushSender } from "./lib/push";
@@ -163,6 +164,9 @@ const app = createApp({
   stripe: env.STRIPE_SECRET_KEY ? createStripeClient(env.STRIPE_SECRET_KEY) : null,
   stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ?? null,
   agentSecret: env.AGENTE_API_SECRET ?? null,
+  geocoder: env.GEOCODING_URL
+    ? createNominatimGeocoder({ baseUrl: env.GEOCODING_URL, userAgent: env.GEOCODING_USER_AGENT })
+    : null,
   stripePrices: {
     ...(env.STRIPE_PRICE_BASICO ? { basico: env.STRIPE_PRICE_BASICO } : {}),
     ...(env.STRIPE_PRICE_PREMIUM ? { premium: env.STRIPE_PRICE_PREMIUM } : {}),
