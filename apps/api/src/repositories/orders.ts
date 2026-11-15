@@ -274,6 +274,8 @@ export type TrackedOrder = {
   /** Justificantes ya subidos y si el cliente aún puede subir otro. */
   readonly justificantes: number;
   readonly aceptaJustificante: boolean;
+  /** Cada cambio de estado tras la llegada del pedido y cuándo, en orden (para los tiempos). La llegada es `createdAt`. */
+  readonly historial: readonly { readonly estado: string; readonly desde: string }[];
   readonly createdAt: string;
   readonly updatedAt: string | null;
 };
@@ -313,6 +315,7 @@ export async function findOrderByTrackingToken(
 ): Promise<TrackedOrder | null> {
   const rows = await sql<
     {
+      id: number;
       pedido_codigo: string | null;
       restaurante: string;
       local_nombre: string | null;
@@ -338,7 +341,7 @@ export async function findOrderByTrackingToken(
       updated_at: string | null;
     }[]
   >`
-    SELECT p.pedido_codigo, r.nombre AS restaurante, p.estado, p.estado_pago, p.tipo_despacho,
+    SELECT p.id, p.pedido_codigo, r.nombre AS restaurante, p.estado, p.estado_pago, p.tipo_despacho,
            p.tiempo_estimado, p.items, p.subtotal, p.costo_envio, p.total, p.metodo_pago,
            r.datos_bancarios, p.created_at, p.updated_at, p.email_cliente,
            r.brand_color, r.logo_url,
@@ -359,6 +362,12 @@ export async function findOrderByTrackingToken(
   `;
   const row = rows[0];
   if (!row) return null;
+  const log = await sql<{ estado: string; desde: string }[]>`
+    SELECT estado_nuevo AS estado, created_at AS desde
+    FROM   public.pedido_estado_log
+    WHERE  pedido_id = ${row.id}
+    ORDER  BY created_at, id
+  `;
   const payable = acceptsProof({
     estado: row.estado,
     estado_pago: row.estado_pago,
@@ -394,6 +403,7 @@ export async function findOrderByTrackingToken(
     datosBancarios: payable ? paymentInstructions(row.metodo_pago, row.datos_bancarios) : null,
     justificantes: row.justificantes,
     aceptaJustificante: payable && row.justificantes < maxProofs,
+    historial: log.map((entry) => ({ estado: entry.estado, desde: entry.desde })),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

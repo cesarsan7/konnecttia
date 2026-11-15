@@ -6,7 +6,7 @@ import { brandStyle, publicLogo } from "@/lib/brand";
 import { ORDER_STATUS_LABEL, paymentLabel, trackingSteps } from "@/lib/checkout";
 import { euros } from "@/lib/format";
 import { needsPaymentInfo } from "@/lib/payment-proof";
-import { copyText, isClosed } from "@/lib/tracking";
+import { copyText, formatMinutes, isClosed, minutesBetween, stepTimes } from "@/lib/tracking";
 import type { TrackedOrder } from "@/lib/types";
 import { CancelOrder } from "./CancelOrder";
 import { EmailAvisos } from "./EmailAvisos";
@@ -99,6 +99,31 @@ function KeepOpenNotice() {
   );
 }
 
+/**
+ * Contador desde que llegó el pedido: se actualiza cada 30 s mientras está abierto; al cerrarse
+ * muestra el tiempo total (hasta el último estado).
+ */
+function ElapsedTime({ order }: { readonly order: TrackedOrder }) {
+  const [now, setNow] = useState(() => Date.now());
+  const closed = isClosed(order.estado);
+  useEffect(() => {
+    if (closed) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [closed]);
+
+  if (order.estado === "cancelado" || order.estado === "expirado") return null;
+  const last = order.historial?.at(-1)?.desde ?? order.updatedAt ?? order.createdAt;
+  const minutes = minutesBetween(order.createdAt, closed ? last : now);
+  return (
+    <p className="track-elapsed" aria-live="off">
+      {closed
+        ? `Tiempo total del pedido: ${formatMinutes(minutes)}`
+        : `Tu pedido llegó hace ${formatMinutes(minutes)}`}
+    </p>
+  );
+}
+
 /** Estado del pedido, actualizado cada 15 s mientras no termine. */
 export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
   const api = useMemo(() => createApi(apiUrl), [apiUrl]);
@@ -122,6 +147,7 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
   );
   const logo = publicLogo(order.logoUrl);
   const cancelled = order.estado === "cancelado" || order.estado === "expirado";
+  const times = stepTimes(steps, order.historial ?? [], order.createdAt);
 
   return (
     <main className="shell" style={brandStyle(order.colorMarca)}>
@@ -144,6 +170,8 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
         </p>
       </header>
 
+      <ElapsedTime order={order} />
+
       {!isClosed(order.estado) && <KeepOpenNotice />}
 
       {!cancelled && (
@@ -155,6 +183,14 @@ export function Tracking({ apiUrl, slug, token, initialOrder }: Props) {
               aria-current={index === current ? "step" : undefined}
             >
               {ORDER_STATUS_LABEL[step]}
+              {times[index] && index > 0 && (
+                <span className="step-time">
+                  {" "}
+                  · a los {formatMinutes(times[index].desdeLlegada)}
+                  {times[index].desdeAnterior !== null &&
+                    ` (+${formatMinutes(times[index].desdeAnterior)})`}
+                </span>
+              )}
             </li>
           ))}
         </ol>

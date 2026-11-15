@@ -570,6 +570,12 @@ a {
   font-weight: 600;
 }
 
+.steps .step-time {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
 .steps li.done::before {
   background: var(--ok);
   border-color: var(--ok);
