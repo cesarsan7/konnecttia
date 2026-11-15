@@ -126,13 +126,21 @@ describe.skipIf(!TEST_DATABASE_URL)("reparto con dirección escrita (/agente)", 
 
   it("dirección no encontrada: pide más datos", async () => {
     answer = "nada";
-    const { json } = await setDelivery("zzz 999");
+    const { json } = await setDelivery("zzz 999, 99999 Nowhere");
     expect(json).toMatchObject({ disponible: false, motivo: "direccion_no_encontrada" });
+  });
+
+  it("sin código postal ni zona (y sin pin) no se acepta, aunque haya dirección", async () => {
+    answer = "dentro";
+    const before = asked.length;
+    const { json } = await setDelivery("Calle La Rosa 33, Arrecife");
+    expect(json).toMatchObject({ disponible: false, motivo: "falta_codigo_postal_o_zona" });
+    expect(asked).toHaveLength(before);
   });
 
   it("si el servicio no responde, sigue pidiendo la ubicación como antes", async () => {
     answer = "caido";
-    const { json } = await setDelivery("Calle La Rosa 33");
+    const { json } = await setDelivery("Calle La Rosa 33, 35500 Arrecife");
     expect(json).toMatchObject({ disponible: false, motivo: "ubicacion_necesaria" });
   });
 

@@ -9,6 +9,7 @@ export const OPTION_KIND = {
   Fulfillment: "despacho",
   Branch: "local",
   Payment: "pago",
+  Address: "direccion",
 } as const;
 
 export type OptionKind = (typeof OPTION_KIND)[keyof typeof OPTION_KIND];
@@ -18,6 +19,7 @@ export const OPTION_ID_PREFIX: Readonly<Record<OptionKind, string>> = {
   [OPTION_KIND.Fulfillment]: "despacho:",
   [OPTION_KIND.Branch]: "local:",
   [OPTION_KIND.Payment]: "pago:",
+  [OPTION_KIND.Address]: "direccion:",
 };
 
 const BUTTON_TITLE_MAX = 20;
@@ -121,4 +123,19 @@ export function paymentOptions(methods: readonly string[]): OptionsView {
     titulo: clip(PAYMENT_TITLE[method] ?? method, BUTTON_TITLE_MAX),
   }));
   return { tipo: OPTION_KIND.Payment, disponible: true, botones };
+}
+
+/**
+ * Cómo da el cliente la dirección de reparto: escribirla o enviar un pin de WhatsApp. Siempre hay
+ * dos botones; el agente explica después el formato de la dirección o cómo enviar el pin.
+ */
+export function addressOptions(): OptionsView {
+  return {
+    tipo: OPTION_KIND.Address,
+    disponible: true,
+    botones: [
+      { id: `${OPTION_ID_PREFIX.direccion}escribir`, titulo: "Escribir dirección" },
+      { id: `${OPTION_ID_PREFIX.direccion}ubicacion`, titulo: "Enviar ubicación" },
+    ],
+  };
 }

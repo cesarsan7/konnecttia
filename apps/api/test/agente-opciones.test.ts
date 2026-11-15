@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AGENT_SECRET_HEADER } from "../src/middleware/agent";
 import {
+  addressOptions,
   branchOptions,
   fulfillmentOptions,
   paymentOptions,
@@ -10,6 +11,15 @@ import { setupTestApp, TEST_DATABASE_URL, type TestContext } from "./harness";
 const SECRET = "secreto-de-pruebas-del-agente-0123456789";
 
 describe("opciones de WhatsApp (puras)", () => {
+  it("dirección: dos botones que caben en WhatsApp (título ≤ 20)", () => {
+    const view = addressOptions();
+    expect("botones" in view && view.botones.map((b) => b.id)).toEqual([
+      "direccion:escribir",
+      "direccion:ubicacion",
+    ]);
+    expect("botones" in view && view.botones.every((b) => b.titulo.length <= 20)).toBe(true);
+  });
+
   it("despacho: dos botones solo si se ofrecen recoger y reparto", () => {
     const both = fulfillmentOptions({ pickupEnabled: true, deliveryEnabled: true });
     expect(both).toMatchObject({ disponible: true });
@@ -108,6 +118,15 @@ describe.skipIf(!TEST_DATABASE_URL)("GET /agente/canales/:id/opciones", () => {
     ]);
     const b = await get(canal.b, "?tipo=pago");
     expect(b.json).toMatchObject({ disponible: false, motivo: "una_sola_opcion" });
+  });
+
+  it("dirección: escribirla o enviar la ubicación", async () => {
+    const { status, json } = await get(canal.a, "?tipo=direccion");
+    expect(status).toBe(200);
+    expect(json.botones.map((b: { id: string }) => b.id)).toEqual([
+      "direccion:escribir",
+      "direccion:ubicacion",
+    ]);
   });
 
   it("local con un único local abierto: no hay nada que elegir", async () => {
