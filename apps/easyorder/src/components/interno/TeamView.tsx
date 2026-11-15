@@ -48,6 +48,7 @@ export function TeamView() {
   const [rol, setRol] = useState<Rol>("soporte");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [recent, setRecent] = useState(false);
 
   const load = useCallback(async () => {
     const result = await api.team();
@@ -55,10 +56,10 @@ export function TeamView() {
     setFailed(false);
     setTeam(result.data);
     if (canWrite && result.data.busqueda_por_email) {
-      const accounts = await api.unusedAccounts();
+      const accounts = await api.unusedAccounts(recent);
       if (accounts.ok) setOrphans(accounts.data);
     }
-  }, [api, canWrite]);
+  }, [api, canWrite, recent]);
 
   useEffect(() => {
     void load();
@@ -202,9 +203,18 @@ export function TeamView() {
           <h2 className="k-title">Cuentas sin uso</h2>
           <p className="k-muted k-small">
             Cuentas de Supabase que no están en ningún restaurante, ni en el equipo, ni tienen
-            invitación pendiente (con más de {orphans.dias_minimos} días). Borrarlas es opcional y
-            definitivo.
+            invitación pendiente
+            {orphans.dias_minimos > 0 ? ` (con más de ${orphans.dias_minimos} días)` : ""}.
+            Borrarlas es opcional y definitivo.
           </p>
+          <label className="k-roles-option">
+            <input
+              type="checkbox"
+              checked={recent}
+              onChange={(event) => setRecent(event.target.checked)}
+            />{" "}
+            Incluir cuentas recientes (útil para limpiar pruebas)
+          </label>
           {orphans.cuentas.length === 0 ? (
             <p className="k-muted">No hay cuentas sin uso.</p>
           ) : (

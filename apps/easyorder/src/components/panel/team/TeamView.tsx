@@ -613,7 +613,10 @@ function MemberDialog(props: {
           {editable ? (
             confirm ? (
               <span className="k-confirm">
-                <span className="k-small">Dejará de entrar al panel.</span>
+                <span className="k-small">
+                  Dejará de entrar a este restaurante. Si no está en otro, su cuenta queda sin uso y
+                  Konnecttia puede borrarla.
+                </span>
                 <button
                   type="button"
                   className="k-btn k-btn-sm k-btn-danger"
@@ -636,7 +639,7 @@ function MemberDialog(props: {
                 className="k-link k-link-danger"
                 onClick={() => setConfirm(true)}
               >
-                Quitar acceso
+                Eliminar del equipo
               </button>
             )
           ) : (

@@ -128,9 +128,10 @@ export function registerPlatformTeamRoutes(app: Hono<AppEnv>, deps: AppDeps) {
     if (!deps.authAdmin) {
       return fail(c, 503, API_ERROR.ServiceUnavailable, { reason: "no_auth_admin" });
     }
-    const orphans = await listOrphans(sql, deps.authAdmin, deps.now());
+    const recientes = c.req.query("recientes") === "1";
+    const orphans = await listOrphans(sql, deps.authAdmin, deps.now(), recientes);
     return c.json({
-      dias_minimos: ORPHAN_MIN_AGE_DAYS,
+      dias_minimos: recientes ? 0 : ORPHAN_MIN_AGE_DAYS,
       cuentas: orphans.map((account) => ({
         user_id: account.id,
         email: account.email,

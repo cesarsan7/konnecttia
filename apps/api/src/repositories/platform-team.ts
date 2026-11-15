@@ -47,13 +47,17 @@ export async function isOrphan(sql: Sql, account: AuthAccount): Promise<boolean>
   return !(row?.used ?? true);
 }
 
-/** Cuentas de Supabase sin ningún uso y con más de `ORPHAN_MIN_AGE_DAYS` días. */
+/**
+ * Cuentas de Supabase sin ningún uso y con más de `ORPHAN_MIN_AGE_DAYS` días (o todas, con
+ * `includeRecent`, para limpiar cuentas de prueba al momento; sigue exigiendo que no tengan uso).
+ */
 export async function listOrphans(
   sql: Sql,
   authAdmin: AuthAdmin,
   now: Date,
+  includeRecent = false,
 ): Promise<AuthAccount[]> {
-  const limit = now.getTime() - ORPHAN_MIN_AGE_DAYS * 86_400_000;
+  const limit = includeRecent ? now.getTime() : now.getTime() - ORPHAN_MIN_AGE_DAYS * 86_400_000;
   const accounts = (await authAdmin.listAccounts()).filter(
     (account) => Date.parse(account.createdAt) <= limit,
   );
