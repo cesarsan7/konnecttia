@@ -130,6 +130,10 @@ export type TrackedOrder = {
   readonly emailEditable?: boolean;
   /** El local aún no aceptó el pedido: el cliente puede cancelarlo (pieza O). */
   readonly puedeCancelar?: boolean;
+  /** El restaurante permite cancelar desde el seguimiento; si es false, no se ofrece nada. */
+  readonly permiteCancelar?: boolean;
+  /** El restaurante permite enviar novedades desde el seguimiento. */
+  readonly permiteReportar?: boolean;
   /** Se puede abrir una incidencia (pieza P) y cuántas hay abiertas. */
   readonly puedeReportar?: boolean;
   readonly incidenciasAbiertas?: number;

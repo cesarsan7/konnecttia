@@ -65,6 +65,10 @@ export const CONFIG_KEY = {
   TableStayAlert: "mesa_aviso_estancia_minutos",
   /** Justificantes de pago que el cliente puede subir por pedido. */
   ProofsMaxPerOrder: "justificantes_max_por_pedido",
+  /** El cliente puede cancelar su pedido desde el seguimiento (true/false). Sin clave: sí. */
+  ClientCancelOrders: "pedido_cancelacion_cliente",
+  /** El cliente puede enviar novedades (incidencias) desde el seguimiento (true/false). Sin clave: sí. */
+  ClientReportIssues: "pedido_novedades_cliente",
   /** Foto de entrega del repartidor: no | opcional | obligatoria. Sin clave: no. */
   DeliveryPhoto: "reparto_foto_entrega",
   /** Avisos por email (worker, migración 0025): al local con cada pedido nuevo. */

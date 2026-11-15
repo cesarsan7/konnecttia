@@ -295,6 +295,8 @@ export function publicRoutes(deps: AppDeps) {
     if (!UUID_PATTERN.test(token)) return fail(c, 404, API_ERROR.OrderNotFound);
     const result = await cancelTrackedOrder(deps.sql, token);
     if (result === "not_found") return fail(c, 404, API_ERROR.OrderNotFound);
+    if (result === "disabled")
+      return fail(c, 403, API_ERROR.Forbidden, { reason: "disabled_by_restaurant" });
     if (result === "not_cancellable") {
       return fail(c, 409, API_ERROR.InvalidTransition, { reason: "already_accepted" });
     }
@@ -322,6 +324,8 @@ export function publicRoutes(deps: AppDeps) {
     }
     const result = await reportIncident(deps.sql, token, parsed.data);
     if (result === "not_found") return fail(c, 404, API_ERROR.OrderNotFound);
+    if (result === "disabled")
+      return fail(c, 403, API_ERROR.Forbidden, { reason: "disabled_by_restaurant" });
     if (result === "not_allowed") {
       return fail(c, 409, API_ERROR.InvalidTransition, { reason: "order_not_reportable" });
     }

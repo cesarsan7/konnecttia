@@ -57,6 +57,10 @@ export type RestaurantSettings = {
   readonly avisos_local_activo: boolean;
   readonly avisos_local_emails: readonly string[];
   readonly avisos_cliente_activo: boolean;
+  /** El cliente puede cancelar su pedido desde el seguimiento. */
+  readonly seguimiento_cancelar: boolean;
+  /** El cliente puede enviar novedades desde el seguimiento. */
+  readonly seguimiento_novedades: boolean;
   readonly avisos_cliente_estados: readonly string[];
   readonly antifraude_abiertos: number | null;
   readonly antifraude_por_hora: number | null;

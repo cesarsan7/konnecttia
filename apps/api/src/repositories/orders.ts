@@ -11,6 +11,7 @@ import {
 } from "@konnecttia/domain";
 import { emailPayload, maskEmail } from "../lib/customer-email";
 import { centsToEuros, eurosToCents, type Sql, UNIQUE_VIOLATION } from "../lib/db";
+import { clientActionAllowed } from "./client-actions";
 import { acceptsProof, maxProofsPerOrder } from "./payment-proofs";
 import { CONFIG_KEY } from "./restaurants";
 
@@ -248,6 +249,10 @@ export type TrackedOrder = {
   readonly emailEditable: boolean;
   /** El cliente puede cancelar: el local aún no ha aceptado el pedido (`canClientCancel`). */
   readonly puedeCancelar: boolean;
+  /** El restaurante permite cancelar desde el seguimiento (`pedido_cancelacion_cliente`). */
+  readonly permiteCancelar: boolean;
+  /** El restaurante permite enviar novedades desde el seguimiento (`pedido_novedades_cliente`). */
+  readonly permiteReportar: boolean;
   /** Se puede abrir una incidencia (pieza P) y cuántas hay abiertas. */
   readonly puedeReportar: boolean;
   readonly incidenciasAbiertas: number;
@@ -329,6 +334,8 @@ export async function findOrderByTrackingToken(
       datos_bancarios: unknown;
       justificantes: number;
       justificantes_max: string | null;
+      cfg_cancelar: string | null;
+      cfg_reportar: string | null;
       brand_color: string | null;
       logo_url: string | null;
       contacto_telefono: string | null;
@@ -347,6 +354,12 @@ export async function findOrderByTrackingToken(
            (SELECT c.config_value FROM public.restaurante_config c
             WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ProofsMaxPerOrder})
              AS justificantes_max,
+           (SELECT c.config_value FROM public.restaurante_config c
+            WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ClientCancelOrders})
+             AS cfg_cancelar,
+           (SELECT c.config_value FROM public.restaurante_config c
+            WHERE  c.restaurante_id = p.restaurante_id AND c.config_key = ${CONFIG_KEY.ClientReportIssues})
+             AS cfg_reportar,
            r.telefono AS contacto_telefono,
            (SELECT count(*)::int FROM public.pedido_incidencia i
             WHERE  i.pedido_id = p.id AND i.estado = 'abierta') AS incidencias_abiertas,
@@ -372,10 +385,16 @@ export async function findOrderByTrackingToken(
   return {
     emailAvisos: row.email_cliente ? maskEmail(row.email_cliente) : null,
     emailEditable: !FINAL_STATES.has(row.estado),
-    puedeCancelar: canClientCancel({ estado: row.estado, justificantes: row.justificantes }),
+    puedeCancelar:
+      clientActionAllowed(row.cfg_cancelar) &&
+      canClientCancel({ estado: row.estado, justificantes: row.justificantes }),
+    permiteCancelar: clientActionAllowed(row.cfg_cancelar),
+    permiteReportar: clientActionAllowed(row.cfg_reportar),
     contactoTelefono: row.contacto_telefono?.trim() || null,
     puedeReportar:
-      canReportIncident(row.estado) && row.incidencias_abiertas < MAX_OPEN_INCIDENTS_PER_ORDER,
+      clientActionAllowed(row.cfg_reportar) &&
+      canReportIncident(row.estado) &&
+      row.incidencias_abiertas < MAX_OPEN_INCIDENTS_PER_ORDER,
     incidenciasAbiertas: row.incidencias_abiertas,
     pedidoCodigo: row.pedido_codigo,
     restaurante: row.restaurante,
