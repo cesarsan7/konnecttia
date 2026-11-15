@@ -31,6 +31,7 @@ import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { type Sql, UNIQUE_VIOLATION } from "../lib/db";
 import { API_ERROR, fail } from "../lib/http";
+import { isValidReviewUrl, parseReviewUrl, REVIEW_URL_MAX } from "../lib/review-link";
 import {
   isValidPhoneLimit,
   isValidPolicyUrl,
@@ -150,6 +151,8 @@ const restaurantSchema = z
     avisos_local_activo: z.boolean(),
     avisos_local_emails: z.array(z.string().trim().toLowerCase().email().max(254)).max(10),
     avisos_cliente_activo: z.boolean(),
+    /** Enlace de reseñas de Google (Google Maps); vacío = sin botón de reseña. */
+    resena_url: text(REVIEW_URL_MAX).refine(isValidReviewUrl),
     seguimiento_cancelar: z.boolean(),
     seguimiento_novedades: z.boolean(),
     avisos_cliente_estados: z
@@ -488,6 +491,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         avisos_local_activo: config.get(CONFIG_KEY.NoticeLocalActive) === "true",
         avisos_local_emails: noticeEmails(config.get(CONFIG_KEY.NoticeLocalEmails)),
         avisos_cliente_activo: config.get(CONFIG_KEY.NoticeCustomerActive) === "true",
+        resena_url: parseReviewUrl(config.get(CONFIG_KEY.ReviewUrl)),
         seguimiento_cancelar: clientActionAllowed(config.get(CONFIG_KEY.ClientCancelOrders)),
         seguimiento_novedades: clientActionAllowed(config.get(CONFIG_KEY.ClientReportIssues)),
         avisos_cliente_estados: noticeStatuses(config.get(CONFIG_KEY.NoticeCustomerStatuses)),
@@ -703,6 +707,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
               ? [...new Set(body.avisos_local_emails)].join(", ")
               : null,
             "Emails del local para los avisos de pedido nuevo (panel)",
+          ],
+          [
+            "resena_url",
+            CONFIG_KEY.ReviewUrl,
+            body.resena_url === undefined ? null : parseReviewUrl(body.resena_url),
+            "Enlace de reseñas de Google del restaurante (panel)",
           ],
           [
             "seguimiento_cancelar",

@@ -130,6 +130,8 @@ export type TrackedOrder = {
   readonly emailEditable?: boolean;
   /** El local aún no aceptó el pedido: el cliente puede cancelarlo (pieza O). */
   readonly puedeCancelar?: boolean;
+  /** Enlace de reseñas de Google: solo con el pedido entregado y si el local lo configuró. */
+  readonly resenaUrl?: string | null;
   /** El restaurante permite cancelar desde el seguimiento; si es false, no se ofrece nada. */
   readonly permiteCancelar?: boolean;
   /** El restaurante permite enviar novedades desde el seguimiento. */

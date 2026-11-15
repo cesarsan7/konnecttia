@@ -57,6 +57,8 @@ export type RestaurantSettings = {
   readonly avisos_local_activo: boolean;
   readonly avisos_local_emails: readonly string[];
   readonly avisos_cliente_activo: boolean;
+  /** Enlace de reseñas de Google; null = sin botón de reseña. */
+  readonly resena_url: string | null;
   /** El cliente puede cancelar su pedido desde el seguimiento. */
   readonly seguimiento_cancelar: boolean;
   /** El cliente puede enviar novedades desde el seguimiento. */
@@ -168,6 +170,28 @@ export function parsePolicyUrl(text: string): string | null | undefined {
   try {
     const url = new URL(value);
     return url.protocol === "https:" || url.protocol === "http:" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Enlace de reseñas: vacío → null; solo https de Google Maps o reseñas de Google; otra cosa → undefined. */
+export function parseReviewUrl(text: string): string | null | undefined {
+  const value = text.trim();
+  if (!value) return null;
+  if (value.length > 300) return undefined;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const ok =
+      url.protocol === "https:" &&
+      ((["www.google.com", "google.com"].includes(host) && /^\/maps(\/|$)/.test(url.pathname)) ||
+        host === "maps.google.com" ||
+        (host === "search.google.com" && url.pathname.startsWith("/local/")) ||
+        (["maps.app.goo.gl", "g.page"].includes(host) && url.pathname.length > 1) ||
+        (host === "goo.gl" && /^\/maps(\/|$)/.test(url.pathname)) ||
+        (host === "g.co" && url.pathname.startsWith("/kgs/")));
+    return ok ? value : undefined;
   } catch {
     return undefined;
   }
