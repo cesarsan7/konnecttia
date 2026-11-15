@@ -3,6 +3,7 @@ import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
+import { findPostalCode } from "../lib/postal-code";
 import { resolveAgentChannel } from "../middleware/agent";
 import {
   agentPresentation,
@@ -34,6 +35,7 @@ import {
   viewCart,
 } from "../repositories/agent-cart";
 import {
+  addressOptions,
   branchOptions,
   fulfillmentOptions,
   OPTION_KIND,
@@ -93,6 +95,7 @@ export const CART_REJECT = {
   PickupNeedsConfirmation: "cambio_a_recogida_sin_confirmar",
   AddressRequired: "direccion_necesaria",
   AddressNotFound: "direccion_no_encontrada",
+  PostalCodeRequired: "falta_codigo_postal_o_zona",
   LinesUnavailable: "lineas_no_disponibles",
   MinimumNotMet: "minimo_no_alcanzado",
 } as const;
@@ -616,6 +619,15 @@ export function agenteRoutes(deps: AppDeps) {
     if (body.tipo === FULFILLMENT.Delivery && !body.direccion) {
       return unavailable(CART_REJECT.AddressRequired);
     }
+    // Reparto: el código postal (o la zona) es obligatorio salvo que llegue un pin. Si viene dentro
+    // de la dirección escrita se toma de ahí, sin depender de que el modelo lo separe.
+    const postalCode =
+      body.tipo === FULFILLMENT.Delivery
+        ? body.codigo_postal || (body.direccion ? findPostalCode(body.direccion) : null)
+        : null;
+    if (body.tipo === FULFILLMENT.Delivery && !point && !postalCode && !body.zona_nombre) {
+      return unavailable(CART_REJECT.PostalCodeRequired);
+    }
     // Reparto con dirección escrita y sin pin: se convierte en coordenadas para validar la zona.
     if (body.tipo === FULFILLMENT.Delivery && body.direccion && !point && !deps.geocoder) {
       console.warn("[geocodificacion] apagada: falta GEOCODING_URL en la API");
@@ -660,7 +672,7 @@ export function agenteRoutes(deps: AppDeps) {
         : {
             fulfillment: body.tipo,
             point,
-            postalCode: body.codigo_postal || null,
+            postalCode,
             zoneName: body.zona_nombre || null,
           },
     );
@@ -861,7 +873,7 @@ export function agenteRoutes(deps: AppDeps) {
       .safeParse(c.req.query("tipo"));
     if (!tipo.success) {
       return fail(c, 400, API_ERROR.InvalidBody, {
-        issues: [{ path: "tipo", message: "despacho, local o pago" }],
+        issues: [{ path: "tipo", message: "despacho, local, pago o direccion" }],
       });
     }
     if (tipo.data === OPTION_KIND.Fulfillment) {
@@ -872,6 +884,7 @@ export function agenteRoutes(deps: AppDeps) {
         }),
       );
     }
+    if (tipo.data === OPTION_KIND.Address) return c.json(addressOptions());
     if (tipo.data === OPTION_KIND.Payment) {
       return c.json(paymentOptions(restaurant.paymentMethods));
     }
