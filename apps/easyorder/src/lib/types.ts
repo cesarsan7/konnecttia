@@ -139,6 +139,8 @@ export type TrackedOrder = {
   readonly incidenciasAbiertas?: number;
   /** Teléfono del restaurante para «Contactar con el local». */
   readonly contactoTelefono?: string | null;
+  /** Cambios de estado tras la llegada y cuándo (la llegada es `createdAt`). */
+  readonly historial?: readonly { readonly estado: string; readonly desde: string }[];
   readonly createdAt: string;
   readonly updatedAt: string | null;
 };
