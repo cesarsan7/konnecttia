@@ -42,6 +42,8 @@ export const PERMISSION = {
   OrdersDeliverAssigned: "orders.deliver_assigned",
   StorefrontView: "storefront.view",
   HelpView: "help.view",
+  AgentHandoffsView: "agent.handoffs.view",
+  AgentHandoffsManage: "agent.handoffs.manage",
 } as const;
 
 type AccessValue = {
@@ -68,6 +70,8 @@ type NavItem = {
   readonly label: string;
   readonly icon: IconName;
   readonly permission?: string;
+  /** Se muestra si el rol da cualquiera de estos permisos (además de `permission`). */
+  readonly alsoPermission?: string;
   readonly soon?: boolean;
   /**
    * Módulo de pago: si el restaurante no lo tiene, se muestra con la etiqueta «Premium». Si lo
@@ -199,6 +203,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
       label: "Incidencias",
       icon: "bell",
       permission: PERMISSION.OrdersView,
+      alsoPermission: PERMISSION.AgentHandoffsView,
     },
     {
       href: `${base}/estadisticas`,
@@ -233,6 +238,7 @@ export function PanelShell({ children }: { readonly children: ReactNode }) {
     (item) =>
       item.permission === undefined ||
       can(item.permission) ||
+      (item.alsoPermission !== undefined && can(item.alsoPermission)) ||
       (item.upsellModule !== undefined && !access.modulos.includes(item.upsellModule)),
   );
 

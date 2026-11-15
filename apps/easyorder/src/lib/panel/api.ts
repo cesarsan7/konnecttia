@@ -9,7 +9,7 @@ import type { CustomerDetail, CustomerList } from "./customers";
 import type { DeliveryPhotoMode, OrderDeliveryPhotos } from "./delivery-photo";
 import type { Delivery, Driver } from "./drivers";
 import type { OrderHistory } from "./history";
-import type { IncidentList } from "./incidents";
+import type { HandoffList, IncidentList } from "./incidents";
 import type { AdminMenu } from "./menu";
 import type { FirstSteps } from "./onboarding";
 import type { OrderProofs } from "./proofs";
@@ -185,6 +185,23 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
         estado,
         ...(nota ? { nota } : {}),
       }),
+    handoffs: (slug: string, estado: string, pagina: number) =>
+      request<HandoffList>(
+        panel(slug, `/derivaciones?${new URLSearchParams({ estado, pagina: String(pagina) })}`),
+      ),
+    /** Atiende (y reanuda al agente) o reabre una derivación del agente de WhatsApp. */
+    updateHandoff: (
+      slug: string,
+      id: number,
+      estado: "resuelta" | "pendiente",
+      reanudarAgente = true,
+    ) =>
+      send<{ id: number; estado: string; agente_reanudado: boolean }>(
+        slug,
+        `/derivaciones/${id}`,
+        "PATCH",
+        { estado, reanudar_agente: reanudarAgente },
+      ),
     customer: (slug: string, id: number) => request<CustomerDetail>(panel(slug, `/clientes/${id}`)),
     /** Borra (anonimiza) los datos personales del cliente y de sus pedidos. */
     deleteCustomer: (slug: string, id: number) =>

@@ -19,6 +19,7 @@ import { registerBillingRoutes } from "./panel-billing";
 import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
 import { registerDriverRoutes } from "./panel-drivers";
+import { registerHandoffRoutes } from "./panel-handoffs";
 import { registerIncidentRoutes } from "./panel-incidents";
 import { registerMenuRoutes } from "./panel-menu";
 import { registerOnboardingRoutes } from "./panel-onboarding";
@@ -90,6 +91,7 @@ export function panelRoutes(deps: AppDeps) {
   registerProofRoutes(app, deps);
   registerCustomerRoutes(app, deps);
   registerIncidentRoutes(app, deps);
+  registerHandoffRoutes(app, deps);
   registerStreamRoutes(app, deps);
   registerWaiterRoutes(app, deps);
   registerActivityRoutes(app, deps);

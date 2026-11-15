@@ -34,6 +34,10 @@ export const PERMISSION = {
   ConversationsView: "conversations.view",
   ConversationsReply: "conversations.reply",
   AgentConfigure: "agent.configure",
+  /** Ver las derivaciones a una persona que hace el agente de WhatsApp. */
+  AgentHandoffsView: "agent.handoffs.view",
+  /** Atender esas derivaciones y reanudar al agente en esa conversación. */
+  AgentHandoffsManage: "agent.handoffs.manage",
   /** Asignar pedidos de reparto a un repartidor. */
   DeliveryAssign: "delivery.assign",
   /** Ver y entregar solo los repartos asignados a uno mismo (rol Repartidor). */
@@ -74,6 +78,8 @@ export const PERMISSION_MODULE: Readonly<Record<PermissionCode, ModuleCode>> = {
   [PERMISSION.ConversationsView]: MODULE.WhatsappChannel,
   [PERMISSION.ConversationsReply]: MODULE.WhatsappChannel,
   [PERMISSION.AgentConfigure]: MODULE.WhatsappAgent,
+  [PERMISSION.AgentHandoffsView]: MODULE.WhatsappAgent,
+  [PERMISSION.AgentHandoffsManage]: MODULE.WhatsappAgent,
   [PERMISSION.DeliveryAssign]: MODULE.Delivery,
   [PERMISSION.OrdersDeliverAssigned]: MODULE.Delivery,
   [PERMISSION.StorefrontView]: MODULE.Menu,
@@ -111,6 +117,8 @@ export const PERMISSION_LABEL: Readonly<Record<PermissionCode, string>> = {
   [PERMISSION.ConversationsView]: "Ver conversaciones de WhatsApp",
   [PERMISSION.ConversationsReply]: "Responder conversaciones de WhatsApp",
   [PERMISSION.AgentConfigure]: "Configurar el agente de WhatsApp",
+  [PERMISSION.AgentHandoffsView]: "Ver las derivaciones del agente",
+  [PERMISSION.AgentHandoffsManage]: "Atender derivaciones del agente (y reanudarlo)",
   [PERMISSION.StorefrontView]: "Ver carta online (enlace del panel)",
   [PERMISSION.HelpView]: "Ver la ayuda (enlace del panel)",
 };
@@ -146,6 +154,8 @@ const STAFF_PERMISSIONS: readonly PermissionCode[] = [
   PERMISSION.TablesManage,
   PERMISSION.ConversationsView,
   PERMISSION.ConversationsReply,
+  PERMISSION.AgentHandoffsView,
+  PERMISSION.AgentHandoffsManage,
   ...PANEL_LINKS,
 ];
 

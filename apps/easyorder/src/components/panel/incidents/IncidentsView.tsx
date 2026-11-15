@@ -14,6 +14,7 @@ import {
 } from "@/lib/panel/incidents";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
+import { HandoffsPanel } from "./HandoffsPanel";
 import "./incidents.css";
 
 type Load =
@@ -28,7 +29,7 @@ const FILTERS = [
 ] as const;
 
 /** Incidencias que los clientes abren desde el seguimiento de su pedido (pieza P). */
-export function IncidentsView() {
+function OrderIncidents() {
   const { api } = usePanel();
   const { slug, access, can } = useAccess();
   const tz = access.restaurante.zona_horaria;
@@ -66,13 +67,7 @@ export function IncidentsView() {
   const pages = list ? Math.max(1, Math.ceil(list.total / list.por_pagina)) : 1;
 
   return (
-    <div className="k-page k-incidents">
-      <header className="k-page-head">
-        <div>
-          <p className="k-eyebrow">{access.restaurante.nombre}</p>
-          <h1 className="k-heading">Incidencias</h1>
-        </div>
-      </header>
+    <section aria-label="Incidencias de pedidos">
       <p className="k-muted k-small">
         Problemas que tus clientes cuentan desde el seguimiento de su pedido. Resuélvelas cuando las
         hayas atendido.
@@ -202,6 +197,53 @@ export function IncidentsView() {
           </button>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+type Tab = "pedidos" | "derivaciones";
+
+/** Incidencias del cliente sobre su pedido y derivaciones del agente de WhatsApp, en pestañas. */
+export function IncidentsView() {
+  const { access, can } = useAccess();
+  const showOrders = can(PERMISSION.OrdersView);
+  const showHandoffs = can(PERMISSION.AgentHandoffsView);
+  const [tab, setTab] = useState<Tab>(showOrders ? "pedidos" : "derivaciones");
+  const active: Tab = tab === "derivaciones" && !showHandoffs ? "pedidos" : tab;
+
+  return (
+    <div className="k-page k-incidents">
+      <header className="k-page-head">
+        <div>
+          <p className="k-eyebrow">{access.restaurante.nombre}</p>
+          <h1 className="k-heading">Incidencias</h1>
+        </div>
+      </header>
+
+      {showOrders && showHandoffs ? (
+        <div role="tablist" aria-label="Tipo de incidencia" className="k-inc-filters">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={active === "pedidos"}
+            className={`k-btn k-btn-sm${active === "pedidos" ? " k-btn-primary" : ""}`}
+            onClick={() => setTab("pedidos")}
+          >
+            Pedidos
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={active === "derivaciones"}
+            className={`k-btn k-btn-sm${active === "derivaciones" ? " k-btn-primary" : ""}`}
+            onClick={() => setTab("derivaciones")}
+          >
+            Derivaciones
+          </button>
+        </div>
+      ) : null}
+
+      {active === "derivaciones" && showHandoffs ? <HandoffsPanel /> : <OrderIncidents />}
     </div>
   );
 }
