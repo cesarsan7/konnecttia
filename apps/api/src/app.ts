@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import type { AppDeps, AppEnv } from "./context";
 import { API_ERROR, fail } from "./lib/http";
+import { agenteRoutes } from "./routes/agente";
 import { altaRoutes } from "./routes/alta";
 import { authRoutes } from "./routes/auth";
 import { meRoutes } from "./routes/me";
@@ -32,6 +33,7 @@ export function createApp(deps: AppDeps) {
 
   app.get("/health", (c) => c.json({ ok: true }));
   app.route("/public", publicRoutes(deps));
+  app.route("/agente", agenteRoutes(deps));
   app.route("/alta", altaRoutes(deps));
   app.route("/auth", authRoutes(deps));
   app.route("/me", meRoutes(deps));

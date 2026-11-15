@@ -9,6 +9,7 @@ export * from "./incident";
 export * from "./legal";
 export * from "./menu";
 export * from "./menu-import";
+export * from "./menu-search";
 export * from "./money";
 export * from "./order-status";
 export * from "./payment-methods";

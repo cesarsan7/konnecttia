@@ -74,6 +74,11 @@ const envSchema = z
     VAPID_PRIVATE_KEY: z.string().min(20).optional(),
     /** Contacto que identifica a Konnecttia ante el servicio push: `mailto:` o https. */
     VAPID_SUBJECT: z.string().min(8).default("mailto:soporte@konnecttia.com"),
+    /**
+     * Secreto compartido con n8n para las rutas del agente de WhatsApp (`/agente`). Sin él, esas
+     * rutas responden 503. Mínimo 32 caracteres; nunca se registra.
+     */
+    AGENTE_API_SECRET: z.string().min(32).optional(),
     /** Carpeta con las migraciones `NNNN_*.sql` (en la imagen: `/app/migrations`). */
     MIGRATIONS_DIR: z.string().min(1).default("../../packages/db/migrations"),
   })
