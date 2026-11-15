@@ -483,10 +483,13 @@ DESCRIPCIONES = {
 }
 
 DATOS = {
+    # Campos de texto opcionales (no JSON): «enséñame la carta» llega sin texto y un objeto vacío
+    # no pasa la validación de n8n para entradas de tipo json.
     "buscar_en_carta": (
-        "={{ $fromAI('datos', `Objeto JSON. q: texto del cliente con los productos (p. ej. \"dos "
-        "pizzas margarita medianas con extra de queso\"); categoria: nombre de categoría si pregunta "
-        "por una (opcional). Ejemplo: {\"q\": \"hamburguesa de pollo\"}`, 'json') }}"
+        "={{ JSON.stringify({ q: $fromAI('q', `Palabras del cliente con los productos que busca "
+        "(p. ej. \"dos pizzas margarita medianas con extra de queso\"). Vacío si solo quiere ver la "
+        "carta o una categoría.`, 'string', ''), categoria: $fromAI('categoria', `Categoría por la que "
+        "pregunta (p. ej. \"bebidas\"). Vacío si no pregunta por una.`, 'string', '') }) }}"
     ),
     "ver_carrito": "{}",
     "cambiar_carrito": (

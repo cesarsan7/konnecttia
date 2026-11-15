@@ -217,7 +217,7 @@
             "canal_id": "={{ $('Entrada').first().json.canal_id }}",
             "telefono": "={{ $('Entrada').first().json.cliente.telefono }}",
             "accion": "carta",
-            "datos": "={{ $fromAI('datos', `Objeto JSON. q: texto del cliente con los productos (p. ej. \"dos pizzas margarita medianas con extra de queso\"); categoria: nombre de categoría si pregunta por una (opcional). Ejemplo: {\"q\": \"hamburguesa de pollo\"}`, 'json') }}"
+            "datos": "={{ JSON.stringify({ q: $fromAI('q', `Palabras del cliente con los productos que busca (p. ej. \"dos pizzas margarita medianas con extra de queso\"). Vacío si solo quiere ver la carta o una categoría.`, 'string', ''), categoria: $fromAI('categoria', `Categoría por la que pregunta (p. ej. \"bebidas\"). Vacío si no pregunta por una.`, 'string', '') }) }}"
           },
           "matchingColumns": [],
           "schema": [

@@ -172,14 +172,16 @@ mínimo, formas de pago, pedido) está en la API (`/agente/canales/:canalId/…`
    `staging_openai` (OpenAI).
 3. En `.env.staging`: `API_KONNECTTIA_URL=http://staging_konnecttia-api:3001` y los ids
    `CRED_staging_agente_api`, `CRED_staging_openai`, `CRED_staging_postgres`, `CRED_staging_kapso`.
-4. Publicar (el orden da igual: el script reescribe los ids entre flujos):
+4. Publicar en dos pasos. n8n no deja guardar un flujo activo («[Canal] Entrada Kapso») que llama a
+   subflujos sin publicar: primero se publican y activan los del agente («Llamar API» antes que el
+   Director, que la llama) y después la entrada.
 
    ```bash
-   python3 integrations/n8n/scripts/publicar.py "[Agente] Llamar API" "[Agente] Director" "[Canal] Entrada Kapso" "[Canal] Enviar mensaje"
+   python3 integrations/n8n/scripts/publicar.py "[Agente] Llamar API" "[Agente] Director" --activar "[Agente] Llamar API" "[Agente] Director"
+   python3 integrations/n8n/scripts/publicar.py "[Canal] Entrada Kapso" "[Canal] Enviar mensaje"
    ```
 
-   No hace falta activar el Director ni Llamar API (se llaman como subflujos); «[Canal] Entrada Kapso» ya
-   está activo. Al publicarlo de nuevo, n8n lo mantiene activo.
+   Para cambios posteriores del agente basta el primer comando.
 5. Datos del restaurante de prueba (Siempre Juntos, id 1): módulos `whatsapp.channel` y `whatsapp.agent`,
    `agente_activo = true`, canal en `canal_whatsapp` y `cart_expiry_minutes = 30`.
 
