@@ -51,6 +51,7 @@ ACCION = {
     "confirmar": "confirmar",
     "preguntas": "preguntas",
     "derivar": "derivar",
+    "opciones": "opciones",
 }
 
 
@@ -233,6 +234,9 @@ switch (e.accion) {
     break;
   case 'preguntas':
     url = `${base}/preguntas`;
+    break;
+  case 'opciones':
+    url = `${base}/opciones${query({ tipo: datos.tipo })}`;
     break;
   case 'derivar':
     metodo = 'POST';
@@ -429,11 +433,11 @@ REGLAS (no negociables)
 3. Si está cerrado o no se pueden tomar pedidos, no uses cambiar_carrito, elegir_despacho ni confirmar_pedido; sí puedes enseñar la carta.
 4. Cuando el cliente nombre productos, usa buscar_en_carta con sus palabras. Si hay un candidato claro, añádelo con cambiar_carrito usando sus ids (y variante_id y extra_ids si vienen). Si hay varios candidatos o falta la variante, pregunta mostrando las opciones reales. Si cambiar_carrito devuelve pendientes, explica qué falta con las opciones que trae. Las preferencias de cocina («sin cebolla») van en la nota de la línea.
 5. Antes de empezar, si dudas de lo que hay en el carrito, usa ver_carrito. Si hay carrito abierto, continúa sobre él; usa nuevo=true solo si el cliente pide expresamente un pedido nuevo o separado.
-6. Recogida (tipo retiro): nunca pidas dirección. Si responde elegir_local, pregunta con la lista que trae.
-7. Reparto (tipo delivery): pide calle y número y, mejor aún, que comparta su ubicación por WhatsApp (📎 → Ubicación). Llama a elegir_despacho con la dirección y, si las tienes, lat y lng. Si responde ubicacion_necesaria, pide la ubicación; si fuera_de_cobertura, dilo y ofrece otra dirección o recoger en el local.
+6. Recogida (tipo retiro): nunca pidas dirección. Si responde elegir_local, pregunta en qué local recoge y termina el turno con ofrecer_opciones (tipo local).
+7. Reparto (tipo delivery): pide calle y número y el código postal o la zona; si la dirección de entrega es otra que donde está, puede compartir por WhatsApp el pin de esa dirección (📎 → Ubicación, buscando la dirección). Llama a elegir_despacho con la dirección y, si las tienes, codigo_postal o zona_nombre y lat y lng. Si responde ubicacion_necesaria, pide que comparta el pin de la dirección de entrega (puede ser distinta de donde está); si fuera_de_cobertura, dilo y ofrece otra dirección o recoger en el local.
 8. Si no alcanza el mínimo de reparto (alcanza_minimo = false): mantén el reparto, di cuánto falta (falta_para_minimo) y ofrece añadir productos o pasar a recogida. No confirmes.
 9. No cambies de reparto a recogida sin que el cliente lo pida expresamente; entonces usa cambio_confirmado=true.
-10. No supongas la forma de pago: pregúntala ofreciendo solo las aceptadas.
+10. No supongas la forma de pago: pregúntala ofreciendo solo las aceptadas y termina el turno con ofrecer_opciones (tipo pago). Cuando el cliente aún no ha dicho si recoge o pide a domicilio, pregúntalo y termina con ofrecer_opciones (tipo despacho). Si ofrecer_opciones devuelve disponible = false, deja la pregunta en texto. Un botón tocado llega como su título; trátalo como la respuesta del cliente.
 11. Antes de confirmar, muestra el resumen: productos con sus alérgenos tal como vienen (nunca digas «sin alérgenos» si no lo pone), despacho, suplementos, envío y total. Pide el nombre si no lo sabes. Confirma solo cuando el cliente acepte.
 12. Tras confirmar, da el código del pedido, el tiempo estimado y el enlace de seguimiento; si vienen datos_pago (transferencia o Bizum), dalos completos.
 13. Si el cliente reclama, tiene un problema con un pedido ya hecho, quiere cancelarlo o modificarlo después de confirmado, o pide hablar con una persona: usa derivar_a_persona con el motivo y un resumen, y dile que una persona del restaurante le atenderá por este mismo chat. No intentes resolverlo tú.
@@ -451,7 +455,21 @@ let texto = String(($input.first().json || {}).output || '').trim();
 if (!texto || /^(Calling|Llamando|Using|Usando)\s+\w+/i.test(texto) || texto.startsWith('{')) {
   texto = 'Perdona, no te he entendido bien. ¿Me lo puedes repetir?';
 }
-return [{ json: { restaurante_id: b.restaurante_id, canal_id: b.canal_id, destinatario: b.destinatario, tipo: 'texto', texto } }];
+const base = { restaurante_id: b.restaurante_id, canal_id: b.canal_id, destinatario: b.destinatario, texto };
+// Si el agente cerró el turno con «ofrecer_opciones», se envían los botones o la lista que armó la
+// API (el adaptador cae a texto numerado si algo no cabe). Sin opciones disponibles, va el texto.
+const pasos = Array.isArray(($input.first().json || {}).intermediateSteps) ? $input.first().json.intermediateSteps : [];
+const ultimo = pasos.filter((p) => p && p.action && p.action.tool === 'ofrecer_opciones').pop();
+let obs = ultimo ? ultimo.observation : null;
+if (typeof obs === 'string') { try { obs = JSON.parse(obs); } catch (e) { obs = null; } }
+const o = obs && obs.ok === true ? obs.respuesta : null;
+if (o && o.disponible === true && Array.isArray(o.botones) && o.botones.length) {
+  return [{ json: { ...base, tipo: 'botones', botones: o.botones } }];
+}
+if (o && o.disponible === true && o.lista) {
+  return [{ json: { ...base, tipo: 'lista', lista: o.lista } }];
+}
+return [{ json: { ...base, tipo: 'texto' } }];
 """
 
 JS_RESPUESTA_FALLO = r"""// Sin contexto de la API o fallo del modelo: mensaje neutro (no se inventa nada).
@@ -495,6 +513,12 @@ DESCRIPCIONES = {
         "Preguntas frecuentes del restaurante (horarios, cómo pedir, pagos, políticas…) con sus "
         "respuestas. Úsala para dudas que no son de la carta."
     ),
+    "ofrecer_opciones": (
+        "Prepara botones o una lista tocable de WhatsApp para que el cliente elija. tipo: despacho "
+        "(recoger o a domicilio), local (dónde recoge) o pago (forma de pago). Úsala como último paso "
+        "del turno, justo después de escribir la pregunta, y no repitas las opciones en el texto. "
+        "Si devuelve disponible = false, sigue con la pregunta en texto normal."
+    ),
     "derivar_a_persona": (
         "Pasa la conversación a una persona del restaurante: registra el caso y el agente deja de "
         "responder un tiempo en este chat. Úsala ante reclamos, cancelaciones o cambios de un pedido "
@@ -536,6 +560,9 @@ DATOS = {
         "'json') }}"
     ),
     "preguntas_frecuentes": "{}",
+    "ofrecer_opciones": (
+        "={{ JSON.stringify({ tipo: $fromAI('tipo', `Uno de: despacho, local, pago.`, 'string') }) }}"
+    ),
     "derivar_a_persona": (
         "={{ JSON.stringify({ motivo: $fromAI('motivo', `Uno de: reclamo, cancelacion, "
         "modificacion_pedido, pide_persona, error_sistema, otro.`, 'string'), resumen: "
@@ -551,6 +578,7 @@ ACCION_HERRAMIENTA = {
     "elegir_despacho": ACCION["despacho"],
     "confirmar_pedido": ACCION["confirmar"],
     "preguntas_frecuentes": ACCION["preguntas"],
+    "ofrecer_opciones": ACCION["opciones"],
     "derivar_a_persona": ACCION["derivar"],
 }
 
@@ -602,7 +630,7 @@ def flujo_director():
             {
                 "promptType": "define",
                 "text": "={{ $json.entrada }}",
-                "options": {"systemMessage": "={{ $json.sistema }}", "maxIterations": MAX_ITERACIONES},
+                "options": {"systemMessage": "={{ $json.sistema }}", "maxIterations": MAX_ITERACIONES, "returnIntermediateSteps": True},
             },
             (1000, -40),
             onError="continueErrorOutput",
