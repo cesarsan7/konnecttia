@@ -93,25 +93,6 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "__SUPABASE_FUNCIONES_URL__/functions/v1/webhook-intervention",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"cliente_telefono\": \"{{ $('When Executed by Another Workflow').item.json.telefono }}\",\n  \"mensaje\": \"{{ $('When Executed by Another Workflow').item.json.problema }}\",\n  \"chatwoot_url\": \"__CHATWOOT_URL__/app/accounts/{{ $('Variables').item.json.account_id }}/conversations/{{ $('Variables').item.json.conversation_id }}\"\n}\n",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1456,
-        0
-      ],
-      "id": "375ee7ac-baec-4bbb-9999-a22a4396e9f8",
-      "name": "noti lovable",
-      "disabled": true
-    },
-    {
-      "parameters": {
         "promptType": "define",
         "text": "={{ $('When Executed by Another Workflow').item.json.problema }}",
         "options": {
@@ -317,17 +298,6 @@
       ]
     },
     "Apagar bot": {
-      "main": [
-        [
-          {
-            "node": "Crear Contexto1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "noti lovable": {
       "main": [
         [
           {
