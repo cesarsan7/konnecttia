@@ -110,7 +110,7 @@ Es lo que más tiempo lleva. Vale cualquier formato: la carta en PDF, fotos de l
 
 **WhatsApp** (si contratan el complemento)
 
-- [ ] **Número de WhatsApp** del negocio en el que recibirán pedidos, y quién lo atiende
+- [ ] **Número de WhatsApp** del negocio en el que recibirán pedidos, y quién lo atiende; si usan el agente, a qué correo avisar cuando pasa una conversación a una persona (si no, a los propietarios) y en qué estados del pedido quieren avisar al cliente por WhatsApp
 
 **Avisos y datos**
 
