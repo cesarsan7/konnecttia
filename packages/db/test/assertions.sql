@@ -348,8 +348,8 @@ BEGIN
 
   -- Las claves del agente están documentadas y bot_activo ya no es la vigente.
   SELECT count(*) INTO v_n FROM public.config_clave WHERE clave LIKE 'agente\_%' AND estado = 'activa';
-  IF v_n <> 8 THEN
-    RAISE EXCEPTION 'FALLO: % claves agente_* documentadas, esperadas 8 (0038 + 0039)', v_n;
+  IF v_n <> 11 THEN
+    RAISE EXCEPTION 'FALLO: % claves agente_* documentadas, esperadas 11 (0038 + 0039 + 0046)', v_n;
   END IF;
 
   -- 0039: la memoria del agente nunca cae en el restaurante 1 si la clave no lo identifica.

@@ -50,10 +50,11 @@ describe.skipIf(!TEST_DATABASE_URL)("derivar a una persona y preguntas (/agente)
       FROM unnest(ARRAY[101, 102, 103]) AS r, unnest(ARRAY['whatsapp.channel', 'whatsapp.agent']) AS m
       ON CONFLICT DO NOTHING
     `;
-    // Solo A tiene pausa al derivar; C no la configura.
+    // A tiene su propia pausa al derivar; C la desactiva (0), aunque la plantilla traiga una.
     await ctx.sql`
       INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
-      VALUES (101, 'agente_pausa_derivar_minutos', ${String(PAUSE_MINUTES)})
+      VALUES (101, 'agente_pausa_derivar_minutos', ${String(PAUSE_MINUTES)}),
+             (103, 'agente_pausa_derivar_minutos', '0')
     `;
     canal.a = await insertChannel(101, "pn-derivar-a");
     canal.b = await insertChannel(102, "pn-derivar-b");

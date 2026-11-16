@@ -15,6 +15,7 @@ import { loadSalesOverview, parseReportRange } from "../repositories/reports";
 import { busyModeSettings, loadConfig } from "../repositories/restaurants";
 import { loadPlatformConfig, loadTrial } from "../repositories/trial";
 import { registerActivityRoutes } from "./panel-activity";
+import { registerAgentSettingsRoutes } from "./panel-agent-settings";
 import { registerBillingRoutes } from "./panel-billing";
 import { registerCustomerRoutes } from "./panel-customers";
 import { registerDeliveryRoutes } from "./panel-delivery";
@@ -92,6 +93,7 @@ export function panelRoutes(deps: AppDeps) {
   registerCustomerRoutes(app, deps);
   registerIncidentRoutes(app, deps);
   registerHandoffRoutes(app, deps);
+  registerAgentSettingsRoutes(app, deps);
   registerStreamRoutes(app, deps);
   registerWaiterRoutes(app, deps);
   registerActivityRoutes(app, deps);

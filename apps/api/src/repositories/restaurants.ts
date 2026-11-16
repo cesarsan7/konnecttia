@@ -111,6 +111,16 @@ export const CONFIG_KEY = {
   AgentPauseMinutes: "agente_pausa_minutos",
   /** Minutos de silencio del agente tras derivar a una persona (0039). Sin clave o 0: sin pausa. */
   AgentHandoffPauseMinutes: "agente_pausa_derivar_minutos",
+  /** Mensaje de alérgenos del agente; {carta_url} se sustituye por el enlace de la carta (0046). */
+  AgentAllergenNote: "agente_nota_alergenos",
+  /** Correo para avisar de las derivaciones. Vacío: el del propietario (0046). */
+  AgentHandoffEmail: "agente_derivar_email",
+  /** Estados del pedido que se avisan al cliente por WhatsApp (JSON, premium) (0046). */
+  AgentNotifyStates: "agente_notif_estados",
+  /** Minutos antes de caducar el carrito en los que se avisa al cliente (premium). */
+  CartWarningMinutes: "cart_warning_minutes",
+  /** Minutos tras los que se cancela un pedido por transferencia sin pagar; 0: no (premium) (0046). */
+  PendingPaymentExpiryMinutes: "pedido_pago_pendiente_expira_minutos",
 } as const;
 
 /**
@@ -190,11 +200,26 @@ export async function loadSchedule(sql: Sql, restauranteId: number): Promise<Day
   `;
 }
 
+/** Plantilla de configuración que heredan los restaurantes (ADR 0013). */
+export const STANDARD_TEMPLATE = "estandar";
+
+/**
+ * Configuración efectiva de un restaurante: sus valores propios y, para lo que no tiene, el de la
+ * plantilla estándar. Quien lea configuración del agente debe pasar por aquí.
+ */
 export async function loadConfig(sql: Sql, restauranteId: number): Promise<Map<string, string>> {
   const rows = await sql<{ config_key: string; config_value: string }[]>`
     SELECT config_key, config_value
     FROM   public.restaurante_config
     WHERE  restaurante_id = ${restauranteId}
+    UNION ALL
+    SELECT p.clave, p.valor
+    FROM   public.config_plantilla p
+    WHERE  p.plantilla_code = ${STANDARD_TEMPLATE}
+      AND  NOT EXISTS (
+             SELECT 1 FROM public.restaurante_config c
+             WHERE  c.restaurante_id = ${restauranteId} AND c.config_key = p.clave
+           )
   `;
   return new Map(rows.map((row) => [row.config_key, row.config_value]));
 }
