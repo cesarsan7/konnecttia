@@ -1,6 +1,6 @@
 # ADR 0013 — Configuración del agente por plantilla estándar con herencia
 
-- Estado: propuesta (2026-11-15), pendiente de aprobación del promotor.
+- Estado: aceptada (2026-11-15). Implementada en los PR #141–#148 (ver «Plan de PR»).
 - Relacionado: [ADR 0003](0003-acceso-modulos-y-rbac.md) (módulos y roles),
   [ADR 0012](0012-agente-whatsapp-multirestaurante.md) (agente multirestaurante).
 
@@ -74,7 +74,7 @@ Ajustes al modelo de los roles, que no encaja del todo:
 | `agente_nota_alergenos`                      | básico  | texto + enlace         | ver punto 5                              |
 | `agente_derivar_email`                       | básico  | correo del propietario | aviso por correo al derivar              |
 | `agente_notif_estados`                       | premium | ninguno                | estados que se avisan al cliente (elige) |
-| `agente_aviso_caducidad_minutos`             | premium | 5 antes                | aviso previo a la caducidad              |
+| `cart_warning_minutes`                       | premium | 5 antes                | aviso previo a la caducidad              |
 | `pedido_pago_pendiente_expira_minutos`       | premium | 60                     | transferencia sin pagar; 0 = no cancelar |
 
 El reparto básico/premium es una decisión comercial pendiente (ver «Decisiones»). Las
@@ -127,8 +127,30 @@ Para limpiar los pedidos de prueba de staging sin borrar el restaurante:
   función de lectura.
 - El diccionario pasa a mandar sobre la pantalla: cada parámetro nuevo exige su fila y sus límites.
 
-## Decisiones pendientes del promotor
+## Decisiones del promotor (2026-11-15)
 
-1. Qué es básico y qué premium (propuesta de la tabla del punto 4).
-2. Si quiere que `agente_derivar_email` use por defecto el correo del propietario.
-3. Confirmar `PURGA_PEDIDOS_PERMITIDA=true` solo en staging.
+1. **Premium (`whatsapp.agent_pro`):** notificaciones de estado, aviso previo a la caducidad del
+   carrito y cancelación automática de pagos pendientes. Todo lo demás es básico.
+2. **Derivación:** el aviso va por correo, al propietario por defecto o a `agente_derivar_email`
+   si está configurado. No se deriva por WhatsApp.
+3. **`PURGA_PEDIDOS_PERMITIDA=true` solo en staging.**
+4. Caducidad del carrito 30 min con aviso a los 25; cancelación de pago pendiente a los 60 min
+   (0 = no cancelar), configurable por restaurante.
+5. Alérgenos fuera de WhatsApp: nota con enlace a la carta; el agente nunca los afirma ni descarta.
+6. La limpieza se hace solo en staging; los flujos `[MVP]` y «noti lovable» (flujo operativo de La
+   Isla) no se tocan sin decisión expresa. `DEFAULT 1` en funciones SQL: solo informe de solo
+   lectura (`packages/db/checks/default_restaurante_report.sql`); la migración exige confirmar antes
+   con los flujos activos que nadie llama sin restaurante.
+
+## Estado del plan
+
+| PR  | Contenido                                             |
+| --- | ----------------------------------------------------- |
+| 141 | Purga de pedidos en interno                           |
+| 142 | Plantilla estándar, módulo premium, API de ajustes    |
+| 143 | Pestaña de Ajustes y pantalla interna                 |
+| 144 | Alérgenos → nota con enlace                           |
+| 145 | Caducidad de carritos, aviso previo, pagos pendientes |
+| 146 | Avisos de estado por WhatsApp (premium)               |
+| 147 | Correo al derivar                                     |
+| 148 | Purga de `whatsapp_evento` e informe de `DEFAULT 1`   |
