@@ -75,6 +75,23 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
         miembros: number;
         cuentas_sin_uso: { user_id: string; email: string | null }[];
       }>(`/restaurantes/${id}`, { method: "DELETE", body: JSON.stringify({ confirmar }) }),
+    purgeOrders: (
+      id: number,
+      body: {
+        confirmar: string;
+        antes_de?: string;
+        carritos: boolean;
+        derivaciones: boolean;
+        conversaciones: boolean;
+      },
+    ) =>
+      request<{
+        id: number;
+        pedidos: number;
+        carritos: number;
+        derivaciones: number;
+        conversaciones: number;
+      }>(`/restaurantes/${id}/purgar-pedidos`, { method: "POST", body: JSON.stringify(body) }),
     roles: (id: number) => request<RolesInfo>(`/restaurantes/${id}/roles`),
     createRole: (id: number, body: RoleBody) =>
       request<{ id: number }>(`/restaurantes/${id}/roles`, {

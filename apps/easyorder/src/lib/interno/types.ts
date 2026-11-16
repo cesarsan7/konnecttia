@@ -98,6 +98,8 @@ export type CloneFrom = {
 export type RestaurantDetail = {
   /** Pedidos del restaurante (todos): se avisa antes de borrarlo. */
   readonly pedidos_total?: number;
+  /** Solo en staging: la API deja purgar los pedidos de prueba de este restaurante. */
+  readonly purga_pedidos_permitida?: boolean;
   readonly restaurante: {
     readonly id: number;
     readonly nombre: string;
