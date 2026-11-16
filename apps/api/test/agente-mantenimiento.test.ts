@@ -213,6 +213,18 @@ describe.skipIf(!TEST_DATABASE_URL)("mantenimiento de caducidad del agente", () 
     ]);
   });
 
+  it("purga las claves de webhooks de más de 7 días y conserva las recientes", async () => {
+    await ctx.sql`
+      INSERT INTO public.whatsapp_evento (clave, recibido_at)
+      VALUES ('vieja-1', ${ago(8 * 24 * 60)}), ('reciente-1', ${ago(60)})
+    `;
+    expect((await run()).json.eventos_purgados).toBe(1);
+    const left = await ctx.sql<{ clave: string }[]>`
+      SELECT clave FROM public.whatsapp_evento WHERE clave IN ('vieja-1', 'reciente-1')
+    `;
+    expect(left.map((row) => row.clave)).toEqual(["reciente-1"]);
+  });
+
   it("pedido_pago_pendiente_expira_minutos = 0 desactiva la cancelación", async () => {
     await ctx.sql`
       INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)

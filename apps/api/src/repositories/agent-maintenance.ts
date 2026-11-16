@@ -16,6 +16,7 @@ export type AgentNotice = {
 };
 
 export type MaintenanceResult = {
+  readonly eventos_purgados: number;
   readonly carritos_caducados: number;
   readonly avisos: readonly AgentNotice[];
   readonly pedidos_cancelados: readonly AgentNotice[];
@@ -44,6 +45,7 @@ export function pendingPaymentText(formal: boolean, code: string | null): string
     : `Hemos cancelado tu pedido${ref} porque no recibimos el pago a tiempo. Si aún lo quieres, puedes hacer un pedido nuevo cuando quieras.`;
 }
 
+const EVENT_RETENTION_DAYS = 7;
 const STATUS_NOTICE_LOOKBACK_MINUTES = 60;
 /** Ventana de atención de WhatsApp: pasadas 24 h sin hablar con el cliente no se le escribe. */
 const WHATSAPP_WINDOW_HOURS = 23;
@@ -131,6 +133,12 @@ async function agentRestaurants(sql: Sql): Promise<AgentRestaurant[]> {
  * Devuelve los mensajes a enviar; la API no envía nada.
  */
 export async function runAgentMaintenance(sql: Sql, now: Date): Promise<MaintenanceResult> {
+  // Claves de idempotencia de webhooks ya procesados: más de 7 días no sirven para nada.
+  const purged = await sql`
+    DELETE FROM public.whatsapp_evento
+    WHERE  recibido_at < ${new Date(now.getTime() - EVENT_RETENTION_DAYS * 86_400_000)}
+    RETURNING clave
+  `;
   let expired = 0;
   const warnings: AgentNotice[] = [];
   const cancelled: AgentNotice[] = [];
@@ -258,6 +266,7 @@ export async function runAgentMaintenance(sql: Sql, now: Date): Promise<Maintena
     }
   }
   return {
+    eventos_purgados: purged.length,
     carritos_caducados: expired,
     avisos: warnings,
     pedidos_cancelados: cancelled,
