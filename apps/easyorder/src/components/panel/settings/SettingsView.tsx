@@ -45,6 +45,7 @@ import { Toggle } from "../menu/Editors";
 import { usePanel } from "../PanelProvider";
 import { PERMISSION, useAccess } from "../PanelShell";
 import { useChime } from "../useChime";
+import { AgentSection } from "./AgentSection";
 import { BillingSection } from "./BillingSection";
 import "./sounds-section.css";
 import { BrandSection } from "./BrandSection";
@@ -64,6 +65,7 @@ const TAB = {
   Links: "enlaces",
   Billing: "plan",
   Sounds: "sonidos",
+  Agent: "agente",
 } as const;
 type Tab = (typeof TAB)[keyof typeof TAB];
 
@@ -184,6 +186,7 @@ export function SettingsView() {
         { id: TAB.Brand, label: "Marca" },
         { id: TAB.Links, label: "Enlaces y QR" },
         { id: TAB.Sounds, label: "Sonidos" },
+        ...(can(PERMISSION.AgentConfigure) ? [{ id: TAB.Agent, label: "Agente de WhatsApp" }] : []),
         { id: TAB.Billing, label: "Plan y facturación" },
       ]
     : [
@@ -275,6 +278,7 @@ export function SettingsView() {
       {current === TAB.Sounds ? (
         <SoundsSection data={data} editable={editRestaurant} save={save} patch={patch} />
       ) : null}
+      {current === TAB.Agent ? <AgentSection editable={editRestaurant} notify={toast} /> : null}
       {current === TAB.Billing ? <BillingSection editable={editRestaurant} /> : null}
       {current === TAB.Branches ? (
         <>

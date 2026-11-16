@@ -54,6 +54,8 @@ export type AgentSettings = {
   readonly nombreVisible: string | null;
   readonly tono: AgentTone | null;
   readonly instrucciones: string | null;
+  /** Aviso sobre alérgenos; `{carta_url}` se sustituye por el enlace de la carta. */
+  readonly notaAlergenos: string | null;
   /** null = sin pausa. */
   readonly pausaMinutos: number | null;
   readonly pausaDerivarMinutos: number | null;
@@ -78,6 +80,7 @@ export function agentSettings(config: ReadonlyMap<string, string>): AgentSetting
     nombreVisible: text(config.get(CONFIG_KEY.AgentVisibleName)),
     tono: Object.values(AGENT_TONE).includes(tone as AgentTone) ? (tone as AgentTone) : null,
     instrucciones: text(config.get(CONFIG_KEY.AgentInstructions)),
+    notaAlergenos: text(config.get(CONFIG_KEY.AgentAllergenNote)),
     pausaMinutos: positiveMinutes(config.get(CONFIG_KEY.AgentPauseMinutes)),
     pausaDerivarMinutos: positiveMinutes(config.get(CONFIG_KEY.AgentHandoffPauseMinutes)),
   };
@@ -241,4 +244,19 @@ export async function handoffRecipients(
     ORDER  BY email
   `;
   return owners.map((owner) => owner.email).filter((email) => EMAIL_PATTERN.test(email));
+}
+
+/**
+ * Nota de alérgenos para el cliente: el agente no los da por WhatsApp (el dato puede faltar o
+ * cambiar) y remite a la carta. Sin enlace de carta se quita el marcador en vez de dejarlo roto.
+ */
+export function allergenNote(note: string | null, cartaUrl: string | null): string | null {
+  if (note === null) return null;
+  const filled = note
+    .replaceAll("{carta_url}", cartaUrl ?? "")
+    .replace(/\s+([.,;:])/g, "$1")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim()
+    .replace(/\s*:$/, "");
+  return filled === "" ? null : filled;
 }

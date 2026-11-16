@@ -1,4 +1,5 @@
 import type { BoardSounds } from "@konnecttia/domain";
+import type { AgentParam } from "../agent-params";
 import type { SignupBody, SignupResult } from "../alta/types";
 import type { ApiResult } from "../api";
 import type { SupportAccess } from "../interno/types";
@@ -81,6 +82,10 @@ export function createPanelApi(baseUrl: string, getToken: () => Promise<string |
       body?: unknown,
     ) => send<T>(slug, `/carta${path}`, method, body),
     settings: (slug: string) => request<Settings>(panel(slug, "/ajustes")),
+    agentSettings: (slug: string) =>
+      request<{ parametros: AgentParam[] }>(panel(slug, "/ajustes/agente")),
+    agentSettingsSave: (slug: string, valores: Record<string, unknown>) =>
+      send<{ ok: boolean }>(slug, "/ajustes/agente", "PATCH", { valores }),
     /** Cambios de ajustes: `path` relativo a /ajustes (por ejemplo «/restaurante»). */
     settingsChange: <T = { ok?: boolean; id?: number }>(
       slug: string,

@@ -6,9 +6,9 @@ import { API_ERROR, fail } from "../lib/http";
 import { requirePermission } from "../middleware/auth";
 import { audit } from "../repositories/access";
 import {
+  checkChanges,
   loadParamDefs,
   loadParamViews,
-  normalizeParamValue,
   saveParamValues,
 } from "../repositories/agent-config";
 import { STANDARD_TEMPLATE } from "../repositories/restaurants";
@@ -68,27 +68,25 @@ export function registerAgentSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
       if (!parsed.success) return fail(c, 400, API_ERROR.InvalidBody);
       const defs = new Map((await loadParamDefs(sql)).map((def) => [def.clave, def]));
       const active = c.get("access").activeModules;
-      const changes = new Map<string, string | null>();
-      for (const [key, raw] of Object.entries(parsed.data.valores)) {
-        const def = defs.get(key);
-        if (!def || def.editablePor !== "restaurante") {
-          return fail(c, 422, API_ERROR.InvalidBody, { reason: "unknown_param", field: key });
-        }
-        if (def.moduloCode !== null && !active.has(def.moduloCode as never)) {
+      const checked = checkChanges(defs, parsed.data.valores, (def) =>
+        def.editablePor !== "restaurante" ? "unknown_param" : null,
+      );
+      if (!checked.ok) {
+        return fail(c, 422, API_ERROR.InvalidBody, {
+          reason: checked.reason,
+          field: checked.field,
+        });
+      }
+      const changes = checked.changes;
+      for (const key of changes.keys()) {
+        const module = defs.get(key)?.moduloCode;
+        if (module && !active.has(module as never)) {
           return fail(c, 403, API_ERROR.Forbidden, {
             reason: "module_required",
-            modulos: [def.moduloCode],
+            modulos: [module],
             field: key,
           });
         }
-        if (raw === null) {
-          changes.set(key, null);
-          continue;
-        }
-        const value = normalizeParamValue(def, raw);
-        if (!value.ok)
-          return fail(c, 422, API_ERROR.InvalidBody, { reason: value.reason, field: key });
-        changes.set(key, value.value);
       }
       await saveParamValues(sql, restauranteId, changes);
       await audit(sql, {

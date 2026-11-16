@@ -107,7 +107,8 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
         }),
       ]);
       expect(json.carrito).toMatchObject({ subtotal: 66, envio: 0, total: 66, despacho: null });
-      expect(json.carrito.lineas[0].alergenos).not.toMatch(/sin alérgenos/i);
+      // El agente no da alérgenos por WhatsApp: remite a la carta (nota_alergenos).
+      expect(json.carrito.lineas[0]).not.toHaveProperty("alergenos");
     });
 
     it("nunca acepta productos ni extras de otro restaurante", async () => {

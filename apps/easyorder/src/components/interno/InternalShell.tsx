@@ -146,6 +146,7 @@ export function InternalShell({ children }: { readonly children: ReactNode }) {
   const onTrials = pathname === "/interno/pruebas";
   const onSignup = pathname === "/interno/alta";
   const onTemplates = pathname === "/interno/plantillas";
+  const onAgent = pathname === "/interno/agente";
   const onTeam = pathname === "/interno/equipo";
   return (
     <PlatformContext.Provider value={value}>
@@ -176,6 +177,13 @@ export function InternalShell({ children }: { readonly children: ReactNode }) {
               aria-current={onTemplates ? "page" : undefined}
             >
               Plantillas de roles
+            </Link>
+            <Link
+              href="/interno/agente"
+              className={`k-internal-link${onAgent ? " is-current" : ""}`}
+              aria-current={onAgent ? "page" : undefined}
+            >
+              Plantilla del agente
             </Link>
             <Link
               href="/interno/equipo"
