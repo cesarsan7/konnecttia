@@ -110,12 +110,6 @@ export const MODULES: readonly ModuleDefinition[] = [
     dependsOn: [MODULE.WhatsappChannel, MODULE.Orders, MODULE.Menu],
   },
   {
-    code: MODULE.WhatsappAgentPro,
-    name: "Agente de WhatsApp premium",
-    kind: MODULE_KIND.Addon,
-    dependsOn: [MODULE.WhatsappAgent],
-  },
-  {
     code: MODULE.SmsNotifications,
     name: "Avisos por SMS",
     kind: MODULE_KIND.Addon,
@@ -126,6 +120,13 @@ export const MODULES: readonly ModuleDefinition[] = [
     name: "Cobro online",
     kind: MODULE_KIND.Future,
     dependsOn: [MODULE.Orders],
+  },
+  // Último: el orden es el de las migraciones (0046), que comprueba catalog-sync.
+  {
+    code: MODULE.WhatsappAgentPro,
+    name: "Agente de WhatsApp premium",
+    kind: MODULE_KIND.Addon,
+    dependsOn: [MODULE.WhatsappAgent],
   },
 ];
 
