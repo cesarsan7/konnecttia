@@ -20,6 +20,7 @@ export const MODULE = {
   WhatsappChannel: "whatsapp.channel",
   WhatsappNotifications: "notify.whatsapp",
   WhatsappAgent: "whatsapp.agent",
+  WhatsappAgentPro: "whatsapp.agent_pro",
   SmsNotifications: "notify.sms",
   OnlinePayments: "payments.online",
 } as const;
@@ -107,6 +108,12 @@ export const MODULES: readonly ModuleDefinition[] = [
     name: "Agente de WhatsApp con IA",
     kind: MODULE_KIND.Addon,
     dependsOn: [MODULE.WhatsappChannel, MODULE.Orders, MODULE.Menu],
+  },
+  {
+    code: MODULE.WhatsappAgentPro,
+    name: "Agente de WhatsApp premium",
+    kind: MODULE_KIND.Addon,
+    dependsOn: [MODULE.WhatsappAgent],
   },
   {
     code: MODULE.SmsNotifications,
