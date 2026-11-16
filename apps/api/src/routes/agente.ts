@@ -1,4 +1,5 @@
 import { allergenLabel, ETA_SERVICE, FULFILLMENT, searchMenu } from "@konnecttia/domain";
+import { handoffEmail } from "@konnecttia/notifications";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -9,6 +10,7 @@ import {
   agentPresentation,
   agentSettings,
   HANDOFF_REASON,
+  handoffRecipients,
   loadAgentCustomer,
   loadFaqs,
   loadRestaurantMessages,
@@ -853,6 +855,27 @@ export function agenteRoutes(deps: AppDeps) {
         url: `/panel/${restaurant.slug}`,
         tag: `escalacion-${result.escalacionId}`,
       });
+    }
+    // Correo al propietario (o al correo configurado), también de mejor esfuerzo.
+    const mailer = deps.mailer;
+    if (mailer) {
+      void (async () => {
+        try {
+          const recipients = await handoffRecipients(deps.sql, restaurant.id, config);
+          const message = handoffEmail({
+            restaurante: restaurant.nombre,
+            motivo: body.motivo,
+            telefono: body.telefono,
+            resumen: body.resumen,
+            link: deps.panelUrl
+              ? `${deps.panelUrl.replace(/\/+$/, "")}/panel/${restaurant.slug}`
+              : null,
+          });
+          for (const to of recipients) await mailer.send({ to, ...message });
+        } catch (error) {
+          console.error("[derivar] no se pudo enviar el correo:", (error as Error).message);
+        }
+      })();
     }
     return c.json(
       {

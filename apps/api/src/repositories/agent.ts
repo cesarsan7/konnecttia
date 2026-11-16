@@ -221,3 +221,24 @@ export async function loadFaqs(
     ORDER  BY orden ASC NULLS LAST, pregunta ASC
   `;
 }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * A quién se avisa por correo cuando el agente deriva: el correo del parámetro
+ * `agente_derivar_email` si es válido; si no, los propietarios del restaurante.
+ */
+export async function handoffRecipients(
+  sql: Sql,
+  restauranteId: number,
+  config: ReadonlyMap<string, string>,
+): Promise<string[]> {
+  const configured = text(config.get(CONFIG_KEY.AgentHandoffEmail));
+  if (configured !== null && EMAIL_PATTERN.test(configured)) return [configured];
+  const owners = await sql<{ email: string }[]>`
+    SELECT DISTINCT email FROM public.local_memberships
+    WHERE  restaurante_id = ${restauranteId} AND rol = 'owner' AND email IS NOT NULL
+    ORDER  BY email
+  `;
+  return owners.map((owner) => owner.email).filter((email) => EMAIL_PATTERN.test(email));
+}
