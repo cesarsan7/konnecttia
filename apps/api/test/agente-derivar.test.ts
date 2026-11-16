@@ -166,3 +166,76 @@ describe.skipIf(!TEST_DATABASE_URL)("derivar a una persona y preguntas (/agente)
     expect(response.status).toBe(401);
   });
 });
+
+describe.skipIf(!TEST_DATABASE_URL)("correo al derivar a una persona", () => {
+  const sent: { to: string; subject: string; text: string }[] = [];
+  let local: ReturnType<TestContext["appWith"]>;
+  let ch = 0;
+
+  async function derivarCon(app2: ReturnType<TestContext["appWith"]>) {
+    const response = await app2.request(`/agente/canales/${ch}/conversacion/derivar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", [AGENT_SECRET_HEADER]: SECRET },
+      body: JSON.stringify({ telefono: PHONE, motivo: "reclamo", resumen: "Llegó frío" }),
+    });
+    // El correo es de mejor esfuerzo y asíncrono: se deja correr antes de comprobar.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return response.status;
+  }
+
+  beforeAll(async () => {
+    ctx = await setupTestApp();
+    local = ctx.appWith({
+      agentSecret: SECRET,
+      panelUrl: "https://panel.test",
+      mailer: { send: async (message) => void sent.push(message) },
+    });
+    await ctx.sql`
+      INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)
+      VALUES (101, 'whatsapp.channel', 'complemento'), (101, 'whatsapp.agent', 'complemento')
+      ON CONFLICT DO NOTHING
+    `;
+    ch = await insertChannel(101, "pn-derivar-mail");
+    await ctx.sql`
+      INSERT INTO public.local_memberships (user_id, restaurante_id, rol, email)
+      VALUES ('00000000-0000-4000-8000-0000000000b1', 101, 'owner', 'duena@test.local')
+    `;
+  }, 60_000);
+
+  afterAll(async () => {
+    await ctx?.close();
+  });
+
+  it("avisa al propietario por defecto, con motivo, cliente y resumen", async () => {
+    expect(await derivarCon(local)).toBe(201);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ to: "duena@test.local" });
+    expect(sent[0]?.subject).toContain("Reclamo");
+    expect(sent[0]?.text).toContain("Llegó frío");
+    expect(sent[0]?.text).toContain("https://panel.test/panel/");
+  });
+
+  it("usa el correo configurado si es válido y, si no lo es, vuelve al propietario", async () => {
+    await ctx.sql`
+      INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
+      VALUES (101, 'agente_derivar_email', 'cocina@test.local')
+    `;
+    sent.length = 0;
+    await derivarCon(local);
+    expect(sent.map((m) => m.to)).toEqual(["cocina@test.local"]);
+    await ctx.sql`
+      UPDATE public.restaurante_config SET config_value = 'no-es-correo'
+      WHERE restaurante_id = 101 AND config_key = 'agente_derivar_email'
+    `;
+    sent.length = 0;
+    await derivarCon(local);
+    expect(sent.map((m) => m.to)).toEqual(["duena@test.local"]);
+  });
+
+  it("sin correo configurado en la API deriva igual", async () => {
+    sent.length = 0;
+    const withoutMail = ctx.appWith({ agentSecret: SECRET, mailer: null });
+    expect(await derivarCon(withoutMail)).toBe(201);
+    expect(sent).toHaveLength(0);
+  });
+});
