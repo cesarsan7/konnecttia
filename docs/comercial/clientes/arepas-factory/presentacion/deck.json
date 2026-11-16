@@ -1,0 +1,60 @@
+{
+  "v": 5,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-16T12:00:00Z"
+  },
+  "lists": "css",
+  "format": {
+    "v": 1,
+    "shared": ["project/deck.css"]
+  },
+  "title": "EasyOrder para Arepa’s Factory",
+  "cover": "cover",
+  "order": [
+    "cover",
+    "hoy",
+    "valor",
+    "carta",
+    "pedido",
+    "panel",
+    "agente",
+    "clientes",
+    "estado",
+    "arranque",
+    "cierre"
+  ],
+  "sections": {
+    "s1": {
+      "description": "Quién es Arepa’s Factory hoy y qué problemas resuelve EasyOrder.",
+      "start": "hoy"
+    },
+    "s2": {
+      "description": "Qué funciones usaría el negocio, con su estado real.",
+      "start": "carta"
+    },
+    "s3": {
+      "description": "Cómo arrancamos y próximos pasos.",
+      "start": "arranque"
+    }
+  },
+  "faces": {
+    "bricolage-grotesque": {
+      "family": "Bricolage Grotesque",
+      "href": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&display=swap"
+    },
+    "manrope": {
+      "family": "Manrope",
+      "href": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap"
+    }
+  },
+  "designSystems": [
+    {
+      "title": "Konnecttia",
+      "namespace": "konnecttia",
+      "artifact": "https://claude.ai/artifact/DRAm8FM5P1ASBmmeiiBu7L",
+      "version": null,
+      "copiedAt": "2026-11-16T12:00:00Z"
+    }
+  ]
+}
