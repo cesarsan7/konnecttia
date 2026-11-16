@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
 import { API_ERROR, fail } from "../lib/http";
 import { findPostalCode } from "../lib/postal-code";
-import { resolveAgentChannel } from "../middleware/agent";
+import { requireAgentSecret, resolveAgentChannel } from "../middleware/agent";
 import {
   agentPresentation,
   agentSettings,
@@ -34,6 +34,7 @@ import {
   saveFrequentAddress,
   viewCart,
 } from "../repositories/agent-cart";
+import { runAgentMaintenance } from "../repositories/agent-maintenance";
 import {
   addressOptions,
   branchOptions,
@@ -230,6 +231,14 @@ function agentProducts(menu: PublicMenu, hidden: ReadonlySet<number>): AgentProd
 export function agenteRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   app.use("/canales/:canalId/*", resolveAgentChannel(deps));
+
+  /**
+   * Mantenimiento periódico (n8n, cada pocos minutos): caduca carritos y, con el módulo premium,
+   * avisa antes de caducar y cancela pagos pendientes. Devuelve los mensajes que n8n debe enviar.
+   */
+  app.post("/mantenimiento/caducidad", requireAgentSecret(deps), async (c) => {
+    return c.json(await runAgentMaintenance(deps.sql, deps.now()));
+  });
 
   /**
    * Todo lo que el agente necesita al empezar un turno: identidad, si puede tomar pedidos, locales

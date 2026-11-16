@@ -1,0 +1,125 @@
+{
+  "name": "[Agente] Mantenimiento",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "992bd18a-b249-5b88-928d-8909a113e049",
+      "name": "Cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "__API_KONNECTTIA_URL__/agente/mantenimiento/caducidad",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d227e417-fdd9-595b-beb6-0fca633481a1",
+      "name": "Mantenimiento API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "staging_agente_api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mensajes que la API pide enviar: avisos de caducidad y pedidos cancelados por falta de pago.\nconst r = $input.first().json || {};\nconst lista = [...(r.avisos || []), ...(r.pedidos_cancelados || [])];\nreturn lista\n  .filter((m) => m && m.canal_id && m.destinatario && m.texto)\n  .map((m) => ({\n    json: {\n      restaurante_id: m.restaurante_id,\n      canal_id: m.canal_id,\n      destinatario: m.destinatario,\n      texto: m.texto,\n    },\n  }));\n"
+      },
+      "id": "13b50370-c202-5b72-aad1-68358c425d35",
+      "name": "Mensajes a enviar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "CnEnviarMensaje1",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/CnEnviarMensaje1",
+          "cachedResultName": "[Canal] Enviar mensaje"
+        },
+        "options": {}
+      },
+      "id": "659244a3-ba94-5bd2-90b9-5daa19935a83",
+      "name": "Enviar mensaje",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        720,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cada 5 minutos": {
+      "main": [
+        [
+          {
+            "node": "Mantenimiento API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mantenimiento API": {
+      "main": [
+        [
+          {
+            "node": "Mensajes a enviar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mensajes a enviar": {
+      "main": [
+        [
+          {
+            "node": "Enviar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "AgMantenimien001",
+  "tags": []
+}
