@@ -288,7 +288,7 @@ staging corre con `AUTO_MIGRATE=false` y el usuario `konnecttia_app`, sin permis
 
 ### Estado del 10/11
 
-Fusionado en `main` hasta el PR #114; el #115 sigue abierto. Las migraciones 0032 a 0036 hay que
+Fusionado en `main` hasta el PR #114 (el #115 se fusionó después, ver «Estado del 16/11»). Las migraciones 0032 a 0036 hay que
 confirmarlas en staging (se aplican con `infra/scripts/migrate-easypanel.sh` como `postgres`).
 Antes de desplegar `main` hace falta el #113: sin él, el build de la API falla.
 
@@ -304,10 +304,44 @@ Antes de desplegar `main` hace falta el #113: sin él, el build de la API falla.
 | D · App instalable (PWA) y avisos push de pedido nuevo                      | #110, #113       | 0034      | Fusionado; apagado hasta generar las claves `VAPID_*`            |
 | Sonido por estado del pedido (Ajustes → Sonidos)                            | #112             | 0035      | Fusionado                                                        |
 | El propietario tiene todos los permisos (podía invitar solo a propietarios) | #114             | 0036      | Fusionado; aplicar en staging y recargar Equipo                  |
-| Equipo de Konnecttia desde `/interno` y cuentas huérfanas                   | #115             | —         | Abierto; necesita `SUPABASE_SERVICE_ROLE_KEY` en la API          |
+| Equipo de Konnecttia desde `/interno` y cuentas huérfanas                   | #115             | —         | Fusionado; necesita `SUPABASE_SERVICE_ROLE_KEY` en la API        |
 
 Pendiente de este bloque: push al cliente en el seguimiento, avisos push filtrados por local y
 sonidos distintos por dispositivo (todo después del MVP).
+
+### Estado del 16/11
+
+Fusionado en `main` hasta el PR #151; no hay PR abiertos. Las migraciones 0037 a 0049 hay que
+confirmarlas en staging (las del agente, 0045 a 0049, las aplica el promotor; ver cada PR). El
+agente de WhatsApp pasa a la API (`/agente`) y a un Director nuevo en n8n, sin Chatwoot ni Redis,
+con Kapso como canal (ADR 0012) y configuración por plantilla con herencia (ADR 0013, aceptada).
+El agente sigue en pruebas en staging; La Isla no se toca.
+
+| Pieza                                                                                 | PR               | Migración  | Estado                                                 |
+| ------------------------------------------------------------------------------------- | ---------------- | ---------- | ------------------------------------------------------ |
+| Equipo de Konnecttia desde `/interno` y cuentas huérfanas                             | #115             | —          | Fusionado                                              |
+| Modo soporte de solo lectura y registro de accesos (visible si se habilita)           | #117, #118       | 0037       | Fusionado                                              |
+| Adaptador de canal con Kapso y `canal_whatsapp`                                       | #120–#124        | 0038       | Fusionado; diseño y publicación en `integrations/n8n`  |
+| B2.1–B2.3 · API `/agente`, carrito y Director nuevo                                   | #125–#127        | 0039, 0040 | Fusionado; staging                                     |
+| B2.4 · Derivar a una persona con pausa y preguntas frecuentes                         | #128             | 0041       | Fusionado                                              |
+| B2.5 · Botones y listas de WhatsApp                                                   | #129             | —          | Fusionado                                              |
+| B2.6 · Pestaña «Derivaciones» en Incidencias, con permisos                            | #130             | 0042       | Fusionado                                              |
+| B2.7–B2.9 · Seguimiento: cancelar y novedades configurables, tiempos, reseña          | #131, #132, #134 | 0043, 0044 | Fusionado                                              |
+| B2.10 · Eliminar usuarios (cuentas sin uso recientes)                                 | #133             | —          | Fusionado                                              |
+| B2.11–B2.14 · Dirección escrita geocodificada, botones, enlaces a carta y seguimiento | #135, #137–#139  | —          | Fusionado; geocodificación apagada sin `GEOCODING_URL` |
+| B2.12 · Contador de incidencias y derivaciones, y sus sonidos                         | #136             | —          | Fusionado                                              |
+| Purgar pedidos de prueba de un restaurante (solo staging)                             | #141             | 0045       | Fusionado; activa con `PURGA_PEDIDOS_PERMITIDA=true`   |
+| ADR 0013 · Plantilla estándar y pestaña «Agente de WhatsApp» en Ajustes               | #140, #142, #143 | 0046       | Fusionado                                              |
+| Alérgenos del agente: solo nota con enlace a la carta                                 | #144             | —          | Fusionado                                              |
+| Caducidad de carritos, aviso previo y pagos pendientes (premium)                      | #145             | 0047       | Fusionado; activar el flujo «[Agente] Mantenimiento»   |
+| Avisos de estado del pedido por WhatsApp (premium)                                    | #146             | 0048       | Fusionado                                              |
+| Correo al propietario al derivar una conversación                                     | #147             | —          | Fusionado; necesita `RESEND_API_KEY`                   |
+| Purga de `whatsapp_evento` e informe de `DEFAULT 1` en funciones SQL                  | #148             | 0049       | Fusionado                                              |
+| Arreglo del orden de módulos (CI) y limpieza de staging                               | #149–#151        | —          | Fusionado                                              |
+
+Pendiente de este bloque: plantillas de Meta para avisar fuera de la ventana de 24 h, y que la
+migración quite `DEFAULT 1` de las funciones SQL cuando se confirme que ningún flujo activo las
+llama sin restaurante.
 
 ## Requerimientos del promotor (6/11), aterrizados
 
