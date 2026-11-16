@@ -106,6 +106,20 @@ describe.skipIf(!TEST_DATABASE_URL)("rutas del agente de WhatsApp (/agente)", ()
       );
     });
 
+    it("nota_alergenos: la de la plantilla con el enlace de la carta; el agente no da alérgenos", async () => {
+      const path = `/agente/canales/${canal.a}/contexto?telefono=%2B34600111222`;
+      const withUrl = ctx.appWith({ agentSecret: SECRET, panelUrl: "https://pedidos.test" });
+      const response = await withUrl.request(path, { headers: { [AGENT_SECRET_HEADER]: SECRET } });
+      const json = (await response.json()) as { agente: { nota_alergenos: string | null } };
+      expect(json.agente.nota_alergenos).toBe(
+        "Para información de alérgenos, consulta la carta: https://pedidos.test/prueba-a",
+      );
+      // Sin URL pública no queda el marcador a medias.
+      expect((await get(path)).json.agente.nota_alergenos).toBe(
+        "Para información de alérgenos, consulta la carta",
+      );
+    });
+
     it("identidad en nombre del restaurante y datos del cliente solo de ese restaurante", async () => {
       const { status, json } = await get(
         `/agente/canales/${canal.a}/contexto?telefono=%2B34600111222`,
@@ -180,7 +194,8 @@ describe.skipIf(!TEST_DATABASE_URL)("rutas del agente de WhatsApp (/agente)", ()
         ],
         extras: [{ id: 1301, nombre: "Queso", precio: 2.5 }],
       });
-      expect(json.productos[0].alergenos).not.toMatch(/sin alérgenos/i);
+      // El agente no da alérgenos por WhatsApp: remite a la carta (nota_alergenos).
+      expect(json.productos[0]).not.toHaveProperty("alergenos");
     });
 
     it("lo agotado en el local del número no aparece", async () => {

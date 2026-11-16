@@ -1,4 +1,4 @@
-import { allergenLabel, ETA_SERVICE, FULFILLMENT, searchMenu } from "@konnecttia/domain";
+import { ETA_SERVICE, FULFILLMENT, searchMenu } from "@konnecttia/domain";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import type { AppDeps, AppEnv } from "../context";
@@ -8,6 +8,7 @@ import { resolveAgentChannel } from "../middleware/agent";
 import {
   agentPresentation,
   agentSettings,
+  allergenNote,
   HANDOFF_REASON,
   loadAgentCustomer,
   loadFaqs,
@@ -195,8 +196,6 @@ type AgentProduct = {
   readonly descripcion: string | null;
   readonly variantes: readonly { id: number; nombre: string; precio: number }[];
   readonly extras: readonly { id: number; nombre: string; precio: number }[];
-  /** Texto listo para el cliente; nunca dice «sin alérgenos» si el dato falta. */
-  readonly alergenos: string;
 };
 
 function agentProducts(menu: PublicMenu, hidden: ReadonlySet<number>): AgentProduct[] {
@@ -218,7 +217,6 @@ function agentProducts(menu: PublicMenu, hidden: ReadonlySet<number>): AgentProd
           nombre: extra.name,
           precio: extra.price,
         })),
-        alergenos: allergenLabel(item.allergens),
       })),
   );
 }
@@ -278,16 +276,20 @@ export function agenteRoutes(deps: AppDeps) {
     // Un número de un local concreto responde por ese local: si está cerrado, no se pide por él.
     const abierto = channelBranch ? channelBranch.abierto : locales.some((local) => local.abierto);
 
+    const cartaUrl = deps.panelUrl
+      ? `${deps.panelUrl.replace(/\/+$/, "")}/${restaurant.slug}`
+      : null;
     return c.json({
       restaurante: { id: restaurant.id, nombre: restaurant.nombre, slug: restaurant.slug },
       // Carta pública (siempre al día): el agente la comparte en vez de listar toda la carta.
-      carta_url: deps.panelUrl ? `${deps.panelUrl.replace(/\/+$/, "")}/${restaurant.slug}` : null,
+      carta_url: cartaUrl,
       agente: {
         activo: settings.activo,
         presentacion: agentPresentation(restaurant.nombre, settings.nombreVisible),
         nombre_visible: settings.nombreVisible,
         tono: settings.tono,
         instrucciones: settings.instrucciones,
+        nota_alergenos: allergenNote(settings.notaAlergenos, cartaUrl),
         pausa_minutos: settings.pausaMinutos,
         pausa_derivar_minutos: settings.pausaDerivarMinutos,
       },
