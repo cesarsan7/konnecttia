@@ -1,0 +1,68 @@
+/* Editor de parámetros del agente (Ajustes del restaurante e Interno). Variables de panel.css. */
+
+.k-agent-group {
+  display: grid;
+  gap: 18px;
+}
+
+.k-agent-param {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--k-line, #e5e5e5);
+}
+
+.k-agent-param:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.k-agent-param-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-agent-origin {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--k-soft, #f2f2f2);
+}
+
+.k-agent-origin.is-own {
+  background: var(--k-accent-soft, #e6f4ea);
+}
+
+.k-agent-lock {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.k-agent-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.k-agent-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.k-agent-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.k-agent-textarea {
+  min-height: 84px;
+  width: 100%;
+  resize: vertical;
+}

@@ -46,6 +46,7 @@ export const PERMISSION = {
   HelpView: "help.view",
   AgentHandoffsView: "agent.handoffs.view",
   AgentHandoffsManage: "agent.handoffs.manage",
+  AgentConfigure: "agent.configure",
 } as const;
 
 type AccessValue = {

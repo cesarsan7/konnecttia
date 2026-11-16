@@ -178,3 +178,70 @@ export async function saveParamValues(
     }
   });
 }
+
+/** Guarda (o, con `null`, quita) valores de una plantilla. */
+export async function saveTemplateValues(
+  sql: Sql,
+  template: string,
+  changes: ReadonlyMap<string, string | null>,
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    for (const [key, value] of changes) {
+      if (value === null) {
+        await tx`
+          DELETE FROM public.config_plantilla
+          WHERE  plantilla_code = ${template} AND clave = ${key}
+        `;
+      } else {
+        await tx`
+          INSERT INTO public.config_plantilla (plantilla_code, clave, valor)
+          VALUES (${template}, ${key}, ${value})
+          ON CONFLICT (plantilla_code, clave)
+          DO UPDATE SET valor = EXCLUDED.valor, updated_at = now()
+        `;
+      }
+    }
+  });
+}
+
+/** Cuántos restaurantes personalizan cada parámetro (los demás heredan la plantilla). */
+export async function countOverrides(sql: Sql): Promise<Map<string, number>> {
+  const rows = await sql<{ config_key: string; n: number }[]>`
+    SELECT config_key, count(*)::int AS n
+    FROM   public.restaurante_config
+    WHERE  config_key IN (
+             SELECT clave FROM public.config_clave WHERE grupo = ${AGENT_GROUP} AND estado = 'activa')
+    GROUP  BY config_key
+  `;
+  return new Map(rows.map((row) => [row.config_key, row.n]));
+}
+
+/**
+ * Valida los cambios recibidos contra el diccionario. `allowed` decide qué claves se aceptan
+ * (el panel del restaurante: solo las suyas y con módulo; lo interno: todas).
+ */
+export type ChangeCheck =
+  | { readonly ok: true; readonly changes: Map<string, string | null> }
+  | { readonly ok: false; readonly reason: string; readonly field: string };
+
+export function checkChanges(
+  defs: ReadonlyMap<string, ParamDef>,
+  raw: Record<string, unknown>,
+  accepts: (def: ParamDef) => string | null,
+): ChangeCheck {
+  const changes = new Map<string, string | null>();
+  for (const [key, value] of Object.entries(raw)) {
+    const def = defs.get(key);
+    if (!def) return { ok: false, reason: "unknown_param", field: key };
+    const refusal = accepts(def);
+    if (refusal) return { ok: false, reason: refusal, field: key };
+    if (value === null) {
+      changes.set(key, null);
+      continue;
+    }
+    const normalized = normalizeParamValue(def, value);
+    if (!normalized.ok) return { ok: false, reason: normalized.reason, field: key };
+    changes.set(key, normalized.value);
+  }
+  return { ok: true, changes };
+}
