@@ -1,3 +1,4 @@
+import type { AgentParam } from "../agent-params";
 import type { ApiResult } from "../api";
 import type { ApiErrorBody } from "../types";
 import type {
@@ -129,6 +130,22 @@ export function createPlatformApi(baseUrl: string, getToken: () => Promise<strin
       request<UnusedAccounts>(`/cuentas-sin-uso${recent ? "?recientes=1" : ""}`),
     deleteAccount: (userId: string) =>
       request<{ eliminada: boolean }>(`/cuentas/${userId}`, { method: "DELETE" }),
+    agentTemplate: () =>
+      request<{
+        plantilla: string;
+        restaurantes_con_agente: number;
+        parametros: AgentParam[];
+      }>("/agente/plantilla"),
+    saveAgentTemplate: (valores: Record<string, unknown>) =>
+      put<{ ok: boolean }>("/agente/plantilla", { valores }),
+    restaurantAgent: (id: number) =>
+      request<{
+        agente_contratado: boolean;
+        premium_contratado: boolean;
+        parametros: AgentParam[];
+      }>(`/restaurantes/${id}/agente`),
+    saveRestaurantAgent: (id: number, valores: Record<string, unknown>) =>
+      put<{ ok: boolean }>(`/restaurantes/${id}/agente`, { valores }),
     templates: () => request<TemplatesInfo>("/plantillas"),
     createTemplate: (body: RoleBody) =>
       request<{ id: number }>("/plantillas", { method: "POST", body: JSON.stringify(body) }),

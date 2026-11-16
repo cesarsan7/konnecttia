@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { platformErrorMessage } from "@/lib/interno/logic";
 import type { RestaurantDetail as Detail } from "@/lib/interno/types";
+import { AgentRestaurantSection } from "./AgentRestaurantSection";
 import { AntifraudCodeSection } from "./AntifraudCodeSection";
 import { usePlatform } from "./InternalShell";
 import { LifecycleSection } from "./LifecycleSection";
@@ -101,6 +102,7 @@ export function RestaurantDetail({ id }: { readonly id: number }) {
       <PlanModulesSection detail={detail} onChanged={load} />
       <PaymentMethodsSection detail={detail} onChanged={load} />
       <AntifraudCodeSection detail={detail} onChanged={load} />
+      <AgentRestaurantSection id={restaurant.id} />
       <RolesSection detail={detail} />
       <MenuImportSection detail={detail} onChanged={load} />
 
