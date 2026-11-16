@@ -108,6 +108,8 @@ export type AppDeps = {
   readonly stripe?: StripeClient | null;
   /** Secreto del endpoint del webhook de Stripe; sin él, el webhook responde 503. */
   readonly stripeWebhookSecret?: string | null;
+  /** Solo staging: deja purgar los pedidos de un restaurante desde el panel interno. */
+  readonly purgeOrdersAllowed?: boolean;
   /** null si no hay proveedor de geocodificación: el agente pide la ubicación de WhatsApp. */
   readonly geocoder?: Geocoder | null;
   /** Secreto que n8n envía en las rutas `/agente`; sin él, esas rutas responden 503. */

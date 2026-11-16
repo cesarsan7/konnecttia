@@ -40,6 +40,14 @@ const envSchema = z
       .default("false")
       .transform((value) => value === "true"),
     /**
+     * Permite purgar los pedidos de un restaurante desde el panel interno (limpiar pruebas).
+     * SOLO en staging: en producción debe quedar sin definir y la API responde 403.
+     */
+    PURGA_PEDIDOS_PERMITIDA: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    /**
      * Antifraude capa 3 (código por WhatsApp). Sin credenciales ni simulación, la capa está apagada.
      * Número central de Konnecttia: una sola cuenta y una sola plantilla de autenticación.
      */

@@ -280,6 +280,7 @@ const REASONS: Record<string, string> = {
   unknown_plan: "Ese plan no existe.",
   unknown_source: "El restaurante del que quieres partir ya no existe.",
   confirmation_mismatch: "El enlace escrito no coincide: no se ha borrado nada.",
+  purge_disabled: "La purga de pedidos no está permitida en este entorno (solo staging).",
   base_template: "Las plantillas base (Propietario, Encargado…) no se borran.",
   owner_locked:
     "Propietario debe conservar los permisos de equipo y ajustes: sin ellos nadie podría gestionar el restaurante.",

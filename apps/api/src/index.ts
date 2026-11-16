@@ -175,6 +175,7 @@ const app = createApp({
   proofStorage: proofStorage(),
   mailer: env.RESEND_API_KEY ? createResendMailer(env.RESEND_API_KEY, env.RESEND_FROM) : null,
   panelUrl: env.PANEL_PUBLIC_URL ?? null,
+  purgeOrdersAllowed: env.PURGA_PEDIDOS_PERMITIDA,
   generateRecoveryLink: recoveryLinks(),
   verifyCaptcha: env.TURNSTILE_SECRET_KEY
     ? createTurnstileVerifier(env.TURNSTILE_SECRET_KEY)

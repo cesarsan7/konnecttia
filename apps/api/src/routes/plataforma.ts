@@ -29,6 +29,7 @@ import { INVITE_DAYS, inviteLink, panelBase, sendInviteEmail } from "../lib/invi
 import { displayName } from "../lib/member-name";
 import { requirePlatform } from "../middleware/platform";
 import { audit } from "../repositories/access";
+import { purgeOrders, removeOrderFiles } from "../repositories/order-purge";
 import {
   applyPlan,
   changeModule,
@@ -431,6 +432,7 @@ export function plataformaRoutes(deps: AppDeps) {
         mostrar: displayName(apodo, member.nombre),
       })),
       pedidos_total: orderCount?.total ?? 0,
+      purga_pedidos_permitida: deps.purgeOrdersAllowed === true,
       invitaciones_pendientes: invites,
     });
   });
@@ -583,6 +585,61 @@ export function plataformaRoutes(deps: AppDeps) {
       },
       201,
     );
+  });
+
+  // -------------------------------------------------------------------------------- purga de pedidos
+
+  /**
+   * Borra los pedidos de un restaurante (y, si se pide, carritos, derivaciones y conversaciones del
+   * agente) para limpiar pruebas. Solo `admin`, repitiendo su enlace en `confirmar`, y solo si la
+   * API tiene `PURGA_PEDIDOS_PERMITIDA=true` (staging): en producción responde 403 siempre.
+   */
+  app.post("/restaurantes/:id/purgar-pedidos", writer, async (c) => {
+    if (deps.purgeOrdersAllowed !== true) {
+      return fail(c, 403, API_ERROR.Forbidden, { reason: "purge_disabled" });
+    }
+    const restaurant = await restaurantFromUrl(c);
+    if (!restaurant) return fail(c, 404, API_ERROR.RestaurantNotFound);
+    const parsed = await body(
+      c,
+      z.object({
+        confirmar: z.string().trim().min(1).max(120),
+        antes_de: z.iso.datetime({ offset: true }).optional(),
+        carritos: z.boolean().default(false),
+        derivaciones: z.boolean().default(false),
+        conversaciones: z.boolean().default(false),
+      }),
+    );
+    if (!parsed.success) return invalid(c, "confirmar");
+    const expected = restaurant.slug ?? String(restaurant.id);
+    if (parsed.data.confirmar !== expected) {
+      return unprocessable(c, "confirmation_mismatch", { field: "confirmar" });
+    }
+    const options = {
+      before: parsed.data.antes_de ? new Date(parsed.data.antes_de) : null,
+      carts: parsed.data.carritos,
+      handoffs: parsed.data.derivaciones,
+      conversations: parsed.data.conversaciones,
+    };
+    const removed = await sql.begin((tx) => purgeOrders(tx, restaurant.id, options));
+    const archivos = await removeOrderFiles(deps, restaurant.id, options);
+    await audit(sql, {
+      restauranteId: restaurant.id,
+      actorTipo: "plataforma",
+      actorId: c.get("platform").userId,
+      accion: "plataforma.restaurante.purgar_pedidos",
+      recursoTipo: "restaurante",
+      recursoId: String(restaurant.id),
+      resultado: "ok",
+      detalle: {
+        slug: restaurant.slug,
+        antes_de: parsed.data.antes_de ?? null,
+        ...removed,
+        archivos,
+      },
+      requestId: c.get("requestId"),
+    });
+    return c.json({ id: restaurant.id, ...removed, archivos });
   });
 
   // -------------------------------------------------------------------------------- borrado
