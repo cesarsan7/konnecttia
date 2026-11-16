@@ -7,13 +7,13 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 5
+              "minutesInterval": 2
             }
           ]
         }
       },
-      "id": "992bd18a-b249-5b88-928d-8909a113e049",
-      "name": "Cada 5 minutos",
+      "id": "77b3d277-b2be-53b4-bd9e-fa71de88af34",
+      "name": "Cada 2 minutos",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
@@ -47,7 +47,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Mensajes que la API pide enviar: avisos de caducidad y pedidos cancelados por falta de pago.\nconst r = $input.first().json || {};\nconst lista = [...(r.avisos || []), ...(r.pedidos_cancelados || [])];\nreturn lista\n  .filter((m) => m && m.canal_id && m.destinatario && m.texto)\n  .map((m) => ({\n    json: {\n      restaurante_id: m.restaurante_id,\n      canal_id: m.canal_id,\n      destinatario: m.destinatario,\n      texto: m.texto,\n    },\n  }));\n"
+        "jsCode": "// Mensajes que la API pide enviar: cambios de estado, avisos de caducidad y cancelaciones de pago.\nconst r = $input.first().json || {};\nconst lista = [...(r.estados || []), ...(r.avisos || []), ...(r.pedidos_cancelados || [])];\nreturn lista\n  .filter((m) => m && m.canal_id && m.destinatario && m.texto)\n  .map((m) => ({\n    json: {\n      restaurante_id: m.restaurante_id,\n      canal_id: m.canal_id,\n      destinatario: m.destinatario,\n      texto: m.texto,\n    },\n  }));\n"
       },
       "id": "13b50370-c202-5b72-aad1-68358c425d35",
       "name": "Mensajes a enviar",
@@ -82,7 +82,7 @@
   ],
   "pinData": {},
   "connections": {
-    "Cada 5 minutos": {
+    "Cada 2 minutos": {
       "main": [
         [
           {
