@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Genera «[Agente] Mantenimiento»: cada 5 minutos pide a la API la caducidad de carritos y, con el
+Genera «[Agente] Mantenimiento»: cada 2 minutos pide a la API la caducidad de carritos y, con el
 módulo premium, los avisos y las cancelaciones de pagos pendientes, y envía los mensajes que la API
 devuelve por «[Canal] Enviar mensaje». La lógica y los textos viven en la API; aquí solo se
 programa y se envía.
@@ -28,9 +28,9 @@ NOMBRE = "[Agente] Mantenimiento"
 ID_ENVIAR = "CnEnviarMensaje1"
 NOMBRE_ENVIAR = "[Canal] Enviar mensaje"
 
-JS_MENSAJES = r"""// Mensajes que la API pide enviar: avisos de caducidad y pedidos cancelados por falta de pago.
+JS_MENSAJES = r"""// Mensajes que la API pide enviar: cambios de estado, avisos de caducidad y cancelaciones de pago.
 const r = $input.first().json || {};
-const lista = [...(r.avisos || []), ...(r.pedidos_cancelados || [])];
+const lista = [...(r.estados || []), ...(r.avisos || []), ...(r.pedidos_cancelados || [])];
 return lista
   .filter((m) => m && m.canal_id && m.destinatario && m.texto)
   .map((m) => ({
@@ -47,10 +47,10 @@ return lista
 def flujo_mantenimiento():
     nodos = [
         nodo(
-            "Cada 5 minutos",
+            "Cada 2 minutos",
             "n8n-nodes-base.scheduleTrigger",
             1.2,
-            {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}},
+            {"rule": {"interval": [{"field": "minutes", "minutesInterval": 2}]}},
             (0, 0),
         ),
         nodo(
@@ -78,7 +78,7 @@ def flujo_mantenimiento():
         ),
     ]
     aristas = [
-        ("Cada 5 minutos", "Mantenimiento API"),
+        ("Cada 2 minutos", "Mantenimiento API"),
         ("Mantenimiento API", "Mensajes a enviar"),
         ("Mensajes a enviar", "Enviar mensaje"),
     ]

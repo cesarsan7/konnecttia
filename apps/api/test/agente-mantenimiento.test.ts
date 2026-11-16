@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AGENT_SECRET_HEADER } from "../src/middleware/agent";
+import { changeOrderStatus } from "../src/repositories/order-status";
 import { setupTestApp, TEST_DATABASE_URL, type TestContext } from "./harness";
 
 const SECRET = "secreto-de-pruebas-del-agente-0123456789";
@@ -150,6 +151,66 @@ describe.skipIf(!TEST_DATABASE_URL)("mantenimiento de caducidad del agente", () 
     expect(await stateOf(proof)).toBe("pendiente_pago");
     expect(await stateOf(withoutPro)).toBe("pendiente_pago");
     expect((await run()).json.pedidos_cancelados).toEqual([]);
+  });
+
+  it("avisa los cambios de estado elegidos, solo con premium, una vez y sin duplicar cancelaciones", async () => {
+    await ctx.sql`
+      INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
+      VALUES (101, 'agente_notif_estados', '["listo","entregado","cancelado"]'),
+             (103, 'agente_notif_estados', '["listo"]')
+    `;
+    const order = async (
+      restauranteId: number,
+      canalId: number,
+      phone: string,
+      code: string,
+      status: string,
+    ) => {
+      const [row] = await ctx.sql<{ id: number }[]>`
+        INSERT INTO public.pedidos
+          (restaurante_id, telefono, estado, estado_pago, pedido_codigo, canal, tipo_despacho)
+        VALUES (${restauranteId}, ${phone}, ${status}, 'pagado', ${code}, 'whatsapp', 'retiro')
+        RETURNING id
+      `;
+      await ctx.sql`
+        INSERT INTO public.agente_carrito
+          (restaurante_id, canal_id, telefono, estado, pedido_id, updated_at)
+        VALUES (${restauranteId}, ${canalId}, ${phone}, 'confirmado', ${Number(row?.id)}, ${ago(5)})
+      `;
+      return Number(row?.id);
+    };
+    const move = (restauranteId: number, orderId: number, target: string, origin: string) =>
+      changeOrderStatus(ctx.sql, {
+        restaurantId: restauranteId,
+        orderId,
+        target,
+        origin,
+        actor: "test",
+        allowed: () => true,
+      });
+
+    const main = await order(101, canal.pro, "+34600000020", "PED-10", "en_preparacion");
+    const basic = await order(103, canal.basic, "+34600000021", "PED-11", "en_preparacion");
+    const byClient = await order(101, canal.pro, "+34600000022", "PED-12", "recibido");
+    await move(101, main, "listo", "panel");
+    await move(103, basic, "listo", "panel");
+    await move(101, byClient, "cancelado", "cliente");
+
+    const first = (await run()).json.estados;
+    expect(first).toEqual([
+      {
+        restaurante_id: 101,
+        canal_id: canal.pro,
+        destinatario: "+34600000020",
+        texto: "Su pedido PED-10 está listo para recoger.",
+      },
+    ]);
+    expect((await run()).json.estados).toEqual([]);
+
+    await move(101, main, "entregado", "panel");
+    expect((await run()).json.estados).toEqual([
+      expect.objectContaining({ texto: expect.stringContaining("entregado") }),
+    ]);
   });
 
   it("pedido_pago_pendiente_expira_minutos = 0 desactiva la cancelación", async () => {
