@@ -1,0 +1,127 @@
+:root {
+  --surface-page: #fbf7f1;
+  --surface-alt: #f3ebdf;
+  --surface-card: #ffffff;
+  --ink: #0e2a33;
+  --ink-muted: #4e6168;
+  --line: #e6dccf;
+  --brand-teal: #0d7c72;
+  --brand-teal-text: #0a5f58;
+  --brand-teal-tint: #d9f2ee;
+  --brand-coral: #ff6a4d;
+  --brand-coral-text: #b8432a;
+  --brand-coral-tint: #ffe5dd;
+  --on-teal: #ffffff;
+  --night: #0e2a33;
+  --sun: #ffc24b;
+}
+body {
+  font-family: "Manrope", system-ui, sans-serif;
+  color: var(--ink);
+}
+section {
+  counter-increment: page;
+  background: var(--surface-page);
+  padding: 112px 128px 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+section.alt {
+  background: var(--surface-alt);
+}
+section.dark {
+  background: var(--night);
+}
+h1,
+h2 {
+  font-family: "Bricolage Grotesque", "Manrope", sans-serif;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  color: var(--ink);
+}
+h2 {
+  font-size: 68px;
+  line-height: 1.05;
+}
+h3 {
+  font-family: "Bricolage Grotesque", "Manrope", sans-serif;
+  font-weight: 800;
+  font-size: 38px;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.eyebrow {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--brand-teal-text);
+}
+.lead {
+  font-size: 34px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.row {
+  display: flex;
+  gap: 32px;
+}
+.card {
+  flex: 1;
+  background: var(--surface-card);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card p {
+  font-size: 28px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.big {
+  font-family: "Bricolage Grotesque", "Manrope", sans-serif;
+  font-weight: 800;
+  font-size: 120px;
+  line-height: 1;
+  letter-spacing: -3px;
+  color: var(--brand-teal-text);
+}
+.cap {
+  font-size: 28px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.pill {
+  font-size: 24px;
+  font-weight: 800;
+  padding: 8px 20px;
+  border-radius: 999px;
+  align-self: flex-start;
+}
+.ok {
+  background: var(--brand-teal-tint);
+  color: var(--brand-teal-text);
+}
+.test {
+  background: #fff1cf;
+  color: #7a5300;
+}
+.soon {
+  background: var(--brand-coral-tint);
+  color: var(--brand-coral-text);
+}
+.foot {
+  position: absolute;
+  left: 128px;
+  bottom: 64px;
+  font-size: 24px;
+  color: var(--ink-muted);
+}
+.item {
+  font-size: 30px;
+  line-height: 1.4;
+  color: var(--ink);
+}
