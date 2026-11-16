@@ -1,5 +1,4 @@
 import {
-  allergenLabel,
   type Branch,
   type Catalog,
   cents,
@@ -295,7 +294,6 @@ export type CartView = {
     readonly nota: string | null;
     readonly precio_unitario: number;
     readonly importe: number;
-    readonly alergenos: string;
   }[];
   /** Líneas que ya no se pueden servir (producto retirado o agotado en el local). */
   readonly problemas: readonly CartProblem[];
@@ -498,7 +496,6 @@ export async function viewCart(
       nota: line.note ?? null,
       precio_unitario: euros(line.unitPriceCents),
       importe: euros(line.lineTotalCents),
-      alergenos: allergenLabel(line.allergens),
     })),
     problemas: problems,
     subtotal: euros(subtotalCents),
