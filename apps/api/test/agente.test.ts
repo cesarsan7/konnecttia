@@ -96,6 +96,16 @@ describe.skipIf(!TEST_DATABASE_URL)("rutas del agente de WhatsApp (/agente)", ()
   });
 
   describe("contexto", () => {
+    it("carta_url: la carta pública del restaurante, o null sin URL pública configurada", async () => {
+      const path = `/agente/canales/${canal.a}/contexto?telefono=%2B34600111222`;
+      expect((await get(path)).json.carta_url).toBeNull();
+      const withUrl = ctx.appWith({ agentSecret: SECRET, panelUrl: "https://pedidos.test/" });
+      const response = await withUrl.request(path, { headers: { [AGENT_SECRET_HEADER]: SECRET } });
+      expect(((await response.json()) as { carta_url: string | null }).carta_url).toBe(
+        "https://pedidos.test/prueba-a",
+      );
+    });
+
     it("identidad en nombre del restaurante y datos del cliente solo de ese restaurante", async () => {
       const { status, json } = await get(
         `/agente/canales/${canal.a}/contexto?telefono=%2B34600111222`,
