@@ -56,7 +56,8 @@ async function sendPhoto(
   field = "foto",
 ) {
   const form = new FormData();
-  if (file) form.append(field, new File([file], "entrega.jpg", { type: "image/jpeg" }));
+  if (file)
+    form.append(field, new File([new Uint8Array(file)], "entrega.jpg", { type: "image/jpeg" }));
   return json(
     await app.request(`/panel/prueba-c/mis-repartos/${orderId}/foto`, {
       method: "POST",

@@ -56,7 +56,10 @@ async function upload(
   ip = "203.0.113.50",
 ) {
   const form = new FormData();
-  form.append("justificante", new File([bytes], "captura.png", { type: "image/png" }));
+  form.append(
+    "justificante",
+    new File([new Uint8Array(bytes)], "captura.png", { type: "image/png" }),
+  );
   const response = await app.request(`/public/orders/${token}/justificante`, {
     method: "POST",
     headers: { "x-real-ip": ip },
