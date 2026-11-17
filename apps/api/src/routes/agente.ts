@@ -92,6 +92,9 @@ export const CART_PENDING = {
   TooManyLines: "demasiadas_lineas",
 } as const;
 
+/** Pregunta que acompaña a los botones de «Escribir dirección» / «Enviar ubicación». */
+export const ADDRESS_QUESTION = "¿Cómo prefieres indicarme la dirección de entrega?";
+
 /** Rechazos de despacho y confirmación (en `reason` o `motivo`). */
 export const CART_REJECT = {
   EmptyCart: "carrito_vacio",
@@ -632,7 +635,11 @@ export function agenteRoutes(deps: AppDeps) {
     let point =
       body.lat !== undefined && body.lng !== undefined ? { lat: body.lat, lng: body.lng } : null;
     if (body.tipo === FULFILLMENT.Delivery && !body.direccion) {
-      return unavailable(CART_REJECT.AddressRequired);
+      // Antes de pedir la dirección se le pregunta cómo prefiere darla: el sistema envía estos botones.
+      return unavailable(CART_REJECT.AddressRequired, {
+        pregunta: ADDRESS_QUESTION,
+        opciones: addressOptions(),
+      });
     }
     // Reparto: el código postal (o la zona) es obligatorio salvo que llegue un pin. Si viene dentro
     // de la dirección escrita se toma de ahí, sin depender de que el modelo lo separe.

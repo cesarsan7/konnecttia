@@ -475,15 +475,30 @@ const pasos = Array.isArray(($input.first().json || {}).intermediateSteps) ? $in
 const ultimo = pasos.filter((p) => p && p.action && p.action.tool === 'ofrecer_opciones').pop();
 // Tras confirmar un pedido, el enlace de seguimiento lo pone el sistema (no depende del modelo).
 const confirmado = pasos.filter((p) => p && p.action && p.action.tool === 'confirmar_pedido').pop();
-let confObs = confirmado ? confirmado.observation : null;
-if (typeof confObs === 'string') { try { confObs = JSON.parse(confObs); } catch (e) { confObs = null; } }
+// La herramienta devuelve la respuesta de «Llamar API» como texto JSON dentro de un array
+// ([{"ok":true,"respuesta":{…}}]): se desenvuelve antes de mirar «ok» (si no, nunca se lee).
+const desenvolver = (valor) => {
+  let v = valor;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { return null; } }
+  if (Array.isArray(v)) v = v[0];
+  return v && typeof v === 'object' ? v : null;
+};
+const confObs = confirmado ? desenvolver(confirmado.observation) : null;
 const seguimiento = confObs && confObs.ok === true && confObs.respuesta ? confObs.respuesta.seguimiento_url : null;
 if (seguimiento && !String(base.texto).includes(seguimiento)) {
   base.texto = `${base.texto}\n\nSigue tu pedido aquí: ${seguimiento}`;
 }
-let obs = ultimo ? ultimo.observation : null;
-if (typeof obs === 'string') { try { obs = JSON.parse(obs); } catch (e) { obs = null; } }
-const o = obs && obs.ok === true ? obs.respuesta : null;
+const obs = ultimo ? desenvolver(ultimo.observation) : null;
+let o = obs && obs.ok === true ? obs.respuesta : null;
+// Reparto sin dirección: la API devuelve los botones «Escribir dirección» / «Enviar ubicación» y el
+// sistema los envía con su pregunta, aunque el modelo no llame a ofrecer_opciones (no depende de él).
+const despacho = pasos.filter((p) => p && p.action && p.action.tool === 'elegir_despacho').pop();
+const desp = despacho ? desenvolver(despacho.observation) : null;
+const dr = desp && desp.ok === true ? desp.respuesta : null;
+if (dr && dr.disponible === false && dr.motivo === 'direccion_necesaria' && dr.opciones && dr.opciones.disponible === true) {
+  o = dr.opciones;
+  if (dr.pregunta) base.texto = dr.pregunta;
+}
 if (o && o.disponible === true && Array.isArray(o.botones) && o.botones.length) {
   return [{ json: { ...base, tipo: 'botones', botones: o.botones } }];
 }
