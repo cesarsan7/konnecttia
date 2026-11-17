@@ -1,0 +1,43 @@
+# Contexto del proyecto para sesiones de Claude
+
+> Archivo creado el 17/11/2026: el encargo lo citaba, pero **no existía** en `konnecttia` ni en `easyorder`
+> (ni en `main` ni en ramas). Contiene solo la sección del agente de WhatsApp; las demás sesiones (EasyOrder,
+> comercial) añaden la suya. Fuente de verdad del producto: `AGENTS.md` y `docs/`.
+
+## Sesión: Agente de WhatsApp
+
+### Estado a 17/11/2026
+
+- `main` llega al PR #160 (carta de solo lectura y `carta_url` del agente). Migraciones en el repositorio: hasta la 0049.
+- n8n de staging (`n8n.staging.konnecttia.com`): 17 flujos, todos activos salvo `[MVP] Pizzeria` (legado de Chatwoot).
+  Agente vigente: `[Canal] Entrada Kapso` → `[Agente] Director` (herramientas sobre `/agente/canales/:canalId/…`)
+  → `[Canal] Enviar mensaje`; `[Agente] Mantenimiento` cada 2 min (caducidad de carritos).
+- Kapso: un solo número, el **sandbox** `597907523413541`, con un webhook a `…/webhook/kapso-entrada`.
+  Solo escribe el teléfono de pruebas registrado. Buffer de mensajes de Kapso **desactivado** (el diseño lo da por activo).
+- `canal_whatsapp`: `id = 1` → Siempre Juntos (`restaurante_id = 1`). Probado de punta a punta (pedido `261117-1001`).
+- Arepa's Factory (`restaurante_id = 2`; módulos y claves del agente ya cargados el 17/11): carta (13 categorías, 76 productos), 1 local (id 3), 1 zona (radio 5 km, 2 € fijo,
+  mínimo 30 €), efectivo y tarjeta. **Le falta** el canal (sigue en Siempre Juntos) y `agente_pausa_minutos`; borrar `is_open_override`.
+
+### Decisión del promotor (17/11)
+
+Opción A: pasar el sandbox de Siempre Juntos a Arepa's Factory, de forma reversible. Se hace **creando un canal nuevo**
+y apartando el viejo (`phone_number_id || '#r1'`, `desconectado`), no con `UPDATE restaurante_id`: `whatsapp_conversacion`
+y `agente_carrito` tienen FK `(canal_id, restaurante_id)` sin `ON UPDATE CASCADE`. Guion, SQL de ida y vuelta, checklist
+y batería de pruebas: [`integrations/n8n/pruebas/arepas-factory-whatsapp.md`](../integrations/n8n/pruebas/arepas-factory-whatsapp.md).
+Revisión de ejecuciones (solo lectura): `integrations/n8n/scripts/revisar_ejecuciones.py`.
+
+### Hallazgos abiertos
+
+1. **Transferencia ⇒ `pendiente_pago`**: resuelto en código (PR pendiente): el cancelado automático de pagos pendientes ahora actúa
+   sobre `recibido` + `estado_pago = 'pendiente'`, que es como nacen los pedidos (web y agente). Prueba nueva en
+   `agente-mantenimiento.test.ts`; suite de la API 629/629.
+2. Arepa's tiene `is_open_override = 'true'` (confirmado): abierto 24 h. Borrar la fila para que mande el horario.
+3. «[Canal] Entrada Kapso» lee `agente_activo` y `agente_pausa_minutos` directamente de `restaurante_config` (sin plantilla),
+   y la rama «agente no activo» termina en silencio: un restaurante sin la fila propia no responde y no avisa.
+4. Buffer de Kapso apagado.
+
+### Pendiente
+
+- El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
+- Con los resultados: revisar cada ejecución con el script, comparar con la base y redactar el informe (sección 8 del guion).
+- No he podido comprobar la base desde la sesión (sin acceso): las consultas 2.0–2.5 están pensadas para pegar el resultado.

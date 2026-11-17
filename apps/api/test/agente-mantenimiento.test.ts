@@ -48,10 +48,11 @@ async function pendingOrder(
   phone: string,
   code: string,
   minutes: number,
+  estado = "pendiente_pago",
 ) {
   const [order] = await ctx.sql<{ id: number }[]>`
     INSERT INTO public.pedidos (restaurante_id, telefono, estado, estado_pago, pedido_codigo, canal)
-    VALUES (${restauranteId}, ${phone}, 'pendiente_pago', 'pendiente', ${code}, 'whatsapp')
+    VALUES (${restauranteId}, ${phone}, ${estado}, 'pendiente', ${code}, 'whatsapp')
     RETURNING id
   `;
   await ctx.sql`
@@ -151,6 +152,20 @@ describe.skipIf(!TEST_DATABASE_URL)("mantenimiento de caducidad del agente", () 
     expect(await stateOf(proof)).toBe("pendiente_pago");
     expect(await stateOf(withoutPro)).toBe("pendiente_pago");
     expect((await run()).json.pedidos_cancelados).toEqual([]);
+  });
+
+  it("cancela también el pedido por transferencia tal como se crea (recibido + cobro pendiente), no el ya aceptado", async () => {
+    const received = await pendingOrder(101, canal.pro, "+34600000020", "PED-R1", 61, "recibido");
+    const accepted = await pendingOrder(101, canal.pro, "+34600000021", "PED-R2", 61, "confirmado");
+    const { json } = await run();
+    expect(json.pedidos_cancelados).toEqual([
+      expect.objectContaining({
+        destinatario: "+34600000020",
+        texto: expect.stringContaining("PED-R1"),
+      }),
+    ]);
+    expect(await stateOf(received)).toBe("cancelado");
+    expect(await stateOf(accepted)).toBe("confirmado");
   });
 
   it("avisa los cambios de estado elegidos, solo con premium, una vez y sin duplicar cancelaciones", async () => {
