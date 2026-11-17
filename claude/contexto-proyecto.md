@@ -16,7 +16,7 @@
   Solo escribe el teléfono de pruebas registrado. Buffer de mensajes de Kapso **desactivado** (el diseño lo da por activo).
 - `canal_whatsapp`: `id = 1` → Siempre Juntos (`restaurante_id = 1`). Probado de punta a punta (pedido `261117-1001`).
 - Arepa's Factory (`restaurante_id = 2`; módulos y claves del agente ya cargados el 17/11): carta (13 categorías, 76 productos), 1 local (id 3), 1 zona (radio 5 km, 2 € fijo,
-  mínimo 30 €), efectivo y tarjeta. **Le faltan** módulos `whatsapp.channel`/`whatsapp.agent`, `agente_activo = 'true'` y el canal.
+  mínimo 30 €), efectivo y tarjeta. **Le falta** el canal (sigue en Siempre Juntos) y `agente_pausa_minutos`; borrar `is_open_override`.
 
 ### Decisión del promotor (17/11)
 
@@ -38,6 +38,6 @@ Revisión de ejecuciones (solo lectura): `integrations/n8n/scripts/revisar_ejecu
 
 ### Pendiente
 
-- El promotor ejecuta la sección 4.1 y 3.1 del guion en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
+- El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
 - Con los resultados: revisar cada ejecución con el script, comparar con la base y redactar el informe (sección 8 del guion).
 - No he podido comprobar la base desde la sesión (sin acceso): las consultas 2.0–2.5 están pensadas para pegar el resultado.
