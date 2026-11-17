@@ -304,7 +304,57 @@ export type CartView = {
   readonly despacho: DespachoView | null;
   readonly metodos_pago: readonly string[];
   readonly caduca_en_minutos: number | null;
+  readonly siguiente_paso: NextStep;
+  readonly instruccion: string;
 };
+
+/** Qué toca hacer ahora con este carrito; el agente lo sigue en vez de deducirlo. */
+export const NEXT_STEP = {
+  AddProducts: "anadir_productos",
+  FixProblems: "resolver_problemas",
+  Fulfillment: "elegir_despacho",
+  Address: "pedir_direccion",
+  Unavailable: "despacho_no_disponible",
+  Minimum: "completar_minimo",
+  Confirm: "resumen_pago_y_confirmar",
+} as const;
+export type NextStep = (typeof NEXT_STEP)[keyof typeof NEXT_STEP];
+
+const NEXT_STEP_TEXT: Readonly<Record<NextStep, string>> = {
+  [NEXT_STEP.AddProducts]: "El carrito está vacío: ayuda al cliente a elegir productos.",
+  [NEXT_STEP.FixProblems]:
+    "Hay líneas que ya no se pueden servir: díselo y pregunta qué prefiere cambiar.",
+  [NEXT_STEP.Fulfillment]:
+    "Pregunta si recoge o pide a domicilio y termina el turno con ofrecer_opciones (tipo despacho). Si el cliente ya lo dijo, llama a elegir_despacho.",
+  [NEXT_STEP.Address]:
+    "Falta la dirección: termina el turno con ofrecer_opciones (tipo direccion) para que elija «Escribir dirección» o «Enviar ubicación».",
+  [NEXT_STEP.Unavailable]:
+    "El despacho no está disponible ahora (ver despacho.motivo): díselo y ofrece otra opción.",
+  [NEXT_STEP.Minimum]:
+    "No alcanza el mínimo de reparto: di cuánto falta y ofrece añadir productos o recoger en el local.",
+  [NEXT_STEP.Confirm]:
+    "Muestra el resumen solo con estas líneas, precios y total, pregunta la forma de pago (ofrecer_opciones tipo pago) y confirma cuando el cliente acepte.",
+};
+
+export function nextStep(
+  lines: number,
+  problems: number,
+  despacho: DespachoView | null,
+): { siguiente_paso: NextStep; instruccion: string } {
+  const step = (value: NextStep) => ({
+    siguiente_paso: value,
+    instruccion: NEXT_STEP_TEXT[value],
+  });
+  if (lines === 0) return step(NEXT_STEP.AddProducts);
+  if (problems > 0) return step(NEXT_STEP.FixProblems);
+  if (!despacho) return step(NEXT_STEP.Fulfillment);
+  if (despacho.tipo === FULFILLMENT.Delivery && !despacho.direccion) {
+    return step(NEXT_STEP.Address);
+  }
+  if (!despacho.disponible) return step(NEXT_STEP.Unavailable);
+  if (!despacho.alcanza_minimo) return step(NEXT_STEP.Minimum);
+  return step(NEXT_STEP.Confirm);
+}
 
 export type DespachoView = {
   readonly tipo: Fulfillment;
@@ -508,5 +558,6 @@ export async function viewCart(
     despacho,
     metodos_pago: restaurant.paymentMethods,
     caduca_en_minutos: cartExpiryMinutes(context.config),
+    ...nextStep(valid.length, problems.length, despacho),
   };
 }
