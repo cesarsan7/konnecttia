@@ -202,6 +202,16 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
         codigo_postal: "35500",
       });
       expect(json).toMatchObject({ disponible: false, motivo: "direccion_necesaria" });
+      // El sistema envía estos botones: el cliente elige cómo dar la dirección antes de escribirla.
+      expect(json.pregunta).toBeTruthy();
+      expect(json.opciones).toMatchObject({
+        tipo: "direccion",
+        disponible: true,
+        botones: [
+          { id: "direccion:escribir", titulo: "Escribir dirección" },
+          { id: "direccion:ubicacion", titulo: "Enviar ubicación" },
+        ],
+      });
     });
 
     it("reparto en zona: envío, mínimo y tiempo de la zona; dirección guardada solo en este restaurante", async () => {

@@ -36,6 +36,20 @@ Revisión de ejecuciones (solo lectura): `integrations/n8n/scripts/revisar_ejecu
    y la rama «agente no activo» termina en silencio: un restaurante sin la fila propia no responde y no avisa.
 4. Buffer de Kapso apagado.
 
+### Pruebas con Arepa's (17/11, canal 2, teléfono de pruebas)
+
+Pedido a domicilio `261117-1002` creado bien (restaurante 2, canal 2, 36,50 €, efectivo). Dos fallos del promotor, ambos con causa:
+
+1. **Sin enlace de seguimiento.** El enlace lo añade el nodo «Respuesta» del Director, pero leía la observación de la herramienta como
+   objeto y n8n la entrega como texto JSON de un **array** (`[{"ok":true,…}]`): `ok` nunca era `true`. Lo mismo hacía que los
+   botones de `ofrecer_opciones` (despacho, pago, dirección) **no se enviaran nunca** y todo saliera como texto. Corregido
+   desenvolviendo el array.
+2. **No preguntó cómo dar la dirección.** El modelo pidió la dirección en texto en vez de llamar a `ofrecer_opciones(direccion)`; además el Director
+   publicado en n8n (03:41 UTC) es anterior al #159 (reglas de «pasos deterministas»), que ya lo endurecía. Ahora, si `elegir_despacho`
+   responde `direccion_necesaria`, la API devuelve `pregunta` y `opciones` (botones) y el sistema los envía sin depender del modelo.
+
+Para verlo en staging hay que publicar el Director (`publicar.py "[Agente] Director"`) y desplegar la API.
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
