@@ -508,7 +508,7 @@ describe.skipIf(!TEST_DATABASE_URL)("carta desde el panel", () => {
 
     async function upload(app: TestContext["app"], bytes: Uint8Array, user: User = "ownerA") {
       const form = new FormData();
-      form.append("foto", new File([bytes], "foto.png", { type: "image/png" }));
+      form.append("foto", new File([new Uint8Array(bytes)], "foto.png", { type: "image/png" }));
       const response = await app.request("/panel/prueba-a/carta/productos/1101/foto", {
         method: "POST",
         headers: auth(user),

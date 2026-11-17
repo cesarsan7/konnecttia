@@ -22,7 +22,7 @@ const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0
 
 async function uploadLogo(app: TestContext["app"], bytes: Uint8Array, user: User = "ownerA") {
   const form = new FormData();
-  form.append("logo", new File([bytes], "logo.png", { type: "image/png" }));
+  form.append("logo", new File([new Uint8Array(bytes)], "logo.png", { type: "image/png" }));
   const response = await app.request("/panel/prueba-a/ajustes/logo", {
     method: "POST",
     headers: auth(user),
