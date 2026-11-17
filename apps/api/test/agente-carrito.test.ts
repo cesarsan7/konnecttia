@@ -82,6 +82,7 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
         },
       ]);
       expect(json.carrito.lineas).toEqual([]);
+      expect(json.carrito.siguiente_paso).toBe("anadir_productos");
     });
 
     it("precio calculado en el servidor, con extras; la misma línea se suma", async () => {
@@ -106,7 +107,13 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
           extras: [{ nombre: "Queso", cantidad: 1, precio: 2.5 }],
         }),
       ]);
-      expect(json.carrito).toMatchObject({ subtotal: 66, envio: 0, total: 66, despacho: null });
+      expect(json.carrito).toMatchObject({
+        subtotal: 66,
+        envio: 0,
+        total: 66,
+        despacho: null,
+        siguiente_paso: "elegir_despacho",
+      });
       // El agente no da alérgenos por WhatsApp: remite a la carta (nota_alergenos).
       expect(json.carrito.lineas[0]).not.toHaveProperty("alergenos");
     });
