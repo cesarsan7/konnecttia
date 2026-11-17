@@ -102,7 +102,7 @@ describe.skipIf(!TEST_DATABASE_URL)("rutas del agente de WhatsApp (/agente)", ()
       const withUrl = ctx.appWith({ agentSecret: SECRET, panelUrl: "https://pedidos.test/" });
       const response = await withUrl.request(path, { headers: { [AGENT_SECRET_HEADER]: SECRET } });
       expect(((await response.json()) as { carta_url: string | null }).carta_url).toBe(
-        "https://pedidos.test/prueba-a",
+        "https://pedidos.test/prueba-a/carta",
       );
     });
 
@@ -112,7 +112,7 @@ describe.skipIf(!TEST_DATABASE_URL)("rutas del agente de WhatsApp (/agente)", ()
       const response = await withUrl.request(path, { headers: { [AGENT_SECRET_HEADER]: SECRET } });
       const json = (await response.json()) as { agente: { nota_alergenos: string | null } };
       expect(json.agente.nota_alergenos).toBe(
-        "Para información de alérgenos, consulta la carta: https://pedidos.test/prueba-a",
+        "Para información de alérgenos, consulta la carta: https://pedidos.test/prueba-a/carta",
       );
       // Sin URL pública no queda el marcador a medias.
       expect((await get(path)).json.agente.nota_alergenos).toBe(

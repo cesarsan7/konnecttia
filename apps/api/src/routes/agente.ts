@@ -288,11 +288,11 @@ export function agenteRoutes(deps: AppDeps) {
     const abierto = channelBranch ? channelBranch.abierto : locales.some((local) => local.abierto);
 
     const cartaUrl = deps.panelUrl
-      ? `${deps.panelUrl.replace(/\/+$/, "")}/${restaurant.slug}`
+      ? `${deps.panelUrl.replace(/\/+$/, "")}/${restaurant.slug}/carta`
       : null;
     return c.json({
       restaurante: { id: restaurant.id, nombre: restaurant.nombre, slug: restaurant.slug },
-      // Carta pública (siempre al día): el agente la comparte en vez de listar toda la carta.
+      // Carta pública de solo lectura (siempre al día): el agente la comparte en vez de listar toda la carta.
       carta_url: cartaUrl,
       agente: {
         activo: settings.activo,
