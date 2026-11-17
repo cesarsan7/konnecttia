@@ -291,15 +291,14 @@ WHERE  telefono = '+16314662990' ORDER BY restaurante_id;
 
 ## 7. Hallazgos previos a las pruebas (leídos en el código, a confirmar con T10 y T4)
 
-- **H1 · «Transferencia ⇒ `pendiente_pago`» no se cumple al pie de la letra.** `orders.ts` crea todo pedido con
-  `estado = 'recibido'`; para transferencia o Bizum solo cambia `estado_pago` a `pendiente`. Ningún código pone
-  `estado = 'pendiente_pago'` al crear, y la transición `recibido → pendiente_pago` no existe en `ORDER_TRANSITIONS`.
-  Consecuencia: el cancelado automático de `agent-maintenance.ts` (`pedido_pago_pendiente_expira_minutos`, 60 min)
-  filtra por `estado = 'pendiente_pago'` y **nunca encontraría** un pedido de transferencia sin pagar. Qué hacer: el
-  promotor decide si la regla se lee como `estado_pago = 'pendiente'` (y se corrige la consulta del mantenimiento) o
-  como `estado = 'pendiente_pago'` (y se corrige la creación). T10 lo confirma en la base.
-- **H2 · Apertura forzada.** Con horario 08:00–23:00 y las 04:00 en Arrecife, la API dice «abierto». Si el motivo es una
-  apertura manual dejada de una prueba anterior, T7 no se puede hacer hasta quitarla.
+- **H1 · «Transferencia ⇒ `pendiente_pago`» (resuelto en código, falta desplegar).** La web y el agente crean todo pedido en
+  `recibido`; para transferencia o Bizum solo `estado_pago` pasa a `pendiente` (así funciona Siempre Juntos y lo fijan las
+  pruebas). El cancelado automático (`pedido_pago_pendiente_expira_minutos`, 60 min) filtraba por `estado = 'pendiente_pago'`
+  y nunca actuaba. Ahora cancela los pedidos con `estado_pago = 'pendiente'` en `recibido` o `pendiente_pago`, sin
+  justificante y aún no aceptados por el local (premium). No se cambia el flujo de la web. Se despliega con la API de staging.
+- **H2 · Apertura forzada (confirmado el 17/11).** `restaurante_config.is_open_override = 'true'` para Arepa's: el local
+  figura abierto 24 h. Para T7 y para que el horario real (08:00–23:00) mande: `DELETE FROM public.restaurante_config
+  WHERE restaurante_id = 2 AND config_key = 'is_open_override';` (volver: insertar `'true'`).
 - **H3 · `agente_activo` y módulos.** Sin los pasos 4.1, el agente de Arepa's **no contesta y no avisa**: «[Canal] Entrada
   Kapso» termina en silencio si `modulo_activo` o `agente_activo` fallan. Es el motivo más probable de «no responde».
 - **H4 · Buffer de Kapso apagado** frente a lo diseñado (ver sección 5).

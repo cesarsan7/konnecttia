@@ -1,5 +1,5 @@
 import { MODULE, type ModuleCode, resolveActiveModules } from "@konnecttia/access";
-import { ORDER_STATUS } from "@konnecttia/domain";
+import { ORDER_STATUS, PAYMENT_STATUS } from "@konnecttia/domain";
 import type { Sql } from "../lib/db";
 import { AGENT_TONE, agentSettings } from "./agent";
 import { CART_STATE } from "./agent-cart";
@@ -26,6 +26,12 @@ export type MaintenanceResult = {
 const ACTIVE_MODULE_STATE = "activo";
 const CANCEL_ORIGIN = "sistema";
 const CANCEL_ACTOR = "agente_caducidad";
+/**
+ * Un pedido por transferencia o Bizum nace en «recibido» con el cobro pendiente (igual que en la
+ * web); «pendiente_pago» es el estado equivalente si alguien lo pone así. Mientras el local no lo
+ * acepte, sigue en uno de los dos y es candidato a cancelarse por falta de pago.
+ */
+const UNPAID_OPEN_STATES = [ORDER_STATUS.Received, ORDER_STATUS.PendingPayment] as const;
 
 function positive(config: ReadonlyMap<string, string>, key: string): number | null {
   const value = Number(config.get(key)?.trim());
@@ -190,7 +196,8 @@ export async function runAgentMaintenance(sql: Sql, now: Date): Promise<Maintena
         FROM   public.agente_carrito c
         JOIN   public.pedidos p ON p.id = c.pedido_id AND p.restaurante_id = c.restaurante_id
         WHERE  c.restaurante_id = ${restaurant.id} AND c.estado = ${CART_STATE.Confirmed}
-          AND  p.estado = ${ORDER_STATUS.PendingPayment}
+          AND  p.estado IN ${sql([...UNPAID_OPEN_STATES])}
+          AND  p.estado_pago = ${PAYMENT_STATUS.Pending}
           AND  c.updated_at < ${new Date(now.getTime() - pending * 60_000)}
           AND  NOT EXISTS (SELECT 1 FROM public.pedido_justificante j WHERE j.pedido_id = p.id)
       `;
@@ -202,7 +209,7 @@ export async function runAgentMaintenance(sql: Sql, now: Date): Promise<Maintena
           origin: CANCEL_ORIGIN,
           actor: CANCEL_ACTOR,
           allowed: () => true,
-          onlyFrom: [ORDER_STATUS.PendingPayment],
+          onlyFrom: [...UNPAID_OPEN_STATES],
         });
         if (result.kind !== "updated") continue;
         cancelled.push({

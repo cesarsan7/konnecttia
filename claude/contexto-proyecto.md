@@ -15,7 +15,7 @@
 - Kapso: un solo número, el **sandbox** `597907523413541`, con un webhook a `…/webhook/kapso-entrada`.
   Solo escribe el teléfono de pruebas registrado. Buffer de mensajes de Kapso **desactivado** (el diseño lo da por activo).
 - `canal_whatsapp`: `id = 1` → Siempre Juntos (`restaurante_id = 1`). Probado de punta a punta (pedido `261117-1001`).
-- Arepa's Factory (`restaurante_id = 2`): carta (13 categorías, 76 productos), 1 local (id 3), 1 zona (radio 5 km, 2 € fijo,
+- Arepa's Factory (`restaurante_id = 2`; módulos y claves del agente ya cargados el 17/11): carta (13 categorías, 76 productos), 1 local (id 3), 1 zona (radio 5 km, 2 € fijo,
   mínimo 30 €), efectivo y tarjeta. **Le faltan** módulos `whatsapp.channel`/`whatsapp.agent`, `agente_activo = 'true'` y el canal.
 
 ### Decisión del promotor (17/11)
@@ -28,12 +28,10 @@ Revisión de ejecuciones (solo lectura): `integrations/n8n/scripts/revisar_ejecu
 
 ### Hallazgos abiertos
 
-1. **Transferencia ⇒ `pendiente_pago`**: el código crea el pedido en `recibido` con `estado_pago = 'pendiente'`; ninguna ruta
-   escribe `estado = 'pendiente_pago'` y no existe esa transición desde `recibido`. El cancelado automático
-   (`pedido_pago_pendiente_expira_minutos`) filtra por `estado = 'pendiente_pago'`, así que nunca actuaría. Decide el promotor
-   qué lectura es la regla; se confirma con la prueba T10.
-2. Arepa's aparece «abierto» a las 04:00 con horario 08:00–23:00: hay una apertura forzada (`is_open_override` o
-   `sucursal.forzar_abierto`) por averiguar.
+1. **Transferencia ⇒ `pendiente_pago`**: resuelto en código (PR pendiente): el cancelado automático de pagos pendientes ahora actúa
+   sobre `recibido` + `estado_pago = 'pendiente'`, que es como nacen los pedidos (web y agente). Prueba nueva en
+   `agente-mantenimiento.test.ts`; suite de la API 629/629.
+2. Arepa's tiene `is_open_override = 'true'` (confirmado): abierto 24 h. Borrar la fila para que mande el horario.
 3. «[Canal] Entrada Kapso» lee `agente_activo` y `agente_pausa_minutos` directamente de `restaurante_config` (sin plantilla),
    y la rama «agente no activo» termina en silencio: un restaurante sin la fila propia no responde y no avisa.
 4. Buffer de Kapso apagado.
