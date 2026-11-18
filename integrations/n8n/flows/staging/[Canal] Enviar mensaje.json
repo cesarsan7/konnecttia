@@ -39,7 +39,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Entrada (subflujo): restaurante_id, canal_id (opcional), destinatario, tipo, texto,\n// botones[], lista{}, plantilla{}. Salida: el cuerpo para la API de mensajes (formato Cloud API).\nconst m = $('Entrada').first().json;\nconst canal = $input.first().json;\nconst para = String(m.destinatario || '').replace(/\\D/g, '');\nconst tipo = m.tipo || 'texto';\nconst texto = String(m.texto || '').trim();\nconst base = { restaurante_id: m.restaurante_id, destinatario: para ? '+' + para : null };\nconst no = (motivo) => [{ json: { ...base, enviar: false, motivo } }];\n\nif (!canal.phone_number_id) return no('sin_canal');\nif (!para) return no('sin_destinatario');\nif (tipo !== 'plantilla' && !texto) return no('mensaje_vacio');\n\n// Ventana de 24 h: solo se puede escribir libremente si el cliente escribió hace menos de 24 h.\nconst ventana = canal.ultimo_entrante_at && Date.now() - new Date(canal.ultimo_entrante_at).getTime() < 24 * 3600 * 1000;\nif (tipo !== 'plantilla' && !ventana) return no('fuera_de_ventana');\n\nconst numerado = (lineas) => texto + '\\n\\n' + lineas.map((l, i) => `${i + 1}. ${l}`).join('\\n');\nlet cuerpo;\n\nif (tipo === 'botones') {\n  const b = (Array.isArray(m.botones) ? m.botones : []).filter((x) => x && x.id && x.titulo);\n  const cabe = b.length >= 1 && b.length <= 3 && b.every((x) => String(x.titulo).length <= 20) && texto.length <= 1024;\n  cuerpo = cabe\n    ? { type: 'interactive', interactive: { type: 'button', body: { text: texto }, action: { buttons: b.map((x) => ({ type: 'reply', reply: { id: String(x.id).slice(0, 256), title: String(x.titulo) } })) } } }\n    : { type: 'text', text: { body: numerado(b.map((x) => x.titulo)).slice(0, 4096) } };\n} else if (tipo === 'lista') {\n  const secciones = ((m.lista && m.lista.secciones) || []).filter((s) => s && Array.isArray(s.filas) && s.filas.length);\n  const filas = secciones.flatMap((s) => s.filas).filter((f) => f && f.id && f.titulo);\n  const boton = String((m.lista && m.lista.boton) || 'Ver opciones');\n  const cabe = filas.length >= 1 && filas.length <= 10 && filas.every((f) => String(f.titulo).length <= 24) && boton.length <= 20 && texto.length <= 1024;\n  cuerpo = cabe\n    ? {\n        type: 'interactive',\n        interactive: {\n          type: 'list',\n          body: { text: texto },\n          action: {\n            button: boton,\n            sections: secciones.map((s) => ({\n              title: String(s.titulo || '').slice(0, 24) || undefined,\n              rows: s.filas.map((f) => ({ id: String(f.id).slice(0, 200), title: String(f.titulo), description: f.descripcion ? String(f.descripcion).slice(0, 72) : undefined })),\n            })),\n          },\n        },\n      }\n    : { type: 'text', text: { body: numerado(filas.map((f) => f.titulo + (f.descripcion ? ' · ' + f.descripcion : ''))).slice(0, 4096) } };\n} else if (tipo === 'pedir_ubicacion') {\n  cuerpo = { type: 'interactive', interactive: { type: 'location_request_message', body: { text: texto.slice(0, 1024) }, action: { name: 'send_location' } } };\n} else if (tipo === 'plantilla') {\n  const p = m.plantilla || {};\n  if (!p.nombre) return no('plantilla_sin_nombre');\n  const valores = Object.values(p.parametros || {});\n  cuerpo = {\n    type: 'template',\n    template: {\n      name: p.nombre,\n      language: { code: p.idioma || 'es' },\n      components: valores.length ? [{ type: 'body', parameters: valores.map((v) => ({ type: 'text', text: String(v) })) }] : [],\n    },\n  };\n} else {\n  cuerpo = { type: 'text', text: { body: texto.slice(0, 4096) } };\n}\n\nconst payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: para, ...cuerpo };\nreturn [{ json: { ...base, enviar: true, phone_number_id: canal.phone_number_id, payload_json: JSON.stringify(payload) } }];\n"
+        "jsCode": "// Entrada (subflujo): restaurante_id, canal_id (opcional), destinatario, tipo, texto,\n// botones[], lista{}, plantilla{}. Salida: el cuerpo para la API de mensajes (formato Cloud API).\nconst m = $('Entrada').first().json;\nconst canal = $input.first().json;\nconst para = String(m.destinatario || '').replace(/\\D/g, '');\nconst tipo = m.tipo || 'texto';\nconst texto = String(m.texto || '').trim();\nconst base = { restaurante_id: m.restaurante_id, destinatario: para ? '+' + para : null };\nconst no = (motivo) => [{ json: { ...base, enviar: false, motivo } }];\n\nif (!canal.phone_number_id) return no('sin_canal');\nif (!para) return no('sin_destinatario');\nif (tipo !== 'plantilla' && !texto) return no('mensaje_vacio');\n\n// Ventana de 24 h: solo se puede escribir libremente si el cliente escribió hace menos de 24 h.\nconst ventana = canal.ultimo_entrante_at && Date.now() - new Date(canal.ultimo_entrante_at).getTime() < 24 * 3600 * 1000;\nif (tipo !== 'plantilla' && !ventana) return no('fuera_de_ventana');\n\nconst numerado = (lineas) => texto + '\\n\\n' + lineas.map((l, i) => `${i + 1}. ${l}`).join('\\n');\nlet cuerpo;\nlet cuerpoTexto = null;\nlet esEnlace = false;\n\nif (tipo === 'botones') {\n  const b = (Array.isArray(m.botones) ? m.botones : []).filter((x) => x && x.id && x.titulo);\n  const cabe = b.length >= 1 && b.length <= 3 && b.every((x) => String(x.titulo).length <= 20) && texto.length <= 1024;\n  cuerpo = cabe\n    ? { type: 'interactive', interactive: { type: 'button', body: { text: texto }, action: { buttons: b.map((x) => ({ type: 'reply', reply: { id: String(x.id).slice(0, 256), title: String(x.titulo) } })) } } }\n    : { type: 'text', text: { body: numerado(b.map((x) => x.titulo)).slice(0, 4096) } };\n} else if (tipo === 'lista') {\n  const secciones = ((m.lista && m.lista.secciones) || []).filter((s) => s && Array.isArray(s.filas) && s.filas.length);\n  const filas = secciones.flatMap((s) => s.filas).filter((f) => f && f.id && f.titulo);\n  const boton = String((m.lista && m.lista.boton) || 'Ver opciones');\n  const cabe = filas.length >= 1 && filas.length <= 10 && filas.every((f) => String(f.titulo).length <= 24) && boton.length <= 20 && texto.length <= 1024;\n  cuerpo = cabe\n    ? {\n        type: 'interactive',\n        interactive: {\n          type: 'list',\n          body: { text: texto },\n          action: {\n            button: boton,\n            sections: secciones.map((s) => ({\n              title: String(s.titulo || '').slice(0, 24) || undefined,\n              rows: s.filas.map((f) => ({ id: String(f.id).slice(0, 200), title: String(f.titulo), description: f.descripcion ? String(f.descripcion).slice(0, 72) : undefined })),\n            })),\n          },\n        },\n      }\n    : { type: 'text', text: { body: numerado(filas.map((f) => f.titulo + (f.descripcion ? ' · ' + f.descripcion : ''))).slice(0, 4096) } };\n} else if (tipo === 'enlace') {\n  // WhatsApp no deja poner un enlace sobre un texto: se envía un botón «CTA URL» (texto del botón de\n  // hasta 20 caracteres). Si no cabe, o Kapso lo rechaza (ver «¿Falló el enlace?»), va el enlace a la vista.\n  const e = m.enlace || {};\n  const url = String(e.url || '');\n  const boton = String(e.boton || 'Abrir enlace').slice(0, 20);\n  esEnlace = true;\n  const conUrl = (texto + '\\n\\n' + url).slice(0, 4096);\n  cuerpoTexto = { type: 'text', text: { body: conUrl } };\n  cuerpo = /^https:\\/\\//.test(url) && texto.length <= 1024\n    ? { type: 'interactive', interactive: { type: 'cta_url', body: { text: texto }, action: { name: 'cta_url', parameters: { display_text: boton, url } } } }\n    : cuerpoTexto;\n} else if (tipo === 'pedir_ubicacion') {\n  cuerpo = { type: 'interactive', interactive: { type: 'location_request_message', body: { text: texto.slice(0, 1024) }, action: { name: 'send_location' } } };\n} else if (tipo === 'plantilla') {\n  const p = m.plantilla || {};\n  if (!p.nombre) return no('plantilla_sin_nombre');\n  const valores = Object.values(p.parametros || {});\n  cuerpo = {\n    type: 'template',\n    template: {\n      name: p.nombre,\n      language: { code: p.idioma || 'es' },\n      components: valores.length ? [{ type: 'body', parameters: valores.map((v) => ({ type: 'text', text: String(v) })) }] : [],\n    },\n  };\n} else {\n  cuerpo = { type: 'text', text: { body: texto.slice(0, 4096) } };\n}\n\nconst payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: para, ...cuerpo };\nconst salida = { ...base, enviar: true, phone_number_id: canal.phone_number_id, payload_json: JSON.stringify(payload), es_enlace: esEnlace };\nif (esEnlace) salida.payload_texto_json = JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: para, ...cuerpoTexto });\nreturn [{ json: salida }];\n"
       },
       "id": "de513479-2d03-55d8-9303-1f861eea8921",
       "name": "Construir payload",
@@ -108,6 +108,62 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9b0045ff-bc07-5340-aeba-9e3f2cfcdde0",
+              "leftValue": "={{ Boolean($json.error) && $('Construir payload').first().json.es_enlace === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f82dbe5c-df7e-565a-bed5-a3412c5a1383",
+      "name": "¿Falló el enlace?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1200,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "whatsAppMessage",
+        "operation": "sendRaw",
+        "phoneNumberId": "={{ $('Construir payload').first().json.phone_number_id }}",
+        "payloadJson": "={{ $('Construir payload').first().json.payload_texto_json }}"
+      },
+      "id": "856758d9-da2c-5b0e-9982-87c3eca1fde9",
+      "name": "Reenviar como texto",
+      "type": "@kapso/n8n-nodes-kapso.kapso",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        -240
+      ],
+      "credentials": {
+        "kapsoApi": {
+          "name": "staging_kapso"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "jsCode": "// Resultado para quien llamó al subflujo.\nconst previo = $('Construir payload').first().json;\nconst r = $input.first().json;\nconst fallo = Boolean(r.error);\nreturn [{ json: { enviado: !fallo, motivo: fallo ? 'error_kapso' : null, destinatario: previo.destinatario, message_id: (r.messages && r.messages[0] && r.messages[0].id) || null } }];\n"
       },
       "id": "ef8161f3-15ea-5292-8305-89f5d6aa1908",
@@ -115,7 +171,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1680,
         -120
       ]
     },
@@ -187,6 +243,35 @@
       ]
     },
     "Enviar a Kapso": {
+      "main": [
+        [
+          {
+            "node": "¿Falló el enlace?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Falló el enlace?": {
+      "main": [
+        [
+          {
+            "node": "Reenviar como texto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resultado del envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reenviar como texto": {
       "main": [
         [
           {

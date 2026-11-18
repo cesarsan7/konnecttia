@@ -67,7 +67,11 @@ Revisadas las ejecuciones #1703–#1838. Causas y arreglos (rama del PR de segui
 - **Ingredientes vs alérgenos:** la regla 16 mezclaba ambos. Ahora los ingredientes se responden con la `descripcion` de la carta y solo alérgenos/intolerancias/dietas
   con la nota. Decisión de producto a confirmar por el promotor.
 - **Pregunta de despacho:** tras añadir productos invita a añadir algo más antes de preguntar recogida o domicilio (texto de `siguiente_paso`).
-- Pendiente de decidir: enlaces como botón (CTA URL de WhatsApp) en vez de URL a la vista.
+- **Enlaces como botón** (decisión del promotor): WhatsApp no admite hipervínculos en texto normal. «Respuesta» quita la URL del texto y manda `tipo: 'enlace'`
+  con botón «Seguir mi pedido» (seguimiento) o «Ver la carta» (si el texto lleva `carta_url`); «[Canal] Enviar mensaje» lo envía como mensaje interactivo
+  `cta_url` de la Cloud API y, si Kapso lo rechaza, lo reenvía como texto con el enlace a la vista («¿Falló el enlace?»). **Sin probar con Kapso**: el formato sigue
+  la especificación de Meta (no pude consultar docs.kapso.ai desde la sesión) y hace falta que el cliente de pruebas escriba primero (ventana de 24 h).
+  Publicar `[Canal] Enviar mensaje` y `[Agente] Director`.
 
 ### Pendiente
 

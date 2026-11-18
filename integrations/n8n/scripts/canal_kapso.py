@@ -460,6 +460,8 @@ if (tipo !== 'plantilla' && !ventana) return no('fuera_de_ventana');
 
 const numerado = (lineas) => texto + '\n\n' + lineas.map((l, i) => `${i + 1}. ${l}`).join('\n');
 let cuerpo;
+let cuerpoTexto = null;
+let esEnlace = false;
 
 if (tipo === 'botones') {
   const b = (Array.isArray(m.botones) ? m.botones : []).filter((x) => x && x.id && x.titulo);
@@ -488,6 +490,18 @@ if (tipo === 'botones') {
         },
       }
     : { type: 'text', text: { body: numerado(filas.map((f) => f.titulo + (f.descripcion ? ' · ' + f.descripcion : ''))).slice(0, 4096) } };
+} else if (tipo === 'enlace') {
+  // WhatsApp no deja poner un enlace sobre un texto: se envía un botón «CTA URL» (texto del botón de
+  // hasta 20 caracteres). Si no cabe, o Kapso lo rechaza (ver «¿Falló el enlace?»), va el enlace a la vista.
+  const e = m.enlace || {};
+  const url = String(e.url || '');
+  const boton = String(e.boton || 'Abrir enlace').slice(0, 20);
+  esEnlace = true;
+  const conUrl = (texto + '\n\n' + url).slice(0, 4096);
+  cuerpoTexto = { type: 'text', text: { body: conUrl } };
+  cuerpo = /^https:\/\//.test(url) && texto.length <= 1024
+    ? { type: 'interactive', interactive: { type: 'cta_url', body: { text: texto }, action: { name: 'cta_url', parameters: { display_text: boton, url } } } }
+    : cuerpoTexto;
 } else if (tipo === 'pedir_ubicacion') {
   cuerpo = { type: 'interactive', interactive: { type: 'location_request_message', body: { text: texto.slice(0, 1024) }, action: { name: 'send_location' } } };
 } else if (tipo === 'plantilla') {
@@ -507,7 +521,9 @@ if (tipo === 'botones') {
 }
 
 const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: para, ...cuerpo };
-return [{ json: { ...base, enviar: true, phone_number_id: canal.phone_number_id, payload_json: JSON.stringify(payload) } }];
+const salida = { ...base, enviar: true, phone_number_id: canal.phone_number_id, payload_json: JSON.stringify(payload), es_enlace: esEnlace };
+if (esEnlace) salida.payload_texto_json = JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: para, ...cuerpoTexto });
+return [{ json: salida }];
 """
 
 JS_RESULTADO_ENVIO = r"""// Resultado para quien llamó al subflujo.
@@ -555,7 +571,26 @@ def flujo_enviar():
             CRED_KAPSO,
             onError="continueRegularOutput",
         ),
-        codigo("Resultado del envío", JS_RESULTADO_ENVIO, (1200, -120)),
+        si_booleano(
+            "¿Falló el enlace?",
+            "Boolean($json.error) && $('Construir payload').first().json.es_enlace === true",
+            (1200, -120),
+        ),
+        nodo(
+            "Reenviar como texto",
+            NODO_KAPSO,
+            1,
+            {
+                "resource": "whatsAppMessage",
+                "operation": "sendRaw",
+                "phoneNumberId": "={{ $('Construir payload').first().json.phone_number_id }}",
+                "payloadJson": "={{ $('Construir payload').first().json.payload_texto_json }}",
+            },
+            (1440, -240),
+            CRED_KAPSO,
+            onError="continueRegularOutput",
+        ),
+        codigo("Resultado del envío", JS_RESULTADO_ENVIO, (1680, -120)),
         codigo("Resultado sin envío", JS_RESULTADO_NO_ENVIADO, (960, 120)),
     ]
     aristas = [
@@ -564,7 +599,10 @@ def flujo_enviar():
         ("Construir payload", "¿Se puede enviar?"),
         ("¿Se puede enviar?", "Enviar a Kapso", 0),
         ("¿Se puede enviar?", "Resultado sin envío", 1),
-        ("Enviar a Kapso", "Resultado del envío"),
+        ("Enviar a Kapso", "¿Falló el enlace?"),
+        ("¿Falló el enlace?", "Reenviar como texto", 0),
+        ("¿Falló el enlace?", "Resultado del envío", 1),
+        ("Reenviar como texto", "Resultado del envío"),
     ]
     return flujo(ID_ENVIAR, NOMBRE_ENVIAR, nodos, aristas)
 

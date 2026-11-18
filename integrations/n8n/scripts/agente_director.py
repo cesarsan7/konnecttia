@@ -485,9 +485,19 @@ const desenvolver = (valor) => {
 };
 const confObs = confirmado ? desenvolver(confirmado.observation) : null;
 const seguimiento = confObs && confObs.ok === true && confObs.respuesta ? confObs.respuesta.seguimiento_url : null;
-if (seguimiento && !String(base.texto).includes(seguimiento)) {
-  base.texto = `${base.texto}\n\nSigue tu pedido aquí: ${seguimiento}`;
+// Enlaces: WhatsApp no deja poner un enlace sobre un texto, así que el seguimiento y la carta van
+// como botón («Seguir mi pedido», «Ver la carta») y se quitan del texto. Un solo enlace por mensaje.
+const cartaUrl = (() => { try { return $('Pedir contexto').first().json.respuesta.carta_url || null; } catch (e) { return null; } })();
+let enlace = null;
+const quitarUrl = (txt, url) => String(txt).split(url).join('')
+  .replace(/\s*[:：]\s*([.!?])/g, '$1').replace(/\s*[:：]\s*$/g, '')
+  .replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+if (seguimiento) {
+  enlace = { url: seguimiento, boton: 'Seguir mi pedido' };
+} else if (cartaUrl && String(base.texto).includes(cartaUrl)) {
+  enlace = { url: cartaUrl, boton: 'Ver la carta' };
 }
+if (enlace) base.texto = quitarUrl(base.texto, enlace.url) || 'Aquí tienes el enlace.';
 const obs = ultimo ? desenvolver(ultimo.observation) : null;
 let o = obs && obs.ok === true ? obs.respuesta : null;
 // Reparto sin dirección: la API devuelve los botones «Escribir dirección» / «Enviar ubicación» y el
@@ -505,6 +515,7 @@ if (o && o.disponible === true && Array.isArray(o.botones) && o.botones.length) 
 if (o && o.disponible === true && o.lista) {
   return [{ json: { ...base, tipo: 'lista', lista: o.lista } }];
 }
+if (enlace) return [{ json: { ...base, tipo: 'enlace', enlace } }];
 return [{ json: { ...base, tipo: 'texto' } }];
 """
 
