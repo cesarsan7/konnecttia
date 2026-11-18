@@ -325,7 +325,7 @@ const NEXT_STEP_TEXT: Readonly<Record<NextStep, string>> = {
   [NEXT_STEP.FixProblems]:
     "Hay líneas que ya no se pueden servir: díselo y pregunta qué prefiere cambiar.",
   [NEXT_STEP.Fulfillment]:
-    "Pregunta si recoge o pide a domicilio y termina el turno con ofrecer_opciones (tipo despacho). Si el cliente ya lo dijo, llama a elegir_despacho.",
+    "Confirma lo que acabas de añadir, invítale a añadir algo más y pregunta si recoge o pide a domicilio en una sola frase (p. ej. «¿Quieres añadir algo más o prefieres recoger en el local o a domicilio?»); termina el turno con ofrecer_opciones (tipo despacho). Si el cliente ya dijo cómo lo quiere, llama a elegir_despacho.",
   [NEXT_STEP.Address]:
     "Falta la dirección: termina el turno con ofrecer_opciones (tipo direccion) para que elija «Escribir dirección» o «Enviar ubicación».",
   [NEXT_STEP.Unavailable]:

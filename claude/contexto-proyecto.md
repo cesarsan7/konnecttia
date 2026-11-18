@@ -50,6 +50,29 @@ Pedido a domicilio `261117-1002` creado bien (restaurante 2, canal 2, 36,50 €,
 
 Para verlo en staging hay que publicar el Director (`publicar.py "[Agente] Director"`) y desplegar la API.
 
+### Pruebas con Arepa's, segunda ronda (17/11, +34660202323)
+
+Revisadas las ejecuciones #1703–#1838. Causas y arreglos (rama del PR de seguimiento):
+
+- **«No hay productos en el carrito» tras un resumen correcto:** el modelo dijo «Voy a añadir 2 Arepas de lomo…» sin llamar a `cambiar_carrito`
+  (turnos #1720, #1741, #1838); el carrito nunca las tuvo y el resumen («resumo tu pedido…») salió de memoria. La defensa de «Respuesta» solo
+  miraba el pasado («he añadido»): ahora también el futuro («voy a añadir», «te lo añado», «añadiré»). Reglas nuevas: no anunciar acciones,
+  herramientas de una en una. Además, en #1766 `cambiar_carrito(nuevo:true)` y `elegir_despacho` corrieron a la vez y el despacho se guardó en el
+  carrito 17, ya cerrado (el 18 quedó sin despacho → `falta_despacho`). Se pidió una herramienta por paso; si reaparece, hará falta bloquearlo en el flujo.
+  Impacto real: el pedido `261117-1007` salió con 2 de las 4 líneas que pidió el cliente.
+- **«Variedades de papas»:** el modelo no llamó a ninguna herramienta y escribió una lista vacía. Regla nueva (variedades, tipos, clases, opciones, sabores,
+  «qué hay de X» ⇒ `buscar_en_carta`) y esas palabras ya no puntúan en la búsqueda (`SEARCH_STOPWORDS`).
+- **Listas parciales:** `buscar_en_carta` devuelve máx. 8 productos y el agente decía «estas son las arepas» (8 de 22; desayunos 6 de 7). La respuesta trae
+  `hay_mas` y el agente debe decir que son algunas y compartir la carta.
+- **Ingredientes vs alérgenos:** la regla 16 mezclaba ambos. Ahora los ingredientes se responden con la `descripcion` de la carta y solo alérgenos/intolerancias/dietas
+  con la nota. Decisión de producto a confirmar por el promotor.
+- **Pregunta de despacho:** tras añadir productos invita a añadir algo más antes de preguntar recogida o domicilio (texto de `siguiente_paso`).
+- **Enlaces como botón** (decisión del promotor): WhatsApp no admite hipervínculos en texto normal. «Respuesta» quita la URL del texto y manda `tipo: 'enlace'`
+  con botón «Seguir mi pedido» (seguimiento) o «Ver la carta» (si el texto lleva `carta_url`); «[Canal] Enviar mensaje» lo envía como mensaje interactivo
+  `cta_url` de la Cloud API y, si Kapso lo rechaza, lo reenvía como texto con el enlace a la vista («¿Falló el enlace?»). **Sin probar con Kapso**: el formato sigue
+  la especificación de Meta (no pude consultar docs.kapso.ai desde la sesión) y hace falta que el cliente de pruebas escriba primero (ventana de 24 h).
+  Publicar `[Canal] Enviar mensaje` y `[Agente] Director`.
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.

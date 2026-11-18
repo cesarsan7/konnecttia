@@ -183,4 +183,12 @@ describe("searchMenu", () => {
     ];
     expect(searchMenu("pizza margarita", otherMenu)).toEqual([]);
   });
+
+  it("«qué variedades de pizzas tienes» busca la categoría: las palabras de pregunta no puntúan", () => {
+    const ids = (query: string) => searchMenu(query, MENU, 10).map((match) => match.itemId);
+    expect(ids("qué variedades de pizzas tienes")).toEqual(ids("pizzas"));
+    expect(ids("qué tipos de pizza hay")).toEqual(ids("pizza"));
+    expect(ids("pizzas opciones")).toEqual(ids("pizzas"));
+    expect(ids("qué variedades de pizzas tienes").length).toBeGreaterThan(0);
+  });
 });

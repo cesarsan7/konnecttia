@@ -227,6 +227,14 @@ describe.skipIf(!TEST_DATABASE_URL)("rutas del agente de WhatsApp (/agente)", ()
       });
     });
 
+    it("una pregunta por variedades busca la categoría y marca si la lista está completa", async () => {
+      const { json } = await get(
+        `/agente/canales/${canal.a}/carta?q=${encodeURIComponent("qué variedades de salchipapas tienes")}`,
+      );
+      expect(json.candidatos.length).toBeGreaterThan(0);
+      expect(json.hay_mas).toBe(false);
+    });
+
     it("lo que no está en la carta no devuelve candidatos", async () => {
       const { json } = await get(`/agente/canales/${canal.a}/carta?q=margarita`);
       expect(json.candidatos).toEqual([]);
