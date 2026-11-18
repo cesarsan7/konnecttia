@@ -389,11 +389,13 @@ export function agenteRoutes(deps: AppDeps) {
         variants: product.variantes.map((variant) => ({ id: variant.id, name: variant.nombre })),
         extras: product.extras.map((extra) => ({ id: extra.id, name: extra.nombre })),
       })),
-      MAX_MATCHES,
+      products.length,
     );
     return c.json({
       local,
-      candidatos: matches.flatMap((match) => {
+      // Con más coincidencias que las devueltas, el agente no puede presentar la lista como completa.
+      hay_mas: matches.length > MAX_MATCHES,
+      candidatos: matches.slice(0, MAX_MATCHES).flatMap((match) => {
         const product = byId.get(match.itemId);
         if (!product) return [];
         return [

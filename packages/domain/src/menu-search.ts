@@ -51,6 +51,28 @@ export const SEARCH_STOPWORDS: ReadonlySet<string> = new Set([
   "pon",
   "ponme",
   "dame",
+  // Palabras con las que el cliente pregunta por un grupo de productos («qué variedades de
+  // papas tienes»): piden el listado, no forman parte del nombre de ningún producto.
+  "variedad",
+  "variedades",
+  "tipo",
+  "tipos",
+  "clase",
+  "clases",
+  "opcion",
+  "opciones",
+  "sabor",
+  "sabores",
+  "que",
+  "hay",
+  "tienes",
+  "tienen",
+  "teneis",
+  "tenemos",
+  "cual",
+  "cuales",
+  "dime",
+  "lista",
 ]);
 
 /** Números en palabras (0-10) y su forma en cifras, para comparar «cuatro» con «4». */
