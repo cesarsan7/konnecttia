@@ -118,6 +118,18 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
       expect(json.carrito.lineas[0]).not.toHaveProperty("alergenos");
     });
 
+    it("el contexto del turno trae el carrito real (y nulo si no hay): el agente no depende de su memoria", async () => {
+      const contexto = (telefono: string) =>
+        call("GET", `/agente/canales/${canal.a}/contexto?telefono=${encodeURIComponent(telefono)}`);
+      const withCart = await contexto(PHONE);
+      expect(withCart.json.carrito).toMatchObject({
+        despacho: null,
+        siguiente_paso: "elegir_despacho",
+      });
+      expect(withCart.json.carrito.lineas.length).toBeGreaterThan(0);
+      expect((await contexto("+34699999999")).json.carrito).toBeNull();
+    });
+
     it("nunca acepta productos ni extras de otro restaurante", async () => {
       const { json } = await put(canal.a, {
         telefono: PHONE,

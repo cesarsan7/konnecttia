@@ -274,6 +274,16 @@ export function agenteRoutes(deps: AppDeps) {
       deps.now(),
     );
     const etaCtx = await loadEtaContext(deps.sql, restaurant, config, deps.now());
+    // Carrito abierto del cliente: el agente parte de lo que hay de verdad en cada mensaje, no de
+    // lo que recuerda de la conversación (lo pedido y no añadido, o el despacho aún sin fijar).
+    const cartCtx = await loadResolveContext(deps, restaurant);
+    const { cart: openCart } = await findOpenCart(
+      deps.sql,
+      channel,
+      telefono.data,
+      deps.now(),
+      cartExpiryMinutes(cartCtx.config),
+    );
     const pickupBase = pickupEta(config);
     const locales = active.map((branch) => ({
       id: branch.id,
@@ -311,6 +321,9 @@ export function agenteRoutes(deps: AppDeps) {
       canal: { id: channel.id, sucursal_id: channel.sucursalId },
       local_del_canal: channelBranch,
       abierto,
+      carrito: openCart
+        ? await viewCart(deps, restaurant, channel, openCart, reason, cartCtx)
+        : null,
       // Mensaje neutro si no: el agente no dice el motivo (prueba vencida o teléfono bloqueado).
       puede_pedir: accepts && !blocked,
       recogida: restaurant.pickupEnabled && locales.some((local) => local.recogida),

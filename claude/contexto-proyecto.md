@@ -73,6 +73,18 @@ Revisadas las ejecuciones #1703–#1838. Causas y arreglos (rama del PR de segui
   la especificación de Meta (no pude consultar docs.kapso.ai desde la sesión) y hace falta que el cliente de pruebas escriba primero (ventana de 24 h).
   Publicar `[Canal] Enviar mensaje` y `[Agente] Director`.
 
+### Tercera ronda (18/11, +15162849708, ejecuciones #2854–#2946)
+
+- **Enlace largo y sin botón «Ver la carta»:** el Director y «Enviar mensaje» publicados en n8n **no eran los del repositorio** (sin la corrección del array de
+  #162, sin la defensa de #159 ni el `cta_url` de #163): `publicar.py` sube lo que tiene el clon local y el clon estaba sin `git pull`. La API sí estaba al día
+  (`hay_mas` y `pregunta/opciones` aparecen en las observaciones). Nuevo `scripts/comprobar_publicado.py` compara el código publicado con el del repositorio.
+- **4 alitas perdidas (#2861–#2873):** el agente preguntó «¿4 alitas o la ración completa?» y, al pasar el cliente a los chorizos, dio la pregunta por cerrada. Regla
+  nueva: lo pendiente se recuerda en el mismo mensaje; y el contexto de cada turno trae el **carrito real** («CARRITO AHORA») para no depender de la memoria.
+- **Despacho «no indicado» (#2879–#2902):** `elegir_despacho(delivery)` sin dirección no guarda nada (devuelve `direccion_necesaria`); luego el modelo pidió confirmar un código
+  postal que ya venía en la dirección y, ante el «sí», dijo «uso la dirección…» **sin llamar a `elegir_despacho`**. El resumen de pago salió «a domicilio en C. la Rosa»
+  con el despacho vacío. Arreglos: CARRITO AHORA muestra «Despacho: SIN ELEGIR»; regla de llamar a la herramienta en cuanto escribe la dirección y de no confirmar el código
+  postal ya escrito; la defensa de «Respuesta» cubre ahora «uso la dirección / dirección guardada» sin haber llamado a `elegir_despacho`.
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
