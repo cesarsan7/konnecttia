@@ -28,6 +28,7 @@ import {
   closeCart,
   createCart,
   findOpenCart,
+  findRecentExpiredCart,
   lineErrors,
   loadResolveContext,
   markCartConfirmed,
@@ -285,6 +286,9 @@ export function agenteRoutes(deps: AppDeps) {
       deps.now(),
       cartExpiryMinutes(cartCtx.config),
     );
+    const expiredCart = openCart
+      ? null
+      : await findRecentExpiredCart(deps.sql, channel, telefono.data, deps.now());
     const pickupBase = pickupEta(config);
     const locales = active.map((branch) => ({
       id: branch.id,
@@ -324,6 +328,10 @@ export function agenteRoutes(deps: AppDeps) {
       abierto,
       carrito: openCart
         ? await viewCart(deps, restaurant, channel, openCart, reason, cartCtx)
+        : null,
+      // Lo que tenía el carrito que caducó por inactividad: el agente avisa en vez de perderlo en silencio.
+      carrito_caducado: expiredCart
+        ? await viewCart(deps, restaurant, channel, expiredCart, reason, cartCtx)
         : null,
       // Mensaje neutro si no: el agente no dice el motivo (prueba vencida o teléfono bloqueado).
       puede_pedir: accepts && !blocked,

@@ -95,6 +95,16 @@ Detalles corregidos: texto suelto al quitar la URL («…aquí:»), el agente de
 (nuevo `ofrecer_opciones` tipo `confirmar`: «Sí, confirmar» / «Cambiar algo»).
 A vigilar: la memoria del chat se conserva por `restaurante:telefono`, así que el agente puede contestar variedades desde conversaciones antiguas (#3472) en vez de la carta actual.
 
+### Quinta ronda (18/11 21:32 local = 19/11 02:32Z, ejecuciones #3578–#3645) y prueba de caducidad
+
+Con el Director publicado (comprobar_publicado.py sin diferencias) salió bien: botones «Sí, confirmar» / «Cambiar algo» antes de confirmar, botón «Seguir mi pedido» y texto limpio.
+**Caducidad probada** sin querer: la ensalada del carrito 23 (último cambio 02:33:10) caducó a las 03:04:40 (mantenimiento cada 2 min, límite 30 min) y el cliente volvió a las 03:08
+con un «sí» que añadió cachapas a un carrito nuevo (24): **la ensalada se perdió en silencio**, sin que el agente lo dijera. Además **no hubo aviso a los 25 min** (`avisos: []`): el aviso y
+`cart_warning_minutes` son del módulo premium `whatsapp.agent_pro` (ADR 0013) y Arepa's solo tiene `whatsapp.agent`; las reglas de negocio de AGENTS.md lo dan como regla general: decisión
+del promotor (dar `whatsapp.agent_pro` a Arepa's para repetir la prueba, o aceptar que el aviso es premium).
+Arreglo: `/contexto` devuelve `carrito_caducado` (último carrito caducado del número, si no hay otro posterior y tiene menos de 24 h) y el Director añade «ATENCIÓN: el carrito anterior CADUCÓ… díselo
+al cliente y pregunta si quiere recuperarlo». Pendiente de ver: el modelo sigue usando `nuevo:true` al primer producto (inocuo sin carrito, pero descartaría uno abierto si se equivoca).
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
