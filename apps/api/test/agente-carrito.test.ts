@@ -130,6 +130,35 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
       expect((await contexto("+34699999999")).json.carrito).toBeNull();
     });
 
+    it("un carrito caducado se cuenta en el contexto hasta que el cliente empieza otro", async () => {
+      const phone = "+34611000077";
+      const contexto = () =>
+        call("GET", `/agente/canales/${canal.a}/contexto?telefono=${encodeURIComponent(phone)}`);
+      await put(canal.a, {
+        telefono: phone,
+        operaciones: [{ op: "agregar", menu_item_id: 1101, menu_variant_id: 1202, cantidad: 1 }],
+      });
+      expect((await contexto()).json.carrito_caducado).toBeNull();
+      // El mantenimiento lo caduca antes de que el cliente vuelva.
+      await ctx.sql`
+        UPDATE public.agente_carrito SET estado = 'caducado'
+        WHERE  canal_id = ${canal.a} AND telefono = ${phone} AND estado = 'abierto'
+      `;
+      const { json } = await contexto();
+      expect(json.carrito).toBeNull();
+      expect(json.carrito_caducado.lineas).toEqual([
+        expect.objectContaining({ producto: "Salchimaduro", cantidad: 1 }),
+      ]);
+      // Con un carrito nuevo, el caducado deja de contar.
+      await put(canal.a, {
+        telefono: phone,
+        operaciones: [{ op: "agregar", menu_item_id: 1101, menu_variant_id: 1202, cantidad: 2 }],
+      });
+      const after = (await contexto()).json;
+      expect(after.carrito).not.toBeNull();
+      expect(after.carrito_caducado).toBeNull();
+    });
+
     it("nunca acepta productos ni extras de otro restaurante", async () => {
       const { json } = await put(canal.a, {
         telefono: PHONE,

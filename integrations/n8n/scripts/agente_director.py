@@ -408,6 +408,7 @@ const pagos = (c.metodos_pago || []).join(', ') || 'ninguna configurada';
 // Carrito real del cliente (la API lo calcula en cada mensaje): el agente no lo da por sabido.
 const eur = (n) => `${Number(n).toFixed(2).replace('.', ',')} €`;
 const k = c.carrito;
+const cad = c.carrito_caducado;
 let carritoTxt = '- Sin carrito abierto: todavía no hay nada añadido (lo que el cliente haya dicho antes y no esté aquí NO está en el pedido). El carrito se crea al añadir el primer producto con cambiar_carrito: si el cliente acepta añadir algo, hazlo, no le digas que no puedes.';
 if (k) {
   const lineas = (k.lineas || []).map((l) => `  ${l.linea}. ${l.cantidad} × ${l.producto}${l.variante && l.variante !== 'Única' ? ` (${l.variante})` : ''}${l.nota ? ` [${l.nota}]` : ''}: ${eur(l.importe)}`).join('\n') || '  (vacío)';
@@ -439,7 +440,7 @@ ESTADO AHORA
 - Formas de pago aceptadas: ${pagos}.
 - Carta online completa: ${c.carta_url || '(no disponible)'}.
 - Alérgenos (única respuesta que puedes dar): ${c.agente.nota_alergenos ? `«${c.agente.nota_alergenos}»` : 'no tienes datos; di que no puedes confirmarlos y que lo consulte con el restaurante'}.
-- CARRITO AHORA (estado real, no la conversación):\n${carritoTxt}
+- CARRITO AHORA (estado real, no la conversación):\n${carritoTxt}${!k && cad && (cad.lineas || []).length ? `\n- ATENCIÓN: el carrito anterior CADUCÓ por inactividad y se vació. Tenía: ${(cad.lineas || []).map((l) => `${l.cantidad} × ${l.producto}`).join(', ')}. Díselo al cliente en tu próxima respuesta y pregúntale si quiere recuperarlo; no lo añadas sin que lo confirme.` : ''}
 - Cliente: ${c.cliente.nombre ? `se llama ${c.cliente.nombre}` : 'nombre desconocido'}${c.cliente.direccion_frecuente ? `; dirección habitual: ${c.cliente.direccion_frecuente}` : ''}.
 
 REGLAS (no negociables)

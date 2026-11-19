@@ -136,6 +136,36 @@ export async function findOpenCart(
   return { cart, expired: false };
 }
 
+/** Horas durante las que el agente recuerda que un carrito caducó (para avisar al cliente). */
+const EXPIRED_CART_MEMORY_HOURS = 24;
+
+/**
+ * Carrito que caducó por inactividad y con el que el cliente no ha vuelto a empezar nada: el último
+ * carrito del número, si está caducado, tiene líneas y es reciente. El cron de mantenimiento lo cierra
+ * antes de que el cliente vuelva, así que el agente solo se entera por aquí.
+ */
+export async function findRecentExpiredCart(
+  sql: Sql,
+  channel: AgentChannel,
+  telefono: string,
+  now: Date,
+): Promise<Cart | null> {
+  const rows = await sql<(CartRow & { estado: string })[]>`
+    SELECT id, restaurante_id, canal_id, telefono, lineas, tipo_despacho, sucursal_id, direccion,
+           lat, lng, zona_id, updated_at, estado
+    FROM   public.agente_carrito
+    WHERE  canal_id = ${channel.id} AND restaurante_id = ${channel.restauranteId}
+      AND  telefono = ${telefono}
+    ORDER  BY updated_at DESC, id DESC
+    LIMIT  1
+  `;
+  const row = rows[0];
+  if (!row || row.estado !== CART_STATE.Expired) return null;
+  if (now.getTime() - row.updated_at.getTime() > EXPIRED_CART_MEMORY_HOURS * 3_600_000) return null;
+  const cart = toCart(row);
+  return cart.lineas.length > 0 ? cart : null;
+}
+
 export async function createCart(
   sql: Sql,
   channel: AgentChannel,
