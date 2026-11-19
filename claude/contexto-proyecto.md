@@ -119,6 +119,15 @@ añade el sistema no queda en la memoria del chat. Sin datos, el modelo improvis
 `caducado` y `/contexto` lo devuelve hasta que el cliente empiece otro, con `aviso_pendiente` (true solo la primera vez, cuando el sistema añade el aviso) y `recuperar` (las líneas como operaciones de
 `cambiar_carrito`). El prompt las trae siempre que haya carrito caducado y la regla 14 queda solo para `error_tecnico = true` devuelto por una herramienta. Nota: `cart_expiry_minutes` de Arepa's está en 5 (se ve en `caduca_en_minutos`).
 
+### Octava ronda (19/11 09:44 y 10:24 local = 14:44Z y 15:24Z, ejecuciones #4211–#4280)
+
+- **503 del contexto (#4211, #4216):** la migración 0050 no se había aplicado al desplegar la API (la consulta del contexto usa la columna nueva); el promotor aplicó el `ALTER` y el `INSERT` en `konnecttia_migrations` a mano y volvió a funcionar. Lección: tras desplegar una migración, comprobar `konnecttia_migrations` antes de probar.
+- **«Quiero recuperarlo» → «problema técnico» otra vez (#4280):** con todo publicado y el prompt correcto (ATENCIÓN con las operaciones exactas), el modelo no llamó a ninguna herramienta y repitió la frase de error. Causa: la **memoria del chat** (`restaurante:telefono`,
+  ventana de 20 mensajes con herramientas) conserva respuestas de pruebas anteriores («Si, recupéralo» → `derivar_a_persona` → «Ha ocurrido un problema técnico…») y el modelo las imita por encima del prompt.
+  Arreglos: (1) rama determinista en el Director: si el cliente pide recuperar con palabras explícitas (recuperar, lo mismo, de nuevo, otra vez, vuelve a…) y hay carrito caducado sin carrito abierto, se llama a `cambiar_carrito` con `recuperar` sin pasar por el modelo («¿Pide recuperarlo?» → «Recuperar carrito» →
+  «Respuesta recuperación»); (2) «Respuesta» sustituye «problema técnico» por un mensaje neutro si no hubo error real (ninguna herramienta devolvió `error_tecnico` ni se derivó); (3) ventana de memoria 20 → 12 (el carrito real ya va en cada turno).
+  Para limpiar el historial de un teléfono de pruebas: borrar sus filas de la tabla de memoria del chat (clave `2:+15162849708`).
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
