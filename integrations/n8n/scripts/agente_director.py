@@ -513,13 +513,24 @@ const desenvolver = (valor) => {
 const confObs = confirmado ? desenvolver(confirmado.observation) : null;
 const seguimiento = confObs && confObs.ok === true && confObs.respuesta ? confObs.respuesta.seguimiento_url : null;
 // Carrito caducado: el aviso lo añade el sistema (una sola vez; la API lo marca como avisado), no el modelo.
-try {
-  const cad = $('Pedir contexto').first().json.respuesta.carrito_caducado;
-  const perdidas = cad && Array.isArray(cad.lineas) ? cad.lineas.map((l) => `${l.cantidad} × ${l.producto}`) : [];
-  if (perdidas.length && cad.aviso_pendiente === true) {
-    base.texto = `${base.texto}\n\nPor cierto, tu pedido anterior caducó por inactividad y se vació (tenía: ${perdidas.join(', ')}). Si quieres recuperarlo, dímelo y lo añado de nuevo.`;
+let ctxResp = {};
+try { ctxResp = $('Pedir contexto').first().json.respuesta || {}; } catch (e) { /* sin contexto */ }
+const cad = ctxResp.carrito_caducado;
+const perdidas = cad && Array.isArray(cad.lineas) ? cad.lineas.map((l) => `${l.cantidad} × ${l.producto}`) : [];
+// Sin carrito abierto no hay pedido que resumir ni confirmar: si el modelo habla de un resumen o pide
+// confirmar (lo dice de memoria, tras caducar el carrito), se sustituye por la verdad: el pedido caducó.
+const sinCarrito = !ctxResp.carrito;
+const llamoCambiar = (Array.isArray(($input.first().json || {}).intermediateSteps) ? $input.first().json.intermediateSteps : []).some((p) => p && p.action && p.action.tool === 'cambiar_carrito');
+const hablaDePedido = /(resumen de tu pedido|aqu[ií] tienes el resumen|¿confirmo|¿confirmas|confirmo el pedido|confirmas el pedido|para recoger en|a domicilio en)/i.test(String(base.texto));
+if (sinCarrito && !llamoCambiar && hablaDePedido) {
+  if (perdidas.length) {
+    return [{ json: { ...base, tipo: 'botones', texto: `Tu pedido anterior caducó por inactividad y se vació (tenía: ${perdidas.join(', ')}). ¿Quieres recuperarlo?`, botones: [{ id: 'carrito:recuperar', titulo: 'Recuperar pedido' }, { id: 'carrito:nuevo', titulo: 'Pedido nuevo' }] } }];
   }
-} catch (e) { /* sin contexto: nada que avisar */ }
+  return [{ json: { ...base, tipo: 'texto', texto: 'Ahora mismo no tienes ningún pedido abierto. ¿Qué te gustaría pedir?' } }];
+}
+if (perdidas.length && cad.aviso_pendiente === true) {
+  base.texto = `${base.texto}\n\nPor cierto, tu pedido anterior caducó por inactividad y se vació (tenía: ${perdidas.join(', ')}). Si quieres recuperarlo, dímelo y lo añado de nuevo.`;
+}
 // Enlaces: WhatsApp no deja poner un enlace sobre un texto, así que el seguimiento y la carta van
 // como botón («Seguir mi pedido», «Ver la carta») y se quitan del texto. Un solo enlace por mensaje.
 const cartaUrl = (() => { try { return $('Pedir contexto').first().json.respuesta.carta_url || null; } catch (e) { return null; } })();
