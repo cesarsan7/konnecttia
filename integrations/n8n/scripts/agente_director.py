@@ -440,7 +440,7 @@ ESTADO AHORA
 - Formas de pago aceptadas: ${pagos}.
 - Carta online completa: ${c.carta_url || '(no disponible)'}.
 - Alérgenos (única respuesta que puedes dar): ${c.agente.nota_alergenos ? `«${c.agente.nota_alergenos}»` : 'no tienes datos; di que no puedes confirmarlos y que lo consulte con el restaurante'}.
-- CARRITO AHORA (estado real, no la conversación):\n${carritoTxt}${!k && cad && (cad.lineas || []).length ? `\n- ATENCIÓN: el carrito anterior CADUCÓ por inactividad y se vació. Tenía: ${(cad.lineas || []).map((l) => `${l.cantidad} × ${l.producto}`).join(', ')}. Díselo al cliente en tu próxima respuesta y pregúntale si quiere recuperarlo; no lo añadas sin que lo confirme.` : ''}
+- CARRITO AHORA (estado real, no la conversación):\n${carritoTxt}${!k && cad && (cad.lineas || []).length ? `\n- ATENCIÓN: el carrito anterior CADUCÓ por inactividad y se vació. Tenía: ${(cad.lineas || []).map((l) => `${l.cantidad} × ${l.producto}`).join(', ')}. El sistema ya se lo avisa al cliente al final de tu mensaje: no lo repitas. Solo si el cliente pide recuperarlo, añade esas líneas con buscar_en_carta y cambiar_carrito; no las añadas sin que lo pida.` : ''}
 - Cliente: ${c.cliente.nombre ? `se llama ${c.cliente.nombre}` : 'nombre desconocido'}${c.cliente.direccion_frecuente ? `; dirección habitual: ${c.cliente.direccion_frecuente}` : ''}.
 
 REGLAS (no negociables)
@@ -500,6 +500,14 @@ const desenvolver = (valor) => {
 };
 const confObs = confirmado ? desenvolver(confirmado.observation) : null;
 const seguimiento = confObs && confObs.ok === true && confObs.respuesta ? confObs.respuesta.seguimiento_url : null;
+// Carrito caducado: el aviso lo añade el sistema (una sola vez; la API lo marca como avisado), no el modelo.
+try {
+  const cad = $('Pedir contexto').first().json.respuesta.carrito_caducado;
+  const perdidas = cad && Array.isArray(cad.lineas) ? cad.lineas.map((l) => `${l.cantidad} × ${l.producto}`) : [];
+  if (perdidas.length) {
+    base.texto = `${base.texto}\n\nPor cierto, tu pedido anterior caducó por inactividad y se vació (tenía: ${perdidas.join(', ')}). Si quieres recuperarlo, dímelo y lo añado de nuevo.`;
+  }
+} catch (e) { /* sin contexto: nada que avisar */ }
 // Enlaces: WhatsApp no deja poner un enlace sobre un texto, así que el seguimiento y la carta van
 // como botón («Seguir mi pedido», «Ver la carta») y se quitan del texto. Un solo enlace por mensaje.
 const cartaUrl = (() => { try { return $('Pedir contexto').first().json.respuesta.carta_url || null; } catch (e) { return null; } })();

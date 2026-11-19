@@ -166,6 +166,17 @@ export async function findRecentExpiredCart(
   return cart.lineas.length > 0 ? cart : null;
 }
 
+/**
+ * El aviso de caducidad ya se dio: el carrito pasa a «descartado» para no repetirlo en cada mensaje.
+ * Solo toca un carrito caducado (nunca uno abierto o confirmado).
+ */
+export async function markExpiredCartNotified(sql: Sql, cartId: number): Promise<void> {
+  await sql`
+    UPDATE public.agente_carrito SET estado = ${CART_STATE.Discarded}, updated_at = now()
+    WHERE  id = ${cartId} AND estado = ${CART_STATE.Expired}
+  `;
+}
+
 export async function createCart(
   sql: Sql,
   channel: AgentChannel,
