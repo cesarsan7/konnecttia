@@ -149,10 +149,10 @@ export async function findRecentExpiredCart(
   channel: AgentChannel,
   telefono: string,
   now: Date,
-): Promise<Cart | null> {
-  const rows = await sql<(CartRow & { estado: string })[]>`
+): Promise<{ readonly cart: Cart; readonly notified: boolean } | null> {
+  const rows = await sql<(CartRow & { estado: string; caducidad_avisada_at: Date | null })[]>`
     SELECT id, restaurante_id, canal_id, telefono, lineas, tipo_despacho, sucursal_id, direccion,
-           lat, lng, zona_id, updated_at, estado
+           lat, lng, zona_id, updated_at, estado, caducidad_avisada_at
     FROM   public.agente_carrito
     WHERE  canal_id = ${channel.id} AND restaurante_id = ${channel.restauranteId}
       AND  telefono = ${telefono}
@@ -163,17 +163,17 @@ export async function findRecentExpiredCart(
   if (!row || row.estado !== CART_STATE.Expired) return null;
   if (now.getTime() - row.updated_at.getTime() > EXPIRED_CART_MEMORY_HOURS * 3_600_000) return null;
   const cart = toCart(row);
-  return cart.lineas.length > 0 ? cart : null;
+  return cart.lineas.length > 0 ? { cart, notified: row.caducidad_avisada_at !== null } : null;
 }
 
 /**
- * El aviso de caducidad ya se dio: el carrito pasa a «descartado» para no repetirlo en cada mensaje.
- * Solo toca un carrito caducado (nunca uno abierto o confirmado).
+ * El aviso de caducidad ya se dio. El carrito sigue «caducado» (el agente puede recuperarlo si el cliente
+ * lo pide) y solo se anota cuándo se avisó, para no repetir el aviso en cada mensaje.
  */
 export async function markExpiredCartNotified(sql: Sql, cartId: number): Promise<void> {
   await sql`
-    UPDATE public.agente_carrito SET estado = ${CART_STATE.Discarded}, updated_at = now()
-    WHERE  id = ${cartId} AND estado = ${CART_STATE.Expired}
+    UPDATE public.agente_carrito SET caducidad_avisada_at = now()
+    WHERE  id = ${cartId} AND estado = ${CART_STATE.Expired} AND caducidad_avisada_at IS NULL
   `;
 }
 

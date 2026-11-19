@@ -130,7 +130,7 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
       expect((await contexto("+34699999999")).json.carrito).toBeNull();
     });
 
-    it("un carrito caducado se cuenta una sola vez en el contexto", async () => {
+    it("un carrito caducado avisa una sola vez pero sigue recuperable hasta que el cliente empieza otro", async () => {
       const phone = "+34611000077";
       const contexto = () =>
         call("GET", `/agente/canales/${canal.a}/contexto?telefono=${encodeURIComponent(phone)}`);
@@ -149,8 +149,20 @@ describe.skipIf(!TEST_DATABASE_URL)("carrito del agente de WhatsApp", () => {
       expect(json.carrito_caducado.lineas).toEqual([
         expect.objectContaining({ producto: "Salchimaduro", cantidad: 1 }),
       ]);
-      // Solo se cuenta una vez: el sistema ya avisó al cliente, no se repite en cada mensaje.
-      expect((await contexto()).json.carrito_caducado).toBeNull();
+      expect(json.carrito_caducado.aviso_pendiente).toBe(true);
+      // Operaciones listas para recuperarlo con cambiar_carrito.
+      expect(json.carrito_caducado.recuperar).toEqual([
+        expect.objectContaining({
+          op: "agregar",
+          menu_item_id: 1101,
+          menu_variant_id: 1202,
+          cantidad: 1,
+        }),
+      ]);
+      // El aviso se da una sola vez, pero el agente sigue sabiendo qué se perdió para recuperarlo.
+      const again = (await contexto()).json.carrito_caducado;
+      expect(again.aviso_pendiente).toBe(false);
+      expect(again.lineas).toHaveLength(1);
       // Con un carrito nuevo, el caducado deja de contar.
       await put(canal.a, {
         telefono: phone,

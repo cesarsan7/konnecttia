@@ -85,6 +85,18 @@ export const CART_OP = {
   Clear: "vaciar",
 } as const;
 
+/** Líneas de un carrito como operaciones «agregar» de cambiar_carrito (para recuperar uno caducado). */
+function linesAsOperations(lines: readonly CartLine[]) {
+  return lines.map((line) => ({
+    op: CART_OP.Add,
+    menu_item_id: line.menu_item_id,
+    menu_variant_id: line.menu_variant_id,
+    cantidad: line.cantidad,
+    ...(line.extras.length > 0 ? { extras: line.extras } : {}),
+    ...(line.nota ? { nota: line.nota } : {}),
+  }));
+}
+
 /** Por qué una operación no se aplicó (en `pendientes`). */
 export const CART_PENDING = {
   ProductNotFound: "producto_no_encontrado",
@@ -291,10 +303,17 @@ export function agenteRoutes(deps: AppDeps) {
       ? null
       : await findRecentExpiredCart(deps.sql, channel, telefono.data, deps.now());
     const expiredView = expiredCart
-      ? await viewCart(deps, restaurant, channel, expiredCart, reason, cartCtx)
+      ? {
+          ...(await viewCart(deps, restaurant, channel, expiredCart.cart, reason, cartCtx)),
+          // El sistema avisa al cliente una sola vez (no depende del modelo); después el carrito
+          // sigue disponible para que el agente lo recupere si el cliente lo pide.
+          aviso_pendiente: !expiredCart.notified,
+          recuperar: linesAsOperations(expiredCart.cart.lineas),
+        }
       : null;
-    // Se cuenta una sola vez: el sistema avisa al cliente en este turno (no depende del modelo).
-    if (expiredCart) await markExpiredCartNotified(deps.sql, expiredCart.id);
+    if (expiredCart && !expiredCart.notified) {
+      await markExpiredCartNotified(deps.sql, expiredCart.cart.id);
+    }
     const pickupBase = pickupEta(config);
     const locales = active.map((branch) => ({
       id: branch.id,
