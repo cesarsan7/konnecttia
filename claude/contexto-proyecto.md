@@ -111,6 +111,14 @@ Con #166 publicado, `/contexto` sí devolvió `carrito_caducado = Ensalada Facto
 Arreglo determinista: el nodo «Respuesta» añade al mensaje «Por cierto, tu pedido anterior caducó por inactividad… (tenía: …)» y la API marca ese carrito como avisado
 (`markExpiredCartNotified`: pasa a `descartado`) para no repetirlo. El prompt ya solo dice que no lo repita. Lección general: lo que el cliente debe saber sí o sí se escribe en el flujo, no se deja a la voluntad del modelo.
 
+### Séptima ronda (19/11 07:47 local = 12:47Z, ejecuciones #4130–#4135): «Quiero recuperarlo» → «problema técnico»
+
+El aviso de caducidad salió bien (#4130, «tenía: 3 × Cachapa campesina»), pero al decir «Quiero recuperarlo» (#4135) el agente respondió con la frase de error técnico sin llamar a ninguna herramienta.
+Causa: la API marcaba el carrito como avisado pasándolo a `descartado`, así que en el turno siguiente `/contexto` ya no traía qué se había perdido («Sin carrito abierto»); además el aviso que
+añade el sistema no queda en la memoria del chat. Sin datos, el modelo improvisó la frase de la regla 14. Arreglo: migración **0050** (`agente_carrito.caducidad_avisada_at`); el carrito sigue
+`caducado` y `/contexto` lo devuelve hasta que el cliente empiece otro, con `aviso_pendiente` (true solo la primera vez, cuando el sistema añade el aviso) y `recuperar` (las líneas como operaciones de
+`cambiar_carrito`). El prompt las trae siempre que haya carrito caducado y la regla 14 queda solo para `error_tecnico = true` devuelto por una herramienta. Nota: `cart_expiry_minutes` de Arepa's está en 5 (se ve en `caduca_en_minutos`).
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
