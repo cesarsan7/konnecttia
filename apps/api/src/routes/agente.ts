@@ -41,6 +41,7 @@ import { runAgentMaintenance } from "../repositories/agent-maintenance";
 import {
   addressOptions,
   branchOptions,
+  confirmOptions,
   fulfillmentOptions,
   OPTION_KIND,
   paymentOptions,
@@ -931,7 +932,7 @@ export function agenteRoutes(deps: AppDeps) {
       .safeParse(c.req.query("tipo"));
     if (!tipo.success) {
       return fail(c, 400, API_ERROR.InvalidBody, {
-        issues: [{ path: "tipo", message: "despacho, local, pago o direccion" }],
+        issues: [{ path: "tipo", message: "despacho, local, pago, direccion o confirmar" }],
       });
     }
     if (tipo.data === OPTION_KIND.Fulfillment) {
@@ -943,6 +944,7 @@ export function agenteRoutes(deps: AppDeps) {
       );
     }
     if (tipo.data === OPTION_KIND.Address) return c.json(addressOptions());
+    if (tipo.data === OPTION_KIND.Confirm) return c.json(confirmOptions());
     if (tipo.data === OPTION_KIND.Payment) {
       return c.json(paymentOptions(restaurant.paymentMethods));
     }

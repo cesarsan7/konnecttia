@@ -3,6 +3,7 @@ import { AGENT_SECRET_HEADER } from "../src/middleware/agent";
 import {
   addressOptions,
   branchOptions,
+  confirmOptions,
   fulfillmentOptions,
   paymentOptions,
 } from "../src/repositories/agent-options";
@@ -16,6 +17,15 @@ describe("opciones de WhatsApp (puras)", () => {
     expect("botones" in view && view.botones.map((b) => b.id)).toEqual([
       "direccion:escribir",
       "direccion:ubicacion",
+    ]);
+    expect("botones" in view && view.botones.every((b) => b.titulo.length <= 20)).toBe(true);
+  });
+
+  it("confirmar: «Sí, confirmar» y «Cambiar algo», que caben en WhatsApp", () => {
+    const view = confirmOptions();
+    expect("botones" in view && view.botones.map((b) => b.id)).toEqual([
+      "confirmar:si",
+      "confirmar:cambiar",
     ]);
     expect("botones" in view && view.botones.every((b) => b.titulo.length <= 20)).toBe(true);
   });
