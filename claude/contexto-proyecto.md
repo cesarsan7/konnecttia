@@ -105,6 +105,12 @@ del promotor (dar `whatsapp.agent_pro` a Arepa's para repetir la prueba, o acept
 Arreglo: `/contexto` devuelve `carrito_caducado` (último carrito caducado del número, si no hay otro posterior y tiene menos de 24 h) y el Director añade «ATENCIÓN: el carrito anterior CADUCÓ… díselo
 al cliente y pregunta si quiere recuperarlo». Pendiente de ver: el modelo sigue usando `nuevo:true` al primer producto (inocuo sin carrito, pero descartaría uno abierto si se equivoca).
 
+### Sexta ronda (19/11, 04:00Z y 10:14Z, ejecuciones #3686–#3980): aviso de caducidad que no llegó
+
+Con #166 publicado, `/contexto` sí devolvió `carrito_caducado = Ensalada Factory` desde el primer mensaje al volver (#3966, #3972, #3980), pero el **modelo ignoró** la instrucción del prompt y nunca lo dijo.
+Arreglo determinista: el nodo «Respuesta» añade al mensaje «Por cierto, tu pedido anterior caducó por inactividad… (tenía: …)» y la API marca ese carrito como avisado
+(`markExpiredCartNotified`: pasa a `descartado`) para no repetirlo. El prompt ya solo dice que no lo repita. Lección general: lo que el cliente debe saber sí o sí se escribe en el flujo, no se deja a la voluntad del modelo.
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
