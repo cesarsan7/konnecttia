@@ -10,6 +10,7 @@ export const OPTION_KIND = {
   Branch: "local",
   Payment: "pago",
   Address: "direccion",
+  Confirm: "confirmar",
 } as const;
 
 export type OptionKind = (typeof OPTION_KIND)[keyof typeof OPTION_KIND];
@@ -20,6 +21,7 @@ export const OPTION_ID_PREFIX: Readonly<Record<OptionKind, string>> = {
   [OPTION_KIND.Branch]: "local:",
   [OPTION_KIND.Payment]: "pago:",
   [OPTION_KIND.Address]: "direccion:",
+  [OPTION_KIND.Confirm]: "confirmar:",
 };
 
 const BUTTON_TITLE_MAX = 20;
@@ -123,6 +125,21 @@ export function paymentOptions(methods: readonly string[]): OptionsView {
     titulo: clip(PAYMENT_TITLE[method] ?? method, BUTTON_TITLE_MAX),
   }));
   return { tipo: OPTION_KIND.Payment, disponible: true, botones };
+}
+
+/**
+ * Última pregunta antes de crear el pedido: confirmar o cambiar algo. Sustituye a repetir los
+ * botones de pago cuando el cliente ya eligió cómo paga.
+ */
+export function confirmOptions(): OptionsView {
+  return {
+    tipo: OPTION_KIND.Confirm,
+    disponible: true,
+    botones: [
+      { id: `${OPTION_ID_PREFIX.confirmar}si`, titulo: "Sí, confirmar" },
+      { id: `${OPTION_ID_PREFIX.confirmar}cambiar`, titulo: "Cambiar algo" },
+    ],
+  };
 }
 
 /**

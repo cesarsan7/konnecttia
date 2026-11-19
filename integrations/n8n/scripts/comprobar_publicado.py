@@ -15,6 +15,7 @@ Sale con código 1 si algún nodo difiere o falta (útil antes de probar una cor
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -31,6 +32,17 @@ def pedir(base: str, ruta: str) -> dict:
     url = f"{base.rstrip('/')}/api/v1/{ruta}"
     with urllib.request.urlopen(urllib.request.Request(url, headers=cabeceras), timeout=60) as r:
         return json.load(r)
+
+
+MARCADOR = re.compile(r"__[A-Z][A-Z0-9_]*__")
+
+
+def coincide(local: str, publicado: str) -> bool:
+    """Igual, salvo los marcadores `__NOMBRE__`, que publicar.py sustituye por el valor del entorno."""
+    if local == publicado:
+        return True
+    partes = [re.escape(trozo) for trozo in MARCADOR.split(local)]
+    return re.fullmatch(".+?".join(partes), publicado, re.DOTALL) is not None
 
 
 def codigo_por_nodo(flujo: dict) -> dict[str, str]:
@@ -61,7 +73,7 @@ def main() -> int:
             continue
         local = codigo_por_nodo(json.loads(ruta.read_text(encoding="utf-8")))
         remoto = codigo_por_nodo(pedir(base, f"workflows/{publicados[nombre]}"))
-        distintos = sorted(n for n in local if remoto.get(n) != local[n])
+        distintos = sorted(n for n in local if n not in remoto or not coincide(local[n], remoto[n]))
         sobran = sorted(set(remoto) - set(local))
         if distintos or sobran:
             hay_diferencias = True

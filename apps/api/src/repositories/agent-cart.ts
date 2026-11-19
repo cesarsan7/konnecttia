@@ -333,7 +333,7 @@ const NEXT_STEP_TEXT: Readonly<Record<NextStep, string>> = {
   [NEXT_STEP.Minimum]:
     "No alcanza el mínimo de reparto: di cuánto falta y ofrece añadir productos o recoger en el local.",
   [NEXT_STEP.Confirm]:
-    "Muestra el resumen solo con estas líneas, precios y total, pregunta la forma de pago (ofrecer_opciones tipo pago) y confirma cuando el cliente acepte.",
+    "Muestra el resumen solo con estas líneas, precios y total. Si el cliente aún no eligió la forma de pago, pregúntala (ofrecer_opciones tipo pago); si ya la eligió, no la repitas: pregunta si confirma (ofrecer_opciones tipo confirmar). Confirma solo cuando el cliente acepte.",
 };
 
 export function nextStep(

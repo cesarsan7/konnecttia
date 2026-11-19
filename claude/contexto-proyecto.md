@@ -85,6 +85,16 @@ Revisadas las ejecuciones #1703–#1838. Causas y arreglos (rama del PR de segui
   con el despacho vacío. Arreglos: CARRITO AHORA muestra «Despacho: SIN ELEGIR»; regla de llamar a la herramienta en cuanto escribe la dirección y de no confirmar el código
   postal ya escrito; la defensa de «Respuesta» cubre ahora «uso la dirección / dirección guardada» sin haber llamado a `elegir_despacho`.
 
+### Cuarta ronda (18/11 20:56 local = 19/11 01:56Z, +15162849708, ejecuciones #3443–#3552)
+
+Con los flujos al día (`comprobar_publicado.py` sin diferencias) funcionó: carrito con todos los productos, dirección guardada con `elegir_despacho`, mínimo de reparto,
+botones de dirección y de pago, derivación al pedir modificar un pedido ya confirmado (`escalacion_id` 4, pausa 120 min), y los **botones de enlace llegaron como
+`cta_url` real en Kapso** (estado «read», sin usar el reintento a texto; `[Canal] Enviar mensaje` #3451 y #3548).
+Detalles corregidos: texto suelto al quitar la URL («…aquí:»), el agente decía «no puedo añadir, no has iniciado un pedido» ante un «sí» sin carrito,
+«ingredientes» junto a un saludo se respondía con la nota de alérgenos, y al elegir tarjeta volvía a mostrar los botones de pago en vez de pedir confirmar
+(nuevo `ofrecer_opciones` tipo `confirmar`: «Sí, confirmar» / «Cambiar algo»).
+A vigilar: la memoria del chat se conserva por `restaurante:telefono`, así que el agente puede contestar variedades desde conversaciones antiguas (#3472) en vez de la carta actual.
+
 ### Pendiente
 
 - El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
