@@ -325,6 +325,7 @@ Pruebas hechas por el promotor desde el teléfono de pruebas del sandbox de Kaps
 | T13 caducidad del carrito (30 min; 5 min en pruebas)                   |    OK     | Caduca bien; el aviso se da una sola vez y el carrito se puede recuperar (#166–#169). **El aviso previo de 25 min es premium** (decisión abierta) |
 | T11b pausa del agente tras derivar                                     |    OK     | Informado por el promotor: tras reportar una incidencia el agente deja de contestar el tiempo configurado (`agente_pausa_derivar_minutos`)        |
 | T12 varios mensajes seguidos (buffer de Kapso)                         | Pendiente | El buffer sigue apagado; el flujo ya une los lotes (probado con el nodo real). Ver sección 9                                                      |
+| Concurrencia (5 / 15 / 25 clientes y ráfaga de 10)                     |    OK     | 0 errores, 0 cruces de conversación, todos atendidos; Director p50 1,5–2,2 s y p95 3,2–3,9 s. Detalle y límites de la prueba en 9.3               |
 | T14 pausa cuando escribe el personal desde su app                      | Pendiente | Solo se puede probar con un número real en modo coexistencia (el sandbox no emite `business_app`). Ver sección 9                                  |
 
 ### Fallos encontrados y corregidos
@@ -418,7 +419,32 @@ Limpieza de los datos de prueba:
 ```sql
 DELETE FROM public.agente_carrito WHERE telefono LIKE '+155555501%';
 DELETE FROM public.whatsapp_conversacion WHERE telefono LIKE '+155555501%';
+DELETE FROM public.n8n_chat_histories WHERE session_id LIKE '%:+155555501%';  -- memoria del chat de n8n; si da error, buscar el nombre con \dt *chat*
 ```
+
+**Resultado del 20/11/2026** (ejecutado por el promotor contra el sandbox de Arepa's, Director publicado = `main`):
+
+| Prueba                                 | Mensajes | Errores | Cruces | Sin atender | Director p50 |  p95  | Máx.  |
+| -------------------------------------- | :------: | :-----: | :----: | :---------: | :----------: | :---: | :---: |
+| 5 clientes                             |    25    |    0    |   0    |      0      |    2,2 s     | 3,6 s | 3,9 s |
+| 15 clientes                            |    75    |    0    |   0    |      0      |    2,1 s     | 3,6 s | 3,8 s |
+| 25 clientes                            |   125    |    0    |   0    |      0      |    1,5 s     | 3,9 s | 5,2 s |
+| 10 clientes en ráfaga (3 mensajes c/u) |    30    |    0    |   0    |      0      |    1,6 s     | 3,2 s | 6,4 s |
+
+Respuesta del webhook: p50 0,41 s, máx. 0,67 s (30 mensajes en 5 s). Sin errores en ningún escalón: no se llegó a tocar el límite de OpenAI, ni el de conexiones a
+Postgres, ni los recursos de n8n. Lo que **no** demuestra:
+
+- **El buffer:** el script manda cada mensaje por separado y no emula el buffer de Kapso (en la ráfaga, 30 ejecuciones para 30 mensajes). El buffer real solo se prueba en Kapso.
+- **El estado de los carritos** cuando un mismo cliente manda varios mensajes casi a la vez (la carrera de #1766): el script comprueba errores y cruces, no el contenido del carrito. Tras la ráfaga:
+
+```sql
+SELECT telefono, estado, jsonb_array_length(lineas) AS lineas
+FROM public.agente_carrito WHERE telefono LIKE '+155555501%' ORDER BY telefono, id;
+```
+
+Cada cliente debería tener un solo carrito abierto con 1 línea.
+
+- Solo se mide el Director, no el envío por Kapso (los teléfonos ficticios fallan al enviar, esperado). El escalón de 50 clientes no se ha ejecutado.
 
 Los cuellos de botella esperables, por orden: límite de peticiones por minuto del modelo de OpenAI, las conexiones de la credencial `staging_postgres`
 de n8n, y los recursos del contenedor de n8n (un solo proceso en este staging). Si algo de eso falla, la prueba lo deja en el informe de errores.
@@ -428,8 +454,18 @@ de n8n, y los recursos del contenedor de n8n (un solo proceso en este staging). 
 La versión de La Isla en el entorno antiguo queda obsoleta; su número pasa a Arepa's Factory en Kapso. Pasos (los marcados «por confirmar» no los he podido
 comprobar: no tengo acceso a la documentación de Kapso desde la sesión):
 
-1. **Apagar lo viejo.** Desactivar los flujos del staging antiguo (`n8nlearning`) y, en la app de Meta «chatwoot», dejar de suscribir el campo de mensajes del número,
-   para que no conteste nadie más (dos agentes en el mismo número = respuestas dobles).
+1. **Desvincular el número del entorno antiguo (Chatwoot).** Antes de nada, una aclaración: **borrar los servicios de `n8nlearning` (n8n, Chatwoot…) no desvincula el número**. El vínculo
+   no está en el VPS sino en Meta: el número pertenece a una cuenta de WhatsApp Business (WABA) y a una app de Meta («chatwoot») cuyo webhook apunta al VPS antiguo. Si se borra el VPS, desaparece
+   el software que recibía los mensajes, pero el número sigue atado a esa app y a esa cuenta, y Meta seguiría enviando a una URL muerta hasta desactivar el webhook por fallos. Lo que sí lo desvincula,
+   en este orden:
+   1. En Meta for Developers, app «chatwoot» → WhatsApp → Configuración: quitar el webhook de mensajes (o cambiar su URL). Es lo que corta de verdad la entrada.
+   2. En el Chatwoot antiguo, borrar la bandeja de WhatsApp del número.
+   3. Desactivar los flujos del n8n antiguo, sobre todo los de cron: aunque Chatwoot no reciba nada, pueden seguir enviando avisos desde el número a clientes.
+   4. Tener a mano el **PIN de verificación en dos pasos** del número (6 cifras): Meta suele pedirlo al mover un número. Si no se recuerda, se restablece en el Administrador de WhatsApp.
+   5. **Copia de lo que se quiera conservar** del entorno antiguo (carta, clientes y pedidos de La Isla, que se montará en este entorno) con `backup.sh` antes de borrar nada: borrar los servicios no se deshace.
+
+   Orden recomendado: desconectar en Meta (1–3) → conectar en Kapso (punto 2) y probar → solo entonces, con la copia hecha, borrar el VPS antiguo. Dos agentes en el mismo número
+   (el viejo y el nuevo) dan respuestas dobles.
 2. **Conectar el número a Kapso** con el enlace de alta (cliente de Kapso con `external_customer_id` = 2): modo **dedicado** (más estable) o **coexistencia** si el
    número se sigue usando en la app de WhatsApp Business (necesario para probar la pausa cuando escribe el personal, T14). Por confirmar: si Meta exige liberar el número de la
    integración anterior antes de añadirlo.
