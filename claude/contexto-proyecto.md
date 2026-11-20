@@ -144,5 +144,7 @@ Informe completo de la batería, fallos y causas: sección 8 de [`integrations/n
 
 Decisiones del promotor (20/11): `whatsapp.agent_pro` para Arepa's (SQL en la sección 9.1 del guion); `cart_expiry_minutes` ya en 30; datos de transferencia de prueba; el número de pruebas de La Isla pasa a Arepa's.
 En marcha (sección 9 del guion): activar el buffer de Kapso (5 s), prueba de concurrencia con `scripts/prueba_concurrencia.py` (5 → 10 → 25 → 50 clientes), alta del número real en Kapso y `canal_whatsapp`, y probar la pausa cuando escribe el personal (T14, solo con coexistencia).
+Concurrencia probada por el promotor (20/11): 5, 15 y 25 clientes y ráfaga de 10, sin errores ni cruces, Director p50 ≈ 2 s y p95 < 4 s (detalle y límites en 9.3 del guion; falta el buffer real de Kapso y el escalón de 50).
+Para reutilizar el número +1 antiguo: borrar el VPS no lo desvincula, hay que quitar el webhook de la app de Meta «chatwoot» y la bandeja de Chatwoot, desactivar los cron del n8n antiguo, tener el PIN de dos pasos y hacer copia antes de borrar (9.4).
 «[Canal] Entrada Kapso» acepta varios secretos de webhook en `KAPSO_WEBHOOK_SECRET` separados por comas (uno por número de Kapso).
 Vigilar: `nuevo: true` del modelo y la memoria del chat (ventana 12).
