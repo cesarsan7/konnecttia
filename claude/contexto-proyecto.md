@@ -135,8 +135,15 @@ presentó un resumen y botones «Sí, confirmar» **de memoria** (el contexto ya
 Arreglo (en el PR #169): «Respuesta» sustituye cualquier resumen o petición de confirmación cuando no hay carrito abierto ni `cambiar_carrito` en el turno: «Tu pedido anterior caducó por inactividad y se vació (tenía: …). ¿Quieres recuperarlo?» con botones «Recuperar pedido» (lo atiende la rama determinista) y «Pedido nuevo»,
 o «Ahora mismo no tienes ningún pedido abierto» si no había nada que recuperar.
 
+### Estado final (20/11/2026)
+
+El agente de WhatsApp funciona de punta a punta con Arepa's Factory en el sandbox de Kapso (canal 2) y el promotor confirmó que la recuperación del carrito caducado va bien. Flujos publicados = `main` (PR #161–#169 fusionados).
+Informe completo de la batería, fallos y causas: sección 8 de [`integrations/n8n/pruebas/arepas-factory-whatsapp.md`](../integrations/n8n/pruebas/arepas-factory-whatsapp.md).
+
 ### Pendiente
 
-- El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
-- Con los resultados: revisar cada ejecución con el script, comparar con la base y redactar el informe (sección 8 del guion).
-- No he podido comprobar la base desde la sesión (sin acceso): las consultas 2.0–2.5 están pensadas para pegar el resultado.
+- Decisión del promotor: aviso previo de 25 min (premium `whatsapp.agent_pro`) para Arepa's, o ajustar la regla 11 de `AGENTS.md`.
+- Volver `cart_expiry_minutes` de Arepa's a 30 (borrar la fila propia).
+- Activar el buffer de mensajes de Kapso (5 s) y probar varios mensajes seguidos (T12).
+- Pasar del sandbox a un número real de Arepa's y repetir la batería; datos reales de transferencia cargados por el propietario.
+- Vigilar `nuevo: true` del modelo y la memoria del chat (ventana 12): si reaparece un error por historial, limpiar la memoria del teléfono o acotar por conversación.

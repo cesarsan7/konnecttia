@@ -305,7 +305,54 @@ WHERE  telefono = '+16314662990' ORDER BY restaurante_id;
 - **H5 · Mínimo de reparto de 30 €** con productos de 3 a 7,50 €: el reparto exige un pedido grande (6 arepas). Es el
   dato del seed, no un fallo; confirmar con el cliente antes de enseñárselo.
 
-## 8. Informe de resultados
+## 8. Informe de resultados (cerrado el 20/11/2026)
 
-Se rellena tras las pruebas con `revisar_ejecuciones.py` y las consultas de la base: una fila por prueba con
-OK / FALLA, ejecución de n8n (#), lo que respondió y lo que debía responder. Pendiente de ejecutar las pruebas.
+Pruebas hechas por el promotor desde el teléfono de pruebas del sandbox de Kapso (canal 2 → Arepa's Factory). Las ejecuciones se revisaron con
+`revisar_ejecuciones.py` y la API de n8n. Estado final: **el agente funciona de punta a punta**; los flujos publicados coinciden con `main`
+(`comprobar_publicado.py`, ✓ en los cuatro).
+
+| Prueba                                                                 | Resultado  | Notas                                                                                                                                             |
+| ---------------------------------------------------------------------- | :--------: | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T1 saludo («Soy el agente de pedidos del restaurante Arepa's Factory») |     OK     | `restaurante_id = 2`, canal 2                                                                                                                     |
+| T2 carta / ingredientes                                                |     OK     | Enlace como botón «Ver la carta»; ingredientes con la descripción de la carta; alérgenos solo con la nota (#162–#165)                             |
+| T3 recogida, T8 efectivo, T9 tarjeta                                   |     OK     | Pedidos creados con `restaurante_id = 2`; botones de confirmar «Sí, confirmar» / «Cambiar algo» (#165)                                            |
+| T4 reparto dentro de zona                                              |     OK     | Dirección escrita guardada con `elegir_despacho`; envío 2 € y 30 min (#164)                                                                       |
+| T5 reparto fuera de zona                                               |     OK     | Informado por el promotor                                                                                                                         |
+| T6 mínimo de reparto no alcanzado                                      |     OK     | Mantiene reparto y dice cuánto falta; no confirma                                                                                                 |
+| T7 local cerrado                                                       |     OK     | Informado por el promotor (había `is_open_override = 'true'` por una prueba anterior)                                                             |
+| T10 transferencia                                                      |     OK     | Informado por el promotor; cancelado automático de pagos pendientes corregido (#161)                                                              |
+| T11 reclamo → derivar a una persona                                    |     OK     | Escalación registrada y pausa del agente (120 min)                                                                                                |
+| T13 caducidad del carrito (30 min; 5 min en pruebas)                   |     OK     | Caduca bien; el aviso se da una sola vez y el carrito se puede recuperar (#166–#169). **El aviso previo de 25 min es premium** (decisión abierta) |
+| T12 buffer de Kapso, T14 pausa si escribe el personal                  | Sin probar | El buffer sigue desactivado; el sandbox puede no emitir `business_app`                                                                            |
+
+### Fallos encontrados y corregidos
+
+| #   | Fallo (ejecuciones)                                                                                        | Causa                                                                                                                 | PR   |
+| --- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---- |
+| 1   | Cancelado de transferencias sin pagar no actuaba (hallazgo H1)                                             | Filtraba `pendiente_pago`; los pedidos nacen `recibido` + `estado_pago = pendiente`                                   | #161 |
+| 2   | Sin enlace de seguimiento ni botones (#918, #1050)                                                         | El nodo «Respuesta» leía la herramienta como objeto y n8n la entrega como array JSON                                  | #162 |
+| 3   | Sin pregunta de «escribir dirección / enviar ubicación»                                                    | Modelo pedía la dirección en texto; ahora la API devuelve la pregunta y los botones                                   | #162 |
+| 4   | Productos anunciados sin añadirse; listas parciales; «variedades»; ingredientes vs alérgenos (#1703–#1838) | Modelo anunciaba acciones sin llamar a la herramienta; `buscar_en_carta` limitado a 8; palabras de pregunta puntuaban | #163 |
+| 5   | Botones de enlace («Seguir mi pedido», «Ver la carta»)                                                     | WhatsApp no admite hipervínculos en texto; `cta_url` probado en Kapso (estado «read»)                                 | #163 |
+| 6   | Alitas perdidas; despacho «no indicado» (#2854–#2946)                                                      | Flujo publicado desactualizado y el modelo no guardaba la dirección; el carrito real va ya en cada turno              | #164 |
+| 7   | Pregunta de confirmación con botones de pago; texto suelto junto al botón (#3443–#3552)                    | Faltaba el tipo de opciones `confirmar`; la URL se quitaba sin su frase                                               | #165 |
+| 8   | Carrito caducado perdido en silencio (#3578–#3645)                                                         | El mantenimiento lo cierra antes de que el cliente vuelva y el agente solo veía «sin carrito»                         | #166 |
+| 9   | Aviso de caducidad ignorado por el modelo (#3966–#3980)                                                    | El modelo no obedecía la instrucción: ahora el aviso lo añade el sistema, una sola vez                                | #167 |
+| 10  | «Quiero recuperarlo» → «problema técnico» (#4135) y 503 del contexto (#4211)                               | Se marcaba descartado y el agente olvidaba qué recuperar (migración 0050); la 0050 no se aplicó al desplegar          | #168 |
+| 11  | «Problema técnico» sin error (#4280); resumen de memoria tras caducar (#4361–#4367)                        | Memoria del chat contaminada con errores de pruebas anteriores; el modelo seguía el historial en vez del carrito real | #169 |
+
+### Lecciones
+
+- Lo que el cliente debe saber sí o sí (enlace de seguimiento, aviso de caducidad, «sin carrito») lo escribe el flujo, no se deja a la voluntad del modelo.
+- La memoria del chat conserva errores y el modelo los imita por encima del prompt: el estado real (carrito, despacho) va en cada turno y las respuestas peligrosas se comprueban en «Respuesta».
+- Tras desplegar, comprobar que los flujos publicados coinciden con `main` (`comprobar_publicado.py`) y que la migración quedó aplicada (`konnecttia_migrations`) antes de probar.
+- La batería se hizo con el sandbox; falta repetirla con un número real antes de dar el agente por listo para el cliente.
+
+### Pendiente de decisión o de hacer
+
+1. **Aviso previo de caducidad (25 min):** hoy es del módulo premium `whatsapp.agent_pro` (ADR 0013). Dar el módulo a Arepa's o ajustar la regla 11 de `AGENTS.md`.
+2. **`cart_expiry_minutes` de Arepa's:** volver de 5 a 30 (borrar la fila propia; hereda la plantilla).
+3. **Buffer de mensajes de Kapso** (ventana de 5 s): activarlo y probar T12.
+4. **`nuevo: true`** lo usa el modelo al primer producto (inocuo sin carrito; descartaría uno abierto si se equivoca).
+5. **Número real de Arepa's** (coexistencia o dedicado) en lugar del sandbox, y repetir la batería.
+6. **Datos reales de transferencia** de Arepa's (el propietario los carga en el panel; en las pruebas se usaron datos ficticios).
