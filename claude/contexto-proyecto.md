@@ -135,8 +135,14 @@ presentó un resumen y botones «Sí, confirmar» **de memoria** (el contexto ya
 Arreglo (en el PR #169): «Respuesta» sustituye cualquier resumen o petición de confirmación cuando no hay carrito abierto ni `cambiar_carrito` en el turno: «Tu pedido anterior caducó por inactividad y se vació (tenía: …). ¿Quieres recuperarlo?» con botones «Recuperar pedido» (lo atiende la rama determinista) y «Pedido nuevo»,
 o «Ahora mismo no tienes ningún pedido abierto» si no había nada que recuperar.
 
+### Estado final (20/11/2026)
+
+El agente de WhatsApp funciona de punta a punta con Arepa's Factory en el sandbox de Kapso (canal 2) y el promotor confirmó que la recuperación del carrito caducado va bien. Flujos publicados = `main` (PR #161–#169 fusionados).
+Informe completo de la batería, fallos y causas: sección 8 de [`integrations/n8n/pruebas/arepas-factory-whatsapp.md`](../integrations/n8n/pruebas/arepas-factory-whatsapp.md).
+
 ### Pendiente
 
-- El promotor ejecuta la sección 3.1 del guion (la 4.1 ya está aplicada salvo `agente_pausa_minutos`) en DBeaver, activa el buffer de Kapso y lanza la batería T1–T14.
-- Con los resultados: revisar cada ejecución con el script, comparar con la base y redactar el informe (sección 8 del guion).
-- No he podido comprobar la base desde la sesión (sin acceso): las consultas 2.0–2.5 están pensadas para pegar el resultado.
+Decisiones del promotor (20/11): `whatsapp.agent_pro` para Arepa's (SQL en la sección 9.1 del guion); `cart_expiry_minutes` ya en 30; datos de transferencia de prueba; el número de pruebas de La Isla pasa a Arepa's.
+En marcha (sección 9 del guion): activar el buffer de Kapso (5 s), prueba de concurrencia con `scripts/prueba_concurrencia.py` (5 → 10 → 25 → 50 clientes), alta del número real en Kapso y `canal_whatsapp`, y probar la pausa cuando escribe el personal (T14, solo con coexistencia).
+«[Canal] Entrada Kapso» acepta varios secretos de webhook en `KAPSO_WEBHOOK_SECRET` separados por comas (uno por número de Kapso).
+Vigilar: `nuevo: true` del modelo y la memoria del chat (ventana 12).

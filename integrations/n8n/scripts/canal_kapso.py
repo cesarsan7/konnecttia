@@ -144,22 +144,24 @@ def flujo(ident, nombre, nodos, aristas):
 # --------------------------------------------------------------------------------------
 
 JS_VERIFICAR_FIRMA = r"""// Kapso firma el cuerpo crudo con HMAC-SHA256 (hex) en X-Webhook-Signature.
-// El secreto va en la variable de entorno KAPSO_WEBHOOK_SECRET del servicio n8n (no en el flujo).
+// Los secretos van en la variable de entorno KAPSO_WEBHOOK_SECRET del servicio n8n (no en el flujo): uno por
+// número de Kapso, separados por comas (cada webhook de Kapso trae el suyo). Vale cualquiera de ellos.
 const crypto = require('crypto');
 const entrada = $input.first();
 const cabeceras = entrada.json.headers || {};
 const cab = (n) => cabeceras[n] ?? cabeceras[n.toLowerCase()];
-const secreto = $env.KAPSO_WEBHOOK_SECRET;
-if (!secreto) throw new Error('Falta KAPSO_WEBHOOK_SECRET en el entorno de n8n');
+const secretos = String($env.KAPSO_WEBHOOK_SECRET || '').split(',').map((x) => x.trim()).filter(Boolean);
+if (!secretos.length) throw new Error('Falta KAPSO_WEBHOOK_SECRET en el entorno de n8n');
 
 const crudo = await this.helpers.getBinaryDataBuffer(0, 'data');
 const firma = String(cab('x-webhook-signature') || '').replace(/^sha256=/, '');
-const esperada = crypto.createHmac('sha256', secreto).update(crudo).digest('hex');
 let valida = false;
 try {
   const a = Buffer.from(firma, 'hex');
-  const b = Buffer.from(esperada, 'hex');
-  valida = a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
+  valida = secretos.some((secreto) => {
+    const b = Buffer.from(crypto.createHmac('sha256', secreto).update(crudo).digest('hex'), 'hex');
+    return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
+  });
 } catch (e) {
   valida = false;
 }

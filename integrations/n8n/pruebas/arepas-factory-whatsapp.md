@@ -305,7 +305,146 @@ WHERE  telefono = '+16314662990' ORDER BY restaurante_id;
 - **H5 · Mínimo de reparto de 30 €** con productos de 3 a 7,50 €: el reparto exige un pedido grande (6 arepas). Es el
   dato del seed, no un fallo; confirmar con el cliente antes de enseñárselo.
 
-## 8. Informe de resultados
+## 8. Informe de resultados (cerrado el 20/11/2026)
 
-Se rellena tras las pruebas con `revisar_ejecuciones.py` y las consultas de la base: una fila por prueba con
-OK / FALLA, ejecución de n8n (#), lo que respondió y lo que debía responder. Pendiente de ejecutar las pruebas.
+Pruebas hechas por el promotor desde el teléfono de pruebas del sandbox de Kapso (canal 2 → Arepa's Factory). Las ejecuciones se revisaron con
+`revisar_ejecuciones.py` y la API de n8n. Estado final: **el agente funciona de punta a punta**; los flujos publicados coinciden con `main`
+(`comprobar_publicado.py`, ✓ en los cuatro).
+
+| Prueba                                                                 | Resultado | Notas                                                                                                                                             |
+| ---------------------------------------------------------------------- | :-------: | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T1 saludo («Soy el agente de pedidos del restaurante Arepa's Factory») |    OK     | `restaurante_id = 2`, canal 2                                                                                                                     |
+| T2 carta / ingredientes                                                |    OK     | Enlace como botón «Ver la carta»; ingredientes con la descripción de la carta; alérgenos solo con la nota (#162–#165)                             |
+| T3 recogida, T8 efectivo, T9 tarjeta                                   |    OK     | Pedidos creados con `restaurante_id = 2`; botones de confirmar «Sí, confirmar» / «Cambiar algo» (#165)                                            |
+| T4 reparto dentro de zona                                              |    OK     | Dirección escrita guardada con `elegir_despacho`; envío 2 € y 30 min (#164)                                                                       |
+| T5 reparto fuera de zona                                               |    OK     | Informado por el promotor                                                                                                                         |
+| T6 mínimo de reparto no alcanzado                                      |    OK     | Mantiene reparto y dice cuánto falta; no confirma                                                                                                 |
+| T7 local cerrado                                                       |    OK     | Informado por el promotor (había `is_open_override = 'true'` por una prueba anterior)                                                             |
+| T10 transferencia                                                      |    OK     | Informado por el promotor; cancelado automático de pagos pendientes corregido (#161)                                                              |
+| T11 reclamo → derivar a una persona                                    |    OK     | Escalación registrada y pausa del agente (120 min)                                                                                                |
+| T13 caducidad del carrito (30 min; 5 min en pruebas)                   |    OK     | Caduca bien; el aviso se da una sola vez y el carrito se puede recuperar (#166–#169). **El aviso previo de 25 min es premium** (decisión abierta) |
+| T11b pausa del agente tras derivar                                     |    OK     | Informado por el promotor: tras reportar una incidencia el agente deja de contestar el tiempo configurado (`agente_pausa_derivar_minutos`)        |
+| T12 varios mensajes seguidos (buffer de Kapso)                         | Pendiente | El buffer sigue apagado; el flujo ya une los lotes (probado con el nodo real). Ver sección 9                                                      |
+| T14 pausa cuando escribe el personal desde su app                      | Pendiente | Solo se puede probar con un número real en modo coexistencia (el sandbox no emite `business_app`). Ver sección 9                                  |
+
+### Fallos encontrados y corregidos
+
+| #   | Fallo (ejecuciones)                                                                                        | Causa                                                                                                                 | PR   |
+| --- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---- |
+| 1   | Cancelado de transferencias sin pagar no actuaba (hallazgo H1)                                             | Filtraba `pendiente_pago`; los pedidos nacen `recibido` + `estado_pago = pendiente`                                   | #161 |
+| 2   | Sin enlace de seguimiento ni botones (#918, #1050)                                                         | El nodo «Respuesta» leía la herramienta como objeto y n8n la entrega como array JSON                                  | #162 |
+| 3   | Sin pregunta de «escribir dirección / enviar ubicación»                                                    | Modelo pedía la dirección en texto; ahora la API devuelve la pregunta y los botones                                   | #162 |
+| 4   | Productos anunciados sin añadirse; listas parciales; «variedades»; ingredientes vs alérgenos (#1703–#1838) | Modelo anunciaba acciones sin llamar a la herramienta; `buscar_en_carta` limitado a 8; palabras de pregunta puntuaban | #163 |
+| 5   | Botones de enlace («Seguir mi pedido», «Ver la carta»)                                                     | WhatsApp no admite hipervínculos en texto; `cta_url` probado en Kapso (estado «read»)                                 | #163 |
+| 6   | Alitas perdidas; despacho «no indicado» (#2854–#2946)                                                      | Flujo publicado desactualizado y el modelo no guardaba la dirección; el carrito real va ya en cada turno              | #164 |
+| 7   | Pregunta de confirmación con botones de pago; texto suelto junto al botón (#3443–#3552)                    | Faltaba el tipo de opciones `confirmar`; la URL se quitaba sin su frase                                               | #165 |
+| 8   | Carrito caducado perdido en silencio (#3578–#3645)                                                         | El mantenimiento lo cierra antes de que el cliente vuelva y el agente solo veía «sin carrito»                         | #166 |
+| 9   | Aviso de caducidad ignorado por el modelo (#3966–#3980)                                                    | El modelo no obedecía la instrucción: ahora el aviso lo añade el sistema, una sola vez                                | #167 |
+| 10  | «Quiero recuperarlo» → «problema técnico» (#4135) y 503 del contexto (#4211)                               | Se marcaba descartado y el agente olvidaba qué recuperar (migración 0050); la 0050 no se aplicó al desplegar          | #168 |
+| 11  | «Problema técnico» sin error (#4280); resumen de memoria tras caducar (#4361–#4367)                        | Memoria del chat contaminada con errores de pruebas anteriores; el modelo seguía el historial en vez del carrito real | #169 |
+
+### Lecciones
+
+- Lo que el cliente debe saber sí o sí (enlace de seguimiento, aviso de caducidad, «sin carrito») lo escribe el flujo, no se deja a la voluntad del modelo.
+- La memoria del chat conserva errores y el modelo los imita por encima del prompt: el estado real (carrito, despacho) va en cada turno y las respuestas peligrosas se comprueban en «Respuesta».
+- Tras desplegar, comprobar que los flujos publicados coinciden con `main` (`comprobar_publicado.py`) y que la migración quedó aplicada (`konnecttia_migrations`) antes de probar.
+- La batería se hizo con el sandbox; falta repetirla con un número real antes de dar el agente por listo para el cliente.
+
+### Decisiones del promotor (20/11/2026)
+
+1. **Aviso previo de caducidad (25 min):** se da el módulo premium `whatsapp.agent_pro` a Arepa's.
+2. **`cart_expiry_minutes`** de Arepa's: vuelto a 30 (hecho).
+3. **Buffer de Kapso y concurrencia:** se activa el buffer y se prepara una prueba de concurrencia (sección 9).
+4. **Número real:** el número de pruebas que usaba La Isla (versión obsoleta) pasa a ser el de Arepa's Factory; La Isla se montará más adelante en este entorno.
+5. **Datos de transferencia:** se siguen usando datos de prueba.
+
+## 9. Siguientes pasos
+
+### 9.1 Premium para Arepa's (aviso de caducidad a los 25 min)
+
+```sql
+INSERT INTO public.restaurante_modulo (restaurante_id, modulo_code, origen)
+VALUES (2, 'whatsapp.agent_pro', 'cortesia')
+ON CONFLICT (restaurante_id, modulo_code) DO UPDATE SET estado = 'activo', updated_at = now();
+```
+
+El módulo activa tres parámetros que Arepa's hereda de la plantilla: `cart_warning_minutes` (5: el aviso sale a los 25 min de inactividad con
+caducidad a 30), `pedido_pago_pendiente_expira_minutos` (60: los pedidos por transferencia sin pagar ni justificante se cancelan a la hora; con
+datos de prueba, tenerlo en cuenta) y `agente_notif_estados` (plantilla `[]`: no avisa de cambios de estado hasta que se rellene). Para avisar al
+cliente de los estados del pedido:
+
+```sql
+INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
+VALUES (2, 'agente_notif_estados', '["confirmado","en_preparacion","listo","en_camino","entregado","cancelado"]')
+ON CONFLICT (config_key, restaurante_id) DO UPDATE SET config_value = EXCLUDED.config_value;
+```
+
+Probar el aviso sin esperar 25 min: `cart_expiry_minutes = 10` y `cart_warning_minutes = 5` (aviso a los 5 min), y luego borrar las dos filas para volver a la plantilla (30 y 5).
+Solo llega si el cliente escribió hace menos de 24 h (ventana de WhatsApp).
+
+### 9.2 Buffer de mensajes de Kapso
+
+El flujo «[Canal] Entrada Kapso» ya une en un solo mensaje, y en orden, los mensajes de un mismo cliente que llegan juntos en un lote
+(`batch`), y toma la última ubicación (probado con el nodo real: 3 mensajes → 1). Falta activarlo en Kapso:
+
+1. Kapso → el número (sandbox o real) → _Webhooks_ → el webhook de n8n (`…/webhook/kapso-entrada`) → editar.
+2. Activar **Buffer** con ventana de **5 segundos** y eventos `whatsapp.message.received`. Dejar `whatsapp.message.sent` como evento normal (no se agrupa).
+3. Probar con un mensaje partido en tres envíos rápidos («Quiero» / «2 arepas» / «para recoger»): debe haber **una** ejecución del Director y **una** respuesta.
+
+Efecto en la concurrencia: sin buffer, dos mensajes seguidos del mismo cliente corren dos ejecuciones a la vez y pueden pisarse (pasó con las herramientas en
+paralelo, #1766). Con buffer, cada cliente tiene como mucho una ejecución por ventana.
+
+### 9.3 Prueba de concurrencia
+
+`integrations/n8n/scripts/prueba_concurrencia.py` simula N clientes ficticios (teléfonos +1 555 555 01xx) que escriben a la vez al número de un restaurante
+del staging: manda webhooks firmados como los de Kapso a «[Canal] Entrada Kapso» y después lee las ejecuciones de n8n (solo lectura). Mide el tiempo del
+Director (p50, p95 y máximo), errores, «respuesta sin servicio», cruces de conversación (el teléfono del mensaje debe ser el del contexto de la API) y
+clientes sin atender. No escribe a nadie: las respuestas a esos teléfonos fallan en Kapso (esperado). Por defecto la conversación acaba en el resumen con los
+botones de confirmar, sin crear pedidos (`--hasta-pedido` los crea). Gasta modelo de OpenAI (unos 6.000 tokens por turno).
+
+```powershell
+$env:N8N_URL = "https://n8n.staging.konnecttia.com"
+$env:KAPSO_WEBHOOK_SECRET = "<secreto del webhook de Kapso>"
+$env:N8N_API_KEY = "<clave de la API de n8n>"
+$env:PHONE_NUMBER_ID = "<phone_number_id del número de Kapso>"
+python integrations/n8n/scripts/prueba_concurrencia.py --clientes 5 --confirmar
+python integrations/n8n/scripts/prueba_concurrencia.py --clientes 25 --confirmar
+python integrations/n8n/scripts/prueba_concurrencia.py --clientes 10 --rafaga --confirmar   # con el buffer activado
+```
+
+Escalera recomendada: 5 → 10 → 25 → 50 clientes. Criterio de «pasa»: 0 errores, 0 cruces, todos los clientes atendidos y p95 del Director por debajo de ~20 s.
+Limpieza de los datos de prueba:
+
+```sql
+DELETE FROM public.agente_carrito WHERE telefono LIKE '+155555501%';
+DELETE FROM public.whatsapp_conversacion WHERE telefono LIKE '+155555501%';
+```
+
+Los cuellos de botella esperables, por orden: límite de peticiones por minuto del modelo de OpenAI, las conexiones de la credencial `staging_postgres`
+de n8n, y los recursos del contenedor de n8n (un solo proceso en este staging). Si algo de eso falla, la prueba lo deja en el informe de errores.
+
+### 9.4 Pasar de sandbox a un número real (el número de pruebas de La Isla)
+
+La versión de La Isla en el entorno antiguo queda obsoleta; su número pasa a Arepa's Factory en Kapso. Pasos (los marcados «por confirmar» no los he podido
+comprobar: no tengo acceso a la documentación de Kapso desde la sesión):
+
+1. **Apagar lo viejo.** Desactivar los flujos del staging antiguo (`n8nlearning`) y, en la app de Meta «chatwoot», dejar de suscribir el campo de mensajes del número,
+   para que no conteste nadie más (dos agentes en el mismo número = respuestas dobles).
+2. **Conectar el número a Kapso** con el enlace de alta (cliente de Kapso con `external_customer_id` = 2): modo **dedicado** (más estable) o **coexistencia** si el
+   número se sigue usando en la app de WhatsApp Business (necesario para probar la pausa cuando escribe el personal, T14). Por confirmar: si Meta exige liberar el número de la
+   integración anterior antes de añadirlo.
+3. **Webhook del número nuevo** en Kapso: misma URL de n8n, formato v2, eventos `whatsapp.message.received` y `whatsapp.message.sent`, buffer de 5 s.
+   Cada webhook trae **su propio secreto**: añadirlo a `KAPSO_WEBHOOK_SECRET` del servicio n8n **separado por comas** (el flujo ya acepta varios) y redesplegar n8n.
+4. **Base de datos** (con el `phone_number_id` y el número que da Kapso):
+
+```sql
+INSERT INTO public.canal_whatsapp (restaurante_id, sucursal_id, proveedor, phone_number_id, numero_e164, modo_conexion, estado)
+VALUES (2, NULL, 'kapso', '<phone_number_id>', '<+número en E.164>', 'dedicado', 'activo');  -- o 'coexistencia'
+```
+
+El canal del sandbox (id 2) puede quedarse para pruebas (o `UPDATE … SET estado = 'pausado'`). Los módulos y `agente_activo` son del restaurante, no del canal: ya están.
+5. **Probar** con tu móvil: «Hola» debe contestar «Soy el agente de pedidos del restaurante Arepa's Factory». Después repetir la batería y la prueba de concurrencia en el número real.
+6. **Meta:** el nombre visible («Arepa's Factory») necesita aprobación; sin verificación del negocio hay límite de conversaciones iniciadas por la empresa. Los avisos fuera de la ventana de
+24 h (estados del pedido, aviso de carrito) requieren **plantillas aprobadas**: hoy el flujo no las usa y no envía fuera de la ventana. Un número de EE. UU. para clientes de Lanzarote
+funciona en pruebas, pero para producción conviene un número español (coexistencia con el WhatsApp Business del propio restaurante).
+7. Clientes que solo llegan con identificador de usuario (BSUID, sin teléfono): hoy no se atienden (el pedido necesita teléfono).
