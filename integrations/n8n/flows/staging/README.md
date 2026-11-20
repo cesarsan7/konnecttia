@@ -45,7 +45,8 @@ falta Redis** (el buffer de mensajes lo hace Kapso, ADR 0012) **ni Chatwoot**. V
   propia en el volumen y luego da «Mismatching encryption keys»);
 - `NODE_FUNCTION_ALLOW_BUILTIN=crypto`: firma de los webhooks de Kapso;
 - `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` y `KAPSO_WEBHOOK_SECRET=<secreto del webhook de Kapso>`: el
-  flujo «[Canal] Entrada Kapso» lee el secreto con `$env` (n8n lo bloquea por defecto). Alternativa
+  flujo «[Canal] Entrada Kapso» lee el secreto con `$env` (n8n lo bloquea por defecto). Con varios números de Kapso, cada webhook trae su propio secreto: se
+  pasan todos en la misma variable, separados por comas. Alternativa
   si no se quiere abrir `$env`: guardar el secreto en una credencial y verificar con un nodo propio.
 
 Nodo de comunidad `@kapso/n8n-nodes-kapso` instalado desde _Settings → Community nodes_.
