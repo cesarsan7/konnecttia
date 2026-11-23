@@ -371,3 +371,32 @@ BEGIN
   DELETE FROM public.canal_whatsapp WHERE restaurante_id IN (9001, 9002);
   DELETE FROM public.sucursal WHERE id = v_suc_b;
 END $$;
+
+-- Valores iniciales de configuración (0051): un restaurante nuevo nace con las claves de
+-- config_clave.valor_inicial (modo ocupado), sin tocar las de otro restaurante.
+INSERT INTO public.restaurante (id, nombre, slug) OVERRIDING SYSTEM VALUE VALUES (9004, 'Restaurante D', 'test-d');
+DO $$
+DECLARE v_esperadas int; v_tiene int;
+BEGIN
+  SELECT count(*) INTO v_esperadas FROM public.config_clave WHERE valor_inicial IS NOT NULL AND estado = 'activa';
+  SELECT count(*) INTO v_tiene
+  FROM   public.restaurante_config rc
+  JOIN   public.config_clave c ON c.clave = rc.config_key AND c.valor_inicial IS NOT NULL AND c.estado = 'activa'
+  WHERE  rc.restaurante_id = 9004 AND rc.config_value = c.valor_inicial;
+  IF v_esperadas < 2 OR v_tiene <> v_esperadas THEN
+    RAISE EXCEPTION 'FALLO: restaurante nuevo sin sus valores iniciales de configuración (% de %)', v_tiene, v_esperadas;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.restaurante_config
+    WHERE restaurante_id = 9004 AND config_key = 'modo_ocupado_opciones' AND config_value = '[10, 20, 30]'
+  ) THEN
+    RAISE EXCEPTION 'FALLO: el restaurante nuevo no tiene modo_ocupado_opciones, el tablero no mostraría el botón';
+  END IF;
+  -- Un valor que el restaurante cambie después no se pisa al repetir el alta de la clave.
+  UPDATE public.restaurante_config SET config_value = '[5]' WHERE restaurante_id = 9004 AND config_key = 'modo_ocupado_opciones';
+  INSERT INTO public.restaurante_config (restaurante_id, config_key, config_value)
+  VALUES (9004, 'modo_ocupado_opciones', '[99]') ON CONFLICT (config_key, restaurante_id) DO NOTHING;
+  IF (SELECT config_value FROM public.restaurante_config WHERE restaurante_id = 9004 AND config_key = 'modo_ocupado_opciones') <> '[5]' THEN
+    RAISE EXCEPTION 'FALLO: se pisó un valor propio del restaurante';
+  END IF;
+END $$;
