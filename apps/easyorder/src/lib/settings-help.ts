@@ -102,7 +102,8 @@ export const SETTINGS_HELP = {
       para: "Los datos que ve el cliente para pagar por transferencia o Bizum.",
       como: "Se muestran tal cual en la pantalla de confirmación. El concepto ayuda a identificar el pedido en tu banco.",
       ejemplo: "Concepto: «Tu nombre y el código del pedido», para casar cada pago con su pedido.",
-      cuidado: "Revisa el IBAN dos veces: un error lo verán todos los clientes.",
+      cuidado:
+        "Revisa el IBAN dos veces: un error lo verán todos los clientes. Solo se valida si la transferencia está activa; si la desactivas, los datos guardados se conservan y no bloquean otros ajustes.",
     },
   ],
   tiempos: [
