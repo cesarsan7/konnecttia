@@ -17,6 +17,7 @@ import { STATUS_LABEL } from "@/lib/panel/orders";
 import {
   type BankDetails,
   type BranchSettings,
+  bankDetailsToSend,
   copyDayToAll,
   type Day,
   dayLabel,
@@ -944,13 +945,12 @@ function OrdersSection({ data, editable, save, patch }: SectionProps) {
       concepto: nullIfEmpty(concepto),
       bizum: nullIfEmpty(bizum),
     };
-    const hasDetails = Object.values(details).some(Boolean);
     return save(
       patch({
         recogida,
         reparto,
         metodos_pago: metodos,
-        datos_bancarios: hasDetails ? details : null,
+        datos_bancarios: bankDetailsToSend(metodos, details),
         recogida_minutos: times[0],
         reparto_minutos_min: times[1],
         reparto_minutos_max: times[2],

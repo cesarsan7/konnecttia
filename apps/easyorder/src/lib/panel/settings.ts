@@ -333,3 +333,16 @@ export function zoneErrorMessage(reason: string | undefined): string {
     settingsErrorMessage(undefined)
   );
 }
+
+/**
+ * Datos de pago que se mandan al guardar «Pedidos y pago». Si ningún método activo los usa
+ * (transferencia o Bizum) devuelve `undefined`: no se envían y se conservan los guardados, para
+ * que un IBAN viejo que ya no se ve en pantalla no bloquee el guardado de otros ajustes.
+ */
+export function bankDetailsToSend(
+  methods: readonly string[],
+  details: { readonly [K in keyof BankDetails]?: string | null },
+): typeof details | null | undefined {
+  if (!methods.includes("transferencia") && !methods.includes("bizum")) return undefined;
+  return Object.values(details).some(Boolean) ? details : null;
+}
