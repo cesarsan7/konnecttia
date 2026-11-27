@@ -418,6 +418,15 @@ describe.skipIf(!TEST_DATABASE_URL)("panel interno de Konnecttia (/plataforma)",
         WHERE restaurante_id = ${id} AND config_key = 'pickup_eta_minutes'
       `;
       expect(config?.config_value).toBe("30");
+      // El restaurante nuevo nace con el modo ocupado listo (valor_inicial de config_clave, 0051).
+      const busy = await ctx.sql<{ config_key: string; config_value: string }[]>`
+        SELECT config_key, config_value FROM public.restaurante_config
+        WHERE restaurante_id = ${id} AND config_key LIKE 'modo_ocupado_%' ORDER BY config_key
+      `;
+      expect(busy).toEqual([
+        { config_key: "modo_ocupado_duracion_minutos", config_value: "60" },
+        { config_key: "modo_ocupado_opciones", config_value: "[10, 20, 30]" },
+      ]);
       const [log] = await ctx.sql<{ detalle: { completo: Record<string, unknown> } }[]>`
         SELECT detalle FROM public.auditoria
         WHERE restaurante_id = ${id} AND accion = 'plataforma.restaurante.crear'

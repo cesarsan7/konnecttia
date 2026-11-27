@@ -148,7 +148,12 @@ describe.skipIf(!TEST_DATABASE_URL)("borrar y clonar restaurantes desde /interno
       });
       const config = await ctx.sql`
         SELECT config_key FROM public.restaurante_config WHERE restaurante_id = ${id}`;
-      expect(config.map((row) => row.config_key)).toEqual(["pickup_eta_minutes"]);
+      // Lo clonado más los valores iniciales con los que nace todo restaurante (0051).
+      expect(config.map((row) => row.config_key).sort()).toEqual([
+        "modo_ocupado_duracion_minutos",
+        "modo_ocupado_opciones",
+        "pickup_eta_minutes",
+      ]);
 
       // El origen no cambia.
       const [origin] = await ctx.sql<{ total: number }[]>`

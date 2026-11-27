@@ -207,7 +207,11 @@ describe.skipIf(!TEST_DATABASE_URL)("panel del restaurante", () => {
       });
       expect(notOffered.status).toBe(400);
 
-      // B no tiene la configuración: el panel no ofrece el botón y la API lo rechaza.
+      // Sin la configuración (todo restaurante nuevo nace con ella, 0051; aquí se quita a B): el
+      // panel no ofrece el botón y la API lo rechaza.
+      await ctx.sql`
+        DELETE FROM public.restaurante_config
+        WHERE restaurante_id = 102 AND config_key LIKE 'modo_ocupado_%'`;
       const basic = await ctx.app.request("/panel/prueba-b/acceso", { headers: auth("ownerB") });
       const basicBody = (await basic.json()) as { ajustes: { modo_ocupado: unknown } };
       expect(basicBody.ajustes.modo_ocupado).toBeNull();
