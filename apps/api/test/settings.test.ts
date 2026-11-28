@@ -110,6 +110,27 @@ describe.skipIf(!TEST_DATABASE_URL)("ajustes del restaurante", () => {
       });
     });
 
+    it("un IBAN viejo e inválido no bloquea guardar si la transferencia ya no está activa", async () => {
+      const path = "/panel/prueba-a/ajustes/restaurante";
+      await ctx.sql`
+        UPDATE public.restaurante
+        SET payment_methods = '["efectivo","tarjeta"]'::jsonb,
+            datos_bancarios = '{"iban":"ES00 MAL","titular":"Ana"}'::jsonb
+        WHERE id = 101
+      `;
+      // Guardar otro ajuste sin tocar el pago.
+      expect((await call("ownerA", "PATCH", path, { recogida_minutos: 25 })).status).toBe(200);
+      // La web reenvía los datos bancarios guardados: con la transferencia apagada tampoco bloquean.
+      const resend = await call("ownerA", "PATCH", path, {
+        metodos_pago: ["efectivo", "tarjeta"],
+        datos_bancarios: { iban: "ES00 MAL", titular: "Ana" },
+      });
+      expect(resend.status).toBe(200);
+      // Si se activa la transferencia, el IBAN inválido sí se rechaza.
+      const on = await call("ownerA", "PATCH", path, { metodos_pago: ["transferencia"] });
+      expect(on.body.reason).toBe("invalid_iban");
+    });
+
     it("rechaza «online» (aún no hay pasarela) y quedarse sin servicio", async () => {
       const path = "/panel/prueba-a/ajustes/restaurante";
       expect((await call("ownerA", "PATCH", path, { metodos_pago: ["online"] })).status).toBe(400);

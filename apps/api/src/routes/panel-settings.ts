@@ -15,6 +15,7 @@ import {
   isValidIban,
   normalizeHex,
   ORDER_STATUS,
+  PAYMENT_METHOD,
   PAYMENT_METHODS,
   parseBoardSounds,
   parseSocialLinks,
@@ -574,7 +575,12 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
                 Object.entries(body.datos_bancarios).filter(([, value]) => value),
               ) as BankDetails)
           : (current.datos_bancarios as BankDetails | null);
-      if (bank?.iban && !isValidIban(bank.iban))
+      // Métodos que quedarán activos: el IBAN solo importa si la transferencia sigue activa. Un IBAN
+      // viejo e inválido de un local que ya no cobra por transferencia no debe bloquear otros ajustes.
+      const finalMethods =
+        body.metodos_pago ??
+        enabledPaymentMethods(current.payment_methods, current.metodos_pago_permitidos);
+      if (finalMethods.includes(PAYMENT_METHOD.Transfer) && bank?.iban && !isValidIban(bank.iban))
         return invalid(c, "datos_bancarios.iban", "invalid_iban");
       if (body.metodos_pago !== undefined) {
         // Konnecttia fija qué métodos puede activar cada restaurante (pieza K).
@@ -587,10 +593,7 @@ export function registerSettingsRoutes(app: Hono<AppEnv>, deps: AppDeps) {
         }
       }
       if (body.metodos_pago !== undefined || body.datos_bancarios !== undefined) {
-        const methods =
-          body.metodos_pago ??
-          enabledPaymentMethods(current.payment_methods, current.metodos_pago_permitidos);
-        const problem = checkPaymentSetup(methods, bank);
+        const problem = checkPaymentSetup(finalMethods, bank);
         if (problem) return invalid(c, "metodos_pago", problem);
       }
       const social =
