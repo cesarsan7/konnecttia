@@ -16,7 +16,7 @@
     "@konnecttia/domain": "workspace:*",
     "@konnecttia/notifications": "workspace:*",
     "@supabase/supabase-js": "^2.119.0",
-    "hono": "^4.13.18",
+    "hono": "^4.13.22",
     "postgres": "^4.1.0",
     "web-push": "^4.0.0",
     "zod": "^4.1.0"
