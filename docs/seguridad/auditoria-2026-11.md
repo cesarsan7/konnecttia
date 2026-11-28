@@ -40,17 +40,17 @@ revisar a mano.
 ## Para revisar a mano (servidor y servicios)
 
 - [ ] **EasyPanel / proxy:** HTTPS forzado en todos los dominios; la cabecera `X-Real-Ip` llega a la
-  API con la IP real del cliente; el panel de EasyPanel no es accesible sin contraseña fuerte y
-  2FA.
+      API con la IP real del cliente; el panel de EasyPanel no es accesible sin contraseña fuerte y
+      2FA.
 - [ ] **PostgreSQL:** el puerto 5432 no está expuesto a internet; usuarios distintos para la API,
-  n8n y migraciones, cada uno con los permisos que necesita.
+      n8n y migraciones, cada uno con los permisos que necesita.
 - [ ] **Copias de seguridad:** copia diaria de la base, fuera del VPS, y una restauración probada.
 - [ ] **Supabase Auth:** confirmación de email activada; contraseñas de al menos 8 caracteres;
-  Redirect URLs solo con los dominios del panel; límites de envío de emails.
+      Redirect URLs solo con los dominios del panel; límites de envío de emails.
 - [ ] **Supabase Storage:** el bucket de fotos de la carta es público (debe serlo); los de
-  justificantes y documentos, privados.
+      justificantes y documentos, privados.
 - [ ] **Claves:** `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY` y las de n8n solo en variables de
-  EasyPanel; rotarlas si alguna se ha compartido por chat o correo.
+      EasyPanel; rotarlas si alguna se ha compartido por chat o correo.
 - [ ] **VPS:** actualizaciones de seguridad automáticas, acceso SSH solo con clave, cortafuegos
-  con los puertos 80/443 (y SSH) abiertos.
+      con los puertos 80/443 (y SSH) abiertos.
 - [ ] **n8n y Chatwoot:** usuarios con contraseña fuerte y 2FA; webhooks de n8n con secreto.
